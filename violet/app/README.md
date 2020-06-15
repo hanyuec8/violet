@@ -1,7 +1,4 @@
 # Violet Flutter App
-
-![](1.gif) ![](2.gif)
-
 ## Development
 
 ### 1. Image Caching
