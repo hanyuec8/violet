@@ -40,7 +40,6 @@ class _SearchFilterState extends State<SearchFilter> {
   @override
   void initState() {
     super.initState();
-    // Future.delayed(Duration(milliseconds: 50)).then((value) {
     Map<String, int> tags = Map<String, int>();
     widget.queryResult.forEach((element) {
       if (element.tags() != null) {
@@ -90,8 +89,6 @@ class _SearchFilterState extends State<SearchFilter> {
     });
     widget.groups.sort((a, b) => b.item2.compareTo(a.item2));
     widget.tags.sort((a, b) => b.item3.compareTo(a.item3));
-    // setState(() {});
-    // });
   }
 
   void append(String group, String vv) {
