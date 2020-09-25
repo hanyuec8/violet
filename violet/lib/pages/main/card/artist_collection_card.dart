@@ -79,7 +79,7 @@ class _ArtistCollectionCarddState extends State<ArtistCollectionCard>
                   boxShadow: [
                     BoxShadow(
                       blurRadius: 8,
-                      offset: Offset(0, 15),
+                      offset: Offset(0, 8),
                       color: Gradients.coldLinear.colors.first.withOpacity(.3),
                       spreadRadius: -9,
                     ),
@@ -91,34 +91,38 @@ class _ArtistCollectionCarddState extends State<ArtistCollectionCard>
                     child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          SizedBox(
-                            width: 50,
-                            height: 50,
-                            child: Transform.translate(
-                              offset: Offset(-20, -20),
-                              child: Transform.scale(
-                                scale: 3.8,
-                                child: Center(
-                                  child: Lottie.asset(
-                                    'assets/lottie/28446-floward-gift-box.json',
-                                  ),
-                                ),
+                          // SizedBox(
+                          //   width: 50,
+                          //   height: 50,
+                          //   child: Transform.translate(
+                          //     offset: Offset(-10, -20),
+                          //     child: Transform.scale(
+                          //       scale: 3.8,
+                          //       child: Center(
+                          //         child: Lottie.asset(
+                          //           'assets/lottie/28446-floward-gift-box.json',
+                          //         ),
+                          //       ),
+                          //     ),
+                          //   ),
+                          //   // Icon(
+                          //   //   MdiIcons.group,
+                          //   //   color: Colors.white,
+                          //   //   size: 30,
+                          //   // ),
+                          // ),
+                          Transform.translate(
+                            // offset: Offset(-5, -0),
+                            offset: Offset(-0, -0),
+                            child: Padding(
+                              padding: EdgeInsets.only(top: 4),
+                              child: Text(
+                                'Collection!',
+                                style: TextStyle(
+                                    fontFamily: "Calibre-Semibold",
+                                    fontSize: 18,
+                                    color: Colors.white),
                               ),
-                            ),
-                            // Icon(
-                            //   MdiIcons.group,
-                            //   color: Colors.white,
-                            //   size: 30,
-                            // ),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.only(top: 4),
-                            child: Text(
-                              'Artists Collection!',
-                              style: TextStyle(
-                                  fontFamily: "Calibre-Semibold",
-                                  fontSize: 18,
-                                  color: Colors.white),
                             ),
                           ),
                         ]),
