@@ -49,7 +49,9 @@ class _CommunityPageState extends State<CommunityPage>
         setState(() {
           _logining = true;
         });
-        sess = await VioletCommunitySession.signIn(id, pw);
+        sess = VioletCommunitySession.lastSession != null
+            ? VioletCommunitySession.lastSession
+            : await VioletCommunitySession.signIn(id, pw);
         _userNickName =
             (await VioletCommunitySession.getUserInfo(id))['NickName'];
         setState(() {
