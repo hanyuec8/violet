@@ -52,7 +52,8 @@ class _LabRecentRecordsState extends State<LabRecentRecords> {
         isTop = false;
     });
 
-    Future.delayed(Duration(milliseconds: 100)).then(updateRercord);
+    Future.delayed(Duration(milliseconds: 100)).then(updateRercord).then(
+        (value) => _controller.jumpTo(_controller.position.maxScrollExtent));
     timer = Timer.periodic(Duration(seconds: 1), updateRercord);
   }
 
