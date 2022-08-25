@@ -1,4 +1,4 @@
-module violet-batch
+module violet-batch-app-viewtime-daily-count
 
 go 1.18
 
