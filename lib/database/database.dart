@@ -33,9 +33,19 @@ class DataBaseManager {
       if (Platform.environment.containsKey('FLUTTER_TEST')) {
         dbPath = join(Directory.current.path, 'test/db/data.db');
       } else {
-        dbPath = Platform.isAndroid
-            ? '${(await getApplicationDocumentsDirectory()).path}/data/data.db'
-            : '${await getDatabasesPath()}/data.db';
+        if(Platform.isAndroid || Platform.isIOS){
+          dbPath = Platform.isAndroid
+              ? '${(await getApplicationDocumentsDirectory()).path}/data/data.db'
+              : '${await getDatabasesPath()}/data.db';
+        } else if(Platform.isLinux){
+          var home = '';
+          Platform.environment.forEach((key, value) {
+            if(key == 'HOME'){
+              home = value;
+            }
+          });
+          dbPath = '${home}/.violet/data.db';
+        }
       }
       _instance = create(dbPath);
       await _instance!.open();
@@ -46,7 +56,6 @@ class DataBaseManager {
   static Future<void> reloadInstance() async {
     final db = _instance?.db;
     _instance?.db = null;
-    await db?.close();
   }
 
   Future<void> open() async {
