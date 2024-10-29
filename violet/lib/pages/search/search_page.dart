@@ -25,7 +25,7 @@ import 'package:violet/locale/locale.dart' as trans;
 import 'package:violet/log/log.dart';
 import 'package:violet/model/article_list_item.dart';
 import 'package:violet/other/dialogs.dart';
-import 'package:violet/pages/main/info/lab/search_message.dart';
+import 'package:violet/pages/lab/lab/search_message.dart';
 import 'package:violet/pages/search/search_bar_page.dart';
 import 'package:violet/pages/search/search_page_controller.dart';
 import 'package:violet/pages/search/search_page_modify.dart';

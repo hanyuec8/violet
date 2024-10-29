@@ -40,13 +40,13 @@ import 'package:violet/pages/after_loading/afterloading_page.dart';
 import 'package:violet/pages/common/toast.dart';
 import 'package:violet/pages/community/user_status_card.dart';
 import 'package:violet/pages/database_download/database_download_page.dart';
-import 'package:violet/pages/main/artist_collection/artist_collection_page.dart';
-import 'package:violet/pages/main/faq/faq_page.dart';
-import 'package:violet/pages/main/info/lab/global_comments.dart';
-import 'package:violet/pages/main/info/lab/recent_record_u.dart';
-import 'package:violet/pages/main/info/lab_page.dart';
-import 'package:violet/pages/main/info/user_manual_page.dart';
-import 'package:violet/pages/main/patchnote/patchnote_page.dart';
+import 'package:violet/pages/settings/artist_collection/artist_collection_page.dart';
+import 'package:violet/pages/settings/faq_page.dart';
+import 'package:violet/pages/lab/lab/global_comments.dart';
+import 'package:violet/pages/lab/lab/recent_record_u.dart';
+import 'package:violet/pages/lab/lab_page.dart';
+import 'package:violet/pages/settings/user_manual_page.dart';
+import 'package:violet/pages/settings/patchnote_page.dart';
 import 'package:violet/pages/segment/double_tap_to_top.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/pages/settings/bookmark_version_select.dart';
@@ -101,7 +101,7 @@ class _SettingsPageState extends State<SettingsPage>
     if (_cachedGroups == null || _shouldReload) {
       _shouldReload = false;
       _cachedGroups = _themeGroup()
-        // ..addAll(!Settings.liteMode ? [const UserStatusCard()] : [])
+        ..addAll([const UserStatusCard()])
         ..addAll(_communityGroup())
         ..addAll(_searchGroup())
         ..addAll(_systemGroup())

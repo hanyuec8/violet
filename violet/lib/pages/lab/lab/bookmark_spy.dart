@@ -6,7 +6,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:violet/database/user/bookmark.dart';
-import 'package:violet/pages/main/info/lab/bookmark/bookmarks.dart';
+import 'package:violet/pages/lab/lab/bookmark/bookmarks.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/server/violet.dart';

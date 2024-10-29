@@ -4,7 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:violet/pages/common/utils.dart';
-import 'package:violet/pages/main/info/lab/search_comment_author.dart';
+import 'package:violet/pages/lab/lab/search_comment_author.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/server/violet.dart';

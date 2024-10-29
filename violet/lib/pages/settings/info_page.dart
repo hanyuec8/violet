@@ -4,12 +4,12 @@
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:violet/pages/main/faq/faq_page.dart';
-import 'package:violet/pages/main/info/lab_page.dart';
-import 'package:violet/pages/main/info/user_manual_page.dart';
-import 'package:violet/pages/main/info/violet_page.dart';
+import 'package:violet/pages/settings/faq_page.dart';
+import 'package:violet/pages/lab/lab_page.dart';
+import 'package:violet/pages/settings/user_manual_page.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
+import 'package:violet/pages/settings/version_page.dart';
 import 'package:violet/settings/settings.dart';
 import 'package:violet/style/palette.dart';
 
@@ -50,7 +50,7 @@ class _InfoPageState extends State<InfoPage> {
                   await showDialog(
                     context: context,
                     builder: (BuildContext context) {
-                      return const VioletPage();
+                      return const VersionViewPage();
                     },
                   );
                 },
