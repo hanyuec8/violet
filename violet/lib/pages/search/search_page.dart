@@ -109,19 +109,9 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
     }
   }
 
-  welcomeMessage() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    if (prefs.getBool('litemode_welcome_message') == null) {
-      prefs.setBool('litemode_welcome_message', true);
-      showOkDialog(context, '라이트 모드가 활성화되었습니다! 설정에서 라이트 모드를 끌 수 있습니다.');
-    }
-  }
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    welcomeMessage();
     c.initScroll(context);
     doubleTapToTopScrollController = c.scrollController;
   }
