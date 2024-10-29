@@ -193,7 +193,7 @@ class _HotPageState extends ThemeSwitchableState<HotPage>
       }
 
       var queryRaw =
-          '${HitomiManager.translate2query('${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ')}')} AND ';
+          '${HitomiManager.translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND ';
       queryRaw += '(${value.map((e) => 'Id=${e.$1}').join(' OR ')})';
       final query = await QueryManager.query(queryRaw);
 

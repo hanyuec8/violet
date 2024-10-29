@@ -111,7 +111,7 @@ class _DBRebuildPagePageState extends State<DBRebuildPage> {
 
   Future indexing() async {
     var sql = HitomiManager.translate2query(
-        '${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ')}');
+        '${Settings.includeTags} ${Settings.serializedExcludeTags}');
 
     await (await DataBaseManager.getInstance()).delete('HitomiColumnModel',
         'NOT (${sql.substring(sql.indexOf('WHERE') + 6)})', []);

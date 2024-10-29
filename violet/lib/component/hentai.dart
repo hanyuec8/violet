@@ -240,7 +240,7 @@ class HentaiManager {
       }
     }
     final queryString = HitomiManager.translate2query(
-        '$wwhat ${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ').trim()}');
+        '$wwhat ${Settings.includeTags} ${Settings.serializedExcludeTags}');
 
     // if (offset == 0 && seed < 0) _latestSeed = new Random().nextDouble() + 1;
     await Logger.info('[Database Query]\nSQL: $queryString');
@@ -261,7 +261,7 @@ class HentaiManager {
 
   static Future<SearchResult> _dbSearch(String what, [int offset = 0]) async {
     final queryString = HitomiManager.translate2query(
-        '$what ${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ').trim()}');
+        '$what ${Settings.includeTags} ${Settings.serializedExcludeTags}');
 
     await Logger.info('[Database Query]\nSQL: $queryString');
 
@@ -318,7 +318,7 @@ class HentaiManager {
 
   static Future<int> countSearch(String what) async {
     final queryString = HitomiManager.translate2query(
-        '$what ${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ').trim()}');
+        '$what ${Settings.includeTags} ${Settings.serializedExcludeTags}');
 
     var count = (await (await DataBaseManager.getInstance()).query(queryString
             .replaceAll('SELECT * FROM', 'SELECT COUNT(*) AS C FROM')))
@@ -588,7 +588,7 @@ class HentaiManager {
   static Future<List<QueryResult>> searchEHentai(String what,
       [int next = 0, bool exh = false]) async {
     final search = Uri.encodeComponent(
-        '${Settings.includeTagNetwork ? '${Settings.includeTags} ' : ''}$what${Settings.excludeTagNetwork ? ' ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ').trim()}' : ''}');
+        '${Settings.includeTagNetwork ? '${Settings.includeTags} ' : ''}$what${Settings.excludeTagNetwork ? ' ${Settings.serializedExcludeTags}' : ''}');
     final url =
         'https://e${exh ? 'x' : '-'}hentai.org/?${next == 0 ? '' : 'next=$next&'}f_cats=${Settings.searchCategory}&f_search=$search&advsearch=1&f_sname=on&f_stags=on${Settings.searchExpunged ? '&f_sh=on' : ''}&f_spf=&f_spt=';
 

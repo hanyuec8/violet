@@ -29,7 +29,7 @@ class SimilarListPage extends StatelessWidget {
     var postfix = e.toLowerCase().replaceAll(' ', '_');
     if (type.isUploader) postfix = e;
     var queryString = HitomiManager.translate2query(
-        '${type.name}:$postfix ${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ')}');
+        '${type.name}:$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
     final qm = QueryManager.queryPagination(queryString);
     qm.itemsPerPage = 10;
 
