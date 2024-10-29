@@ -13,7 +13,7 @@ import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/pages/artist_info/artist_info_page.dart';
-import 'package:violet/pages/main/info/lab/artist_search/tag_group_modify.dart';
+import 'package:violet/pages/lab/lab/artist_search/tag_group_modify.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:community_charts_flutter/community_charts_flutter.dart'
     as charts;

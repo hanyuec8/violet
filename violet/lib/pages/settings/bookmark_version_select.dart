@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:violet/locale/locale.dart';
 import 'package:violet/other/dialogs.dart';
-import 'package:violet/pages/main/info/lab/bookmark/bookmarks.dart';
+import 'package:violet/pages/lab/lab/bookmark/bookmarks.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/settings/settings.dart';

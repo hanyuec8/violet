@@ -4,7 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/pages/bookmark/group_modify.dart';
-import 'package:violet/pages/main/info/lab/recent_user_record.dart';
+import 'package:violet/pages/lab/lab/recent_user_record.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/settings/settings.dart';
