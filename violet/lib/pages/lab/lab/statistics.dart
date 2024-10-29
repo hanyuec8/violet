@@ -71,7 +71,7 @@ class _StatisticsState extends State<Statistics> {
               }));
 
       final queryRaw =
-          '${HitomiManager.translate2query('${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ')}')} AND '
+          '${HitomiManager.translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND '
           'Id IN (${articles.map((e) => e.articleId()).join(',')})';
       final query = await QueryManager.query(queryRaw);
 

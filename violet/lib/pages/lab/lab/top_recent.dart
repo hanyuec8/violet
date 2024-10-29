@@ -61,7 +61,7 @@ class _LabTopRecentState extends State<LabTopRecent> {
       var xrecords = trecords as List<(int, int)>;
 
       var queryRaw =
-          '${HitomiManager.translate2query('${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ')}')} AND ';
+          '${HitomiManager.translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND ';
 
       queryRaw += 'Id IN (${xrecords.map((e) => e.$1).join(',')})';
       var query = await QueryManager.query(queryRaw);

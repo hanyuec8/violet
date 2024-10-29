@@ -46,6 +46,12 @@ class Settings {
   static late String? language; // System Language
   static late bool translateTags;
 
+  static String get serializedExcludeTags => Settings.excludeTags
+      .where((e) => e.trim() != '')
+      .map((e) => '-$e')
+      .join(' ')
+      .trim();
+
   // Like this Hitomi.la => e-hentai => exhentai => nhentai
   static late List<String> routingRule; // image routing rule
   static late List<String> searchRule;

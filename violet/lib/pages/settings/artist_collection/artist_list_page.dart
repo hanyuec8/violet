@@ -32,7 +32,7 @@ class ArtistListPage extends StatelessWidget {
 
     final postfix = e.trim().toLowerCase().replaceAll(' ', '_');
     final queryString = HitomiManager.translate2query(
-        '${isLast ? '' : 'artist:'}$postfix ${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ')}');
+        '${isLast ? '' : 'artist:'}$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
 
     final queryManager = QueryManager.queryPagination(queryString);
     queryManager.itemsPerPage = 10;

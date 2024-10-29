@@ -303,7 +303,7 @@ class __ArtistsArticleTabListState extends State<_ArtistsArticleTabList>
       }
 
       final queryString = HitomiManager.translate2query(
-          '($what) ${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ').trim()}');
+          '($what) ${Settings.includeTags} ${Settings.serializedExcludeTags}');
       var queryResult = (await (await DataBaseManager.getInstance())
               .query('$queryString ORDER BY Id DESC LIMIT 500'))
           .map((e) => QueryResult(result: e))
