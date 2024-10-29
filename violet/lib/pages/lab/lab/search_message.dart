@@ -13,7 +13,7 @@ import 'package:violet/component/image_provider.dart';
 import 'package:violet/network/wrapper.dart' as http;
 import 'package:violet/other/dialogs.dart';
 import 'package:violet/pages/common/utils.dart';
-import 'package:violet/pages/main/info/lab/search_message_rank.dart';
+import 'package:violet/pages/lab/lab/search_message_rank.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/script/script_manager.dart';

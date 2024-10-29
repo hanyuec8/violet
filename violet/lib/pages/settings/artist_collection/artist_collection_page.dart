@@ -5,7 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:violet/component/hitomi/artists.dart';
 import 'package:violet/locale/locale.dart';
-import 'package:violet/pages/main/artist_collection/artist_list_page.dart';
+import 'package:violet/pages/settings/artist_collection/artist_list_page.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 

@@ -38,7 +38,6 @@ class Settings {
   static late bool themeFlat;
   static late bool themeBlack; // default false
   static late bool useTabletMode;
-  static late bool liteMode;
 
   // Tag Settings
   static late String includeTags;
@@ -136,8 +135,6 @@ class Settings {
     themeColor = !themeWhat ? Colors.white : Colors.black;
     themeFlat = await _getBool('themeFlat');
     themeBlack = await _getBool('themeBlack');
-
-    liteMode = await _getBool('liteMode', true);
 
     language = prefs.getString('language');
 
@@ -888,12 +885,6 @@ class Settings {
     useSecureMode = nn;
 
     await prefs.setBool('useSecureMode', nn);
-  }
-
-  static Future<void> setLightMode(bool nn) async {
-    liteMode = nn;
-
-    await prefs.setBool('liteMode', nn);
   }
 }
 

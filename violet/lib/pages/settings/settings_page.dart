@@ -40,13 +40,13 @@ import 'package:violet/pages/after_loading/afterloading_page.dart';
 import 'package:violet/pages/common/toast.dart';
 import 'package:violet/pages/community/user_status_card.dart';
 import 'package:violet/pages/database_download/database_download_page.dart';
-import 'package:violet/pages/main/artist_collection/artist_collection_page.dart';
-import 'package:violet/pages/main/faq/faq_page.dart';
-import 'package:violet/pages/main/info/lab/global_comments.dart';
-import 'package:violet/pages/main/info/lab/recent_record_u.dart';
-import 'package:violet/pages/main/info/lab_page.dart';
-import 'package:violet/pages/main/info/user_manual_page.dart';
-import 'package:violet/pages/main/patchnote/patchnote_page.dart';
+import 'package:violet/pages/settings/artist_collection/artist_collection_page.dart';
+import 'package:violet/pages/settings/faq_page.dart';
+import 'package:violet/pages/lab/lab/global_comments.dart';
+import 'package:violet/pages/lab/lab/recent_record_u.dart';
+import 'package:violet/pages/lab/lab_page.dart';
+import 'package:violet/pages/settings/user_manual_page.dart';
+import 'package:violet/pages/settings/patchnote_page.dart';
 import 'package:violet/pages/segment/double_tap_to_top.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/pages/settings/bookmark_version_select.dart';
@@ -101,8 +101,8 @@ class _SettingsPageState extends State<SettingsPage>
     if (_cachedGroups == null || _shouldReload) {
       _shouldReload = false;
       _cachedGroups = _themeGroup()
-        ..addAll(!Settings.liteMode ? [const UserStatusCard()] : [])
-        ..addAll(!Settings.liteMode ? [] : _communityGroup())
+        ..addAll([const UserStatusCard()])
+        ..addAll(_communityGroup())
         ..addAll(_searchGroup())
         ..addAll(_systemGroup())
         ..addAll(_securityGroup())
@@ -364,30 +364,29 @@ class _SettingsPageState extends State<SettingsPage>
             ),
           ),
         ),
-        if (!Settings.liteMode)
-          InkWell(
-            child: ListTile(
-              leading: Icon(Mdi.buffer, color: Settings.majorColor),
-              title: Text(Translations.instance!.trans('useflattheme')),
-              trailing: Switch(
-                value: Settings.themeFlat,
-                onChanged: (newValue) async {
-                  await Settings.setThemeFlat(newValue);
-                  setState(() {
-                    _shouldReload = true;
-                  });
-                },
-                activeTrackColor: Settings.majorColor,
-                activeColor: Settings.majorAccentColor,
-              ),
+        InkWell(
+          child: ListTile(
+            leading: Icon(Mdi.buffer, color: Settings.majorColor),
+            title: Text(Translations.instance!.trans('useflattheme')),
+            trailing: Switch(
+              value: Settings.themeFlat,
+              onChanged: (newValue) async {
+                await Settings.setThemeFlat(newValue);
+                setState(() {
+                  _shouldReload = true;
+                });
+              },
+              activeTrackColor: Settings.majorColor,
+              activeColor: Settings.majorAccentColor,
             ),
-            onTap: () async {
-              await Settings.setThemeFlat(!Settings.themeFlat);
-              setState(() {
-                _shouldReload = true;
-              });
-            },
           ),
+          onTap: () async {
+            await Settings.setThemeFlat(!Settings.themeFlat);
+            setState(() {
+              _shouldReload = true;
+            });
+          },
+        ),
         InkWell(
           child: ListTile(
             leading: Icon(MdiIcons.tabletDashboard, color: Settings.majorColor),
@@ -411,54 +410,18 @@ class _SettingsPageState extends State<SettingsPage>
             });
           },
         ),
-        if (!Settings.liteMode)
-          InkWell(
-            child: ListTile(
-              leading: Icon(MdiIcons.cellphoneText, color: Settings.majorColor),
-              title: Text(Translations.instance!.trans('userdrawer')),
-              trailing: Switch(
-                value: Settings.useDrawer,
-                onChanged: (newValue) async {
-                  await Settings.setUseDrawer(newValue);
-                  setState(() {
-                    _shouldReload = true;
-                  });
-
-                  final afterLoadingPageState =
-                      context.findAncestorStateOfType<AfterLoadingPageState>();
-                  afterLoadingPageState!.setState(() {
-                    _shouldReload = true;
-                  });
-                },
-                activeTrackColor: Settings.majorColor,
-                activeColor: Settings.majorAccentColor,
-              ),
-            ),
-            onTap: () async {
-              await Settings.setUseDrawer(!Settings.useDrawer);
-              setState(() {
-                _shouldReload = true;
-              });
-
-              final afterLoadingPageState =
-                  context.findAncestorStateOfType<AfterLoadingPageState>();
-              afterLoadingPageState!.setState(() {
-                _shouldReload = true;
-              });
-            },
-          ),
         InkWell(
           customBorder: const RoundedRectangleBorder(
               borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(8.0),
                   bottomRight: Radius.circular(8.0))),
           child: ListTile(
-            leading: Icon(MdiIcons.feather, color: Settings.majorColor),
-            title: Text(Translations.instance!.trans('litemode')),
+            leading: Icon(MdiIcons.cellphoneText, color: Settings.majorColor),
+            title: Text(Translations.instance!.trans('userdrawer')),
             trailing: Switch(
-              value: Settings.liteMode,
+              value: Settings.useDrawer,
               onChanged: (newValue) async {
-                await Settings.setLightMode(newValue);
+                await Settings.setUseDrawer(newValue);
                 setState(() {
                   _shouldReload = true;
                 });
@@ -474,7 +437,7 @@ class _SettingsPageState extends State<SettingsPage>
             ),
           ),
           onTap: () async {
-            await Settings.setLightMode(!Settings.liteMode);
+            await Settings.setUseDrawer(!Settings.useDrawer);
             setState(() {
               _shouldReload = true;
             });
@@ -661,59 +624,57 @@ class _SettingsPageState extends State<SettingsPage>
               }
             },
           ),
-          if (!Settings.liteMode)
-            ListTile(
-              leading: Icon(
-                MdiIcons.tooltipEdit,
-                color: Settings.majorColor,
-              ),
-              title: Text(Translations.instance!.trans('tagrebuild')),
-              trailing: const Icon(Icons.keyboard_arrow_right),
-              onTap: () async {
-                if (await showYesNoDialog(
-                    context,
-                    Translations.instance!.trans('tagrebuildmsg'),
-                    Translations.instance!.trans('tagrebuild'))) {
-                  await showDialog(
-                    context: context,
-                    builder: (BuildContext context) => const TagRebuildPage(),
-                  );
-
-                  await HitomiIndexes.init();
-                  HitomiManager.reloadIndex();
-
-                  showToast(
-                    level: ToastLevel.check,
-                    message:
-                        '${Translations.instance!.trans('tagrebuild')} ${Translations.instance!.trans('complete')}',
-                  );
-                }
-              },
+          ListTile(
+            leading: Icon(
+              MdiIcons.tooltipEdit,
+              color: Settings.majorColor,
             ),
-          if (!Settings.liteMode)
-            InkWell(
-              child: ListTile(
-                leading: Icon(Mdi.compassOutline, color: Settings.majorColor),
-                title: const Text('Pure Search'),
-                trailing: Switch(
-                  value: Settings.searchPure,
-                  onChanged: (newValue) async {
-                    await Settings.setSearchPure(newValue);
-                    setState(() {
-                      _shouldReload = true;
-                    });
-                  },
-                  activeTrackColor: Settings.majorColor,
-                  activeColor: Settings.majorAccentColor,
-                ),
+            title: Text(Translations.instance!.trans('tagrebuild')),
+            trailing: const Icon(Icons.keyboard_arrow_right),
+            onTap: () async {
+              if (await showYesNoDialog(
+                  context,
+                  Translations.instance!.trans('tagrebuildmsg'),
+                  Translations.instance!.trans('tagrebuild'))) {
+                await showDialog(
+                  context: context,
+                  builder: (BuildContext context) => const TagRebuildPage(),
+                );
+
+                await HitomiIndexes.init();
+                HitomiManager.reloadIndex();
+
+                showToast(
+                  level: ToastLevel.check,
+                  message:
+                      '${Translations.instance!.trans('tagrebuild')} ${Translations.instance!.trans('complete')}',
+                );
+              }
+            },
+          ),
+          InkWell(
+            child: ListTile(
+              leading: Icon(Mdi.compassOutline, color: Settings.majorColor),
+              title: const Text('Pure Search'),
+              trailing: Switch(
+                value: Settings.searchPure,
+                onChanged: (newValue) async {
+                  await Settings.setSearchPure(newValue);
+                  setState(() {
+                    _shouldReload = true;
+                  });
+                },
+                activeTrackColor: Settings.majorColor,
+                activeColor: Settings.majorAccentColor,
               ),
-              onTap: () async {
-                await Settings.setSearchPure(!Settings.searchPure);
-                setState(() {
-                  _shouldReload = true;
-                });
-              },
             ),
+            onTap: () async {
+              await Settings.setSearchPure(!Settings.searchPure);
+              setState(() {
+                _shouldReload = true;
+              });
+            },
+          ),
           InkWell(
             customBorder: const RoundedRectangleBorder(
                 borderRadius: BorderRadius.only(
@@ -1019,42 +980,41 @@ class _SettingsPageState extends State<SettingsPage>
               });
             },
           ),
-          if (!Settings.liteMode)
-            ListTile(
-              leading: Icon(Mdi.tableArrowRight, color: Settings.majorColor),
-              title: Text(Translations.instance!.trans('exportlog')),
-              trailing: const Icon(Icons.keyboard_arrow_right),
-              onTap: () async {
-                final ext = Platform.isIOS
-                    ? await getApplicationSupportDirectory()
-                    : await getExternalStorageDirectory();
-                final logfile = File('${ext!.path}/log.txt');
+          ListTile(
+            leading: Icon(Mdi.tableArrowRight, color: Settings.majorColor),
+            title: Text(Translations.instance!.trans('exportlog')),
+            trailing: const Icon(Icons.keyboard_arrow_right),
+            onTap: () async {
+              final ext = Platform.isIOS
+                  ? await getApplicationSupportDirectory()
+                  : await getExternalStorageDirectory();
+              final logfile = File('${ext!.path}/log.txt');
 
-                if (Platform.isAndroid) {
-                  await PlatformMiscMethods.instance.exportFile(
-                    logfile.path,
-                    mimeType: 'application/txt',
-                    fileNameToSaveAs: 'log.txt',
-                  );
-                } else {
-                  final selectedPath =
-                      await FilePicker.platform.getDirectoryPath();
+              if (Platform.isAndroid) {
+                await PlatformMiscMethods.instance.exportFile(
+                  logfile.path,
+                  mimeType: 'application/txt',
+                  fileNameToSaveAs: 'log.txt',
+                );
+              } else {
+                final selectedPath =
+                    await FilePicker.platform.getDirectoryPath();
 
-                  if (selectedPath == null) {
-                    return;
-                  }
-
-                  final extpath = '$selectedPath/bookmark.db';
-
-                  await logfile.copy(extpath);
+                if (selectedPath == null) {
+                  return;
                 }
 
-                showToast(
-                  level: ToastLevel.check,
-                  message: Translations.instance!.trans('complete'),
-                );
-              },
-            ),
+                final extpath = '$selectedPath/bookmark.db';
+
+                await logfile.copy(extpath);
+              }
+
+              showToast(
+                level: ToastLevel.check,
+                message: Translations.instance!.trans('complete'),
+              );
+            },
+          ),
           ListTile(
             leading: Icon(Icons.info_outline, color: Settings.majorColor),
             title: Text(Translations.instance!.trans('info')),
@@ -1827,133 +1787,131 @@ class _SettingsPageState extends State<SettingsPage>
               ),
             ),
           ),
-          if (!Settings.liteMode)
-            ListTile(
-              leading: Icon(
-                MdiIcons.bookArrowDownOutline,
-                color: Settings.majorColor,
-              ),
-              title: Text(Translations.instance!.trans('restoringbookmark')),
-              trailing: const Icon(Icons.keyboard_arrow_right),
-              onTap: () async {
-                await showOkDialog(
-                    context,
-                    Translations.instance!.trans('restorebookmarkmsg'),
-                    Translations.instance!.trans('warning'));
+          ListTile(
+            leading: Icon(
+              MdiIcons.bookArrowDownOutline,
+              color: Settings.majorColor,
+            ),
+            title: Text(Translations.instance!.trans('restoringbookmark')),
+            trailing: const Icon(Icons.keyboard_arrow_right),
+            onTap: () async {
+              await showOkDialog(
+                  context,
+                  Translations.instance!.trans('restorebookmarkmsg'),
+                  Translations.instance!.trans('warning'));
 
-                final prefs = await SharedPreferences.getInstance();
-                var myappid = prefs.getString('fa_userid');
+              final prefs = await SharedPreferences.getInstance();
+              var myappid = prefs.getString('fa_userid');
 
-                // 1. 북마크 유저 아이디 선택
-                TextEditingController text =
-                    TextEditingController(text: myappid);
-                Widget okButton = TextButton(
-                  style: TextButton.styleFrom(
-                      foregroundColor: Settings.majorColor),
-                  child: Text(Translations.instance!.trans('ok')),
-                  onPressed: () {
-                    Navigator.pop(context, true);
-                  },
-                );
-                Widget cancelButton = TextButton(
-                  style: TextButton.styleFrom(
-                      foregroundColor: Settings.majorColor),
-                  child: Text(Translations.instance!.trans('cancel')),
-                  onPressed: () {
-                    Navigator.pop(context, false);
-                  },
-                );
-                var dialog = await showDialog(
-                  useRootNavigator: false,
-                  context: context,
-                  builder: (BuildContext context) => AlertDialog(
-                    contentPadding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-                    title: const Text('Enter User App Id'),
-                    content: TextField(
-                      controller: text,
-                      autofocus: true,
-                      maxLines: 3,
-                    ),
-                    actions: [okButton, cancelButton],
+              // 1. 북마크 유저 아이디 선택
+              TextEditingController text = TextEditingController(text: myappid);
+              Widget okButton = TextButton(
+                style:
+                    TextButton.styleFrom(foregroundColor: Settings.majorColor),
+                child: Text(Translations.instance!.trans('ok')),
+                onPressed: () {
+                  Navigator.pop(context, true);
+                },
+              );
+              Widget cancelButton = TextButton(
+                style:
+                    TextButton.styleFrom(foregroundColor: Settings.majorColor),
+                child: Text(Translations.instance!.trans('cancel')),
+                onPressed: () {
+                  Navigator.pop(context, false);
+                },
+              );
+              var dialog = await showDialog(
+                useRootNavigator: false,
+                context: context,
+                builder: (BuildContext context) => AlertDialog(
+                  contentPadding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                  title: const Text('Enter User App Id'),
+                  content: TextField(
+                    controller: text,
+                    autofocus: true,
+                    maxLines: 3,
+                  ),
+                  actions: [okButton, cancelButton],
+                ),
+              );
+              if (dialog == null || dialog == false) {
+                // await Settings.setDownloadRule(text.text);
+                return;
+              }
+
+              try {
+                // 2. 유효한 유저 아이디 인지 확인(서버 요청 및 다운로드)
+                var result = await VioletServer.restoreBookmark(text.text);
+                if (result == null) {
+                  await showOkDialog(
+                      context,
+                      "Invalid User-App-Id! If you're still getting this error, contact the developer.",
+                      Translations.instance!.trans('restoringbookmark'));
+                  return;
+                }
+
+                // 3. 북마크 버전 가져오기
+                var versions = await VioletServer.versionsBookmark(text.text);
+                if (versions == null) {
+                  await showOkDialog(
+                      context,
+                      '북마크 버전 정보를 가져오는데 오류가 발생했습니다. UserAppId와 함께 개발자에게 문의하시기 바랍니다.',
+                      Translations.instance!.trans('restoringbookmark'));
+                  return;
+                }
+
+                // 4. 버전 선택 및 북마크 확인 (이 북마크를 복원할까요?)
+                var version = await PlatformNavigator.navigateSlide(
+                  context,
+                  BookmarkVersionSelectPage(
+                    userAppId: text.text,
+                    versions: versions,
                   ),
                 );
-                if (dialog == null || dialog == false) {
-                  // await Settings.setDownloadRule(text.text);
+
+                if (version == null) {
                   return;
                 }
 
-                try {
-                  // 2. 유효한 유저 아이디 인지 확인(서버 요청 및 다운로드)
-                  var result = await VioletServer.restoreBookmark(text.text);
-                  if (result == null) {
-                    await showOkDialog(
-                        context,
-                        "Invalid User-App-Id! If you're still getting this error, contact the developer.",
-                        Translations.instance!.trans('restoringbookmark'));
-                    return;
-                  }
+                // 5. 열람기록도 같이 복원할까요?
+                var restoreWithRecord =
+                    await showYesNoDialog(context, '열람기록도 같이 복원할까요?');
 
-                  // 3. 북마크 버전 가져오기
-                  var versions = await VioletServer.versionsBookmark(text.text);
-                  if (versions == null) {
-                    await showOkDialog(
-                        context,
-                        '북마크 버전 정보를 가져오는데 오류가 발생했습니다. UserAppId와 함께 개발자에게 문의하시기 바랍니다.',
-                        Translations.instance!.trans('restoringbookmark'));
-                    return;
-                  }
+                // 6. 북마크 다운로드
+                var bookmark = await VioletServer.resotreBookmarkWithVersion(
+                    text.text, version);
 
-                  // 4. 버전 선택 및 북마크 확인 (이 북마크를 복원할까요?)
-                  var version = await PlatformNavigator.navigateSlide(
-                    context,
-                    BookmarkVersionSelectPage(
-                      userAppId: text.text,
-                      versions: versions,
-                    ),
-                  );
-
-                  if (version == null) {
-                    return;
-                  }
-
-                  // 5. 열람기록도 같이 복원할까요?
-                  var restoreWithRecord =
-                      await showYesNoDialog(context, '열람기록도 같이 복원할까요?');
-
-                  // 6. 북마크 다운로드
-                  var bookmark = await VioletServer.resotreBookmarkWithVersion(
-                      text.text, version);
-
-                  // 7. 덮어쓰기 한다.
-                  var rr = await showDialog(
-                    context: context,
-                    builder: (BuildContext context) => RestoreBookmarkPage(
-                      source: bookmark,
-                      restoreWithRecord: restoreWithRecord,
-                    ),
-                  );
-
-                  if (rr != null && rr == false) {
-                    return;
-                  }
-                } catch (e, st) {
-                  Logger.error('[Restore Bookmark] $e\n'
-                      '$st');
-                  showToast(
-                    level: ToastLevel.error,
-                    message: 'Bookmark Restoring Error!',
-                  );
-                  return;
-                }
-
-                await Bookmark.getInstance();
-
-                showToast(
-                  level: ToastLevel.check,
-                  message: Translations.instance!.trans('importbookmark'),
+                // 7. 덮어쓰기 한다.
+                var rr = await showDialog(
+                  context: context,
+                  builder: (BuildContext context) => RestoreBookmarkPage(
+                    source: bookmark,
+                    restoreWithRecord: restoreWithRecord,
+                  ),
                 );
-              },
-            ),
+
+                if (rr != null && rr == false) {
+                  return;
+                }
+              } catch (e, st) {
+                Logger.error('[Restore Bookmark] $e\n'
+                    '$st');
+                showToast(
+                  level: ToastLevel.error,
+                  message: 'Bookmark Restoring Error!',
+                );
+                return;
+              }
+
+              await Bookmark.getInstance();
+
+              showToast(
+                level: ToastLevel.check,
+                message: Translations.instance!.trans('importbookmark'),
+              );
+            },
+          ),
           ListTile(
             leading: Icon(MdiIcons.import, color: Settings.majorColor),
             title: Text(Translations.instance!.trans('importingbookmark')),
@@ -2525,85 +2483,60 @@ class _SettingsPageState extends State<SettingsPage>
       SettingGroupName(name: Translations.instance!.trans('etc')),
       _buildItems(
         [
-          if (!Settings.liteMode)
-            InkWell(
-              customBorder: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(8.0),
-                      topRight: Radius.circular(8.0))),
-              child: ListTile(
-                leading: const Icon(
-                  MdiIcons.discord,
-                  color: Color(0xFF7189da),
-                ),
-                title: Text(Translations.instance!.trans('discord')),
-                trailing: const Icon(Icons.open_in_new),
-              ),
-              onTap: () async {
-                final url = Uri.parse('https://discord.gg/K8qny6E');
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url);
-                }
-              },
-            ),
-          if (!Settings.liteMode)
-            ListTile(
+          InkWell(
+            customBorder: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(8.0),
+                    topRight: Radius.circular(8.0))),
+            child: ListTile(
               leading: const Icon(
-                MdiIcons.github,
-                color: Colors.black,
+                MdiIcons.discord,
+                color: Color(0xFF7189da),
               ),
-              title: Text('GitHub ${Translations.instance!.trans('project')}'),
+              title: Text(Translations.instance!.trans('discord')),
               trailing: const Icon(Icons.open_in_new),
-              onTap: () async {
-                final url = Uri.parse('https://github.com/project-violet/');
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url);
-                }
-              },
-            )
-          else
-            InkWell(
-              customBorder: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(8.0),
-                      topRight: Radius.circular(8.0))),
-              child: ListTile(
-                leading: const Icon(
-                  MdiIcons.github,
-                  color: Colors.black,
-                ),
-                title:
-                    Text('GitHub ${Translations.instance!.trans('project')}'),
-                trailing: const Icon(Icons.open_in_new),
-              ),
-              onTap: () async {
-                final url = Uri.parse('https://github.com/project-violet/');
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url);
-                }
-              },
             ),
-          if (!Settings.liteMode)
-            ListTile(
-              leading: const Icon(
-                MdiIcons.gmail,
-                color: Colors.redAccent,
-              ),
-              title: Text(Translations.instance!.trans('contact')),
-              trailing: const Icon(Icons.keyboard_arrow_right),
-              onTap: () async {
-                final url = Uri(
-                  scheme: 'mailto',
-                  path: 'violet.dev.master@gmail.com',
-                  queryParameters: {
-                    'subject': '[App Issue] ',
-                  },
-                );
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url);
-                }
-              },
+            onTap: () async {
+              final url = Uri.parse('https://discord.gg/K8qny6E');
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url);
+              }
+            },
+          ),
+          ListTile(
+            leading: const Icon(
+              MdiIcons.github,
+              color: Colors.black,
             ),
+            title: Text('GitHub ${Translations.instance!.trans('project')}'),
+            trailing: const Icon(Icons.open_in_new),
+            onTap: () async {
+              final url = Uri.parse('https://github.com/project-violet/');
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url);
+              }
+            },
+          ),
+          ListTile(
+            leading: const Icon(
+              MdiIcons.gmail,
+              color: Colors.redAccent,
+            ),
+            title: Text(Translations.instance!.trans('contact')),
+            trailing: const Icon(Icons.keyboard_arrow_right),
+            onTap: () async {
+              final url = Uri(
+                scheme: 'mailto',
+                path: 'violet.dev.master@gmail.com',
+                queryParameters: {
+                  'subject': '[App Issue] ',
+                },
+              );
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url);
+              }
+            },
+          ),
           ListTile(
             leading: const Icon(
               MdiIcons.heart,
