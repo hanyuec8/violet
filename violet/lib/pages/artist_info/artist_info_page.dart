@@ -225,7 +225,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
     for (int i = 0; i < similars.length; i++) {
       var postfix = similars[i].$1.toLowerCase().replaceAll(' ', '_');
       var queryString = HitomiManager.translate2query(
-          '$prefix:$postfix ${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ')}');
+          '$prefix:$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
       final qm = QueryManager.queryPagination(queryString);
       qm.itemsPerPage = 10;
 
@@ -272,12 +272,8 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
 
   Future<List<QueryResult>> query() async {
     final token = '${widget.type.name}:${widget.name.replaceAll(' ', '_')}';
-    final excludes = Settings.excludeTags
-        .where((e) => e.trim() != '')
-        .map((e) => '-$e')
-        .join(' ');
     final query = HitomiManager.translate2query(
-        '$token ${Settings.includeTags} $excludes');
+        '$token ${Settings.includeTags} ${Settings.serializedExcludeTags}');
     final qm = await QueryManager.query('$query ORDER BY Id DESC');
     return qm.results!;
   }

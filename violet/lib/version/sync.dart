@@ -235,7 +235,7 @@ class SyncManager {
 
       if (Settings.useOptimizeDatabase && filteredIter.isNotEmpty) {
         final sql = HitomiManager.translate2query(
-          '${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ')}',
+          '${Settings.includeTags} ${Settings.serializedExcludeTags}',
           filter: false,
         );
 

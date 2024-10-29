@@ -286,7 +286,7 @@ class _ArtistSearchState extends State<ArtistSearch> {
     final postfix = e.toLowerCase().replaceAll(' ', '_');
 
     final queryString = HitomiManager.translate2query(
-        '${selectedType.name}:$postfix ${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim() != '').map((e) => '-$e').join(' ')}');
+        '${selectedType.name}:$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
     final qm = QueryManager.queryPagination(queryString);
     qm.itemsPerPage = 10;
 

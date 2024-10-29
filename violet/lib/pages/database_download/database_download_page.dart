@@ -215,7 +215,7 @@ class DataBaseDownloadPageState extends State<DataBaseDownloadPage> {
 
   Future deleteUnused() async {
     var sql = HitomiManager.translate2query(
-            '${Settings.includeTags} ${Settings.excludeTags.where((e) => e.trim().isNotEmpty).map((e) => '-$e').join(' ')}')
+            '${Settings.includeTags} ${Settings.serializedExcludeTags}')
         .replaceAll(' AND ExistOnHitomi=1', '');
     await (await DataBaseManager.getInstance()).delete('HitomiColumnModel',
         'NOT (${sql.substring(sql.indexOf('WHERE') + 6)})', []);
