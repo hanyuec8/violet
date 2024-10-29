@@ -21,7 +21,6 @@ import 'package:violet/pages/common/utils.dart';
 import 'package:violet/pages/download/download_page.dart';
 import 'package:violet/pages/hot/hot_page.dart';
 import 'package:violet/pages/lock/lock_screen.dart';
-import 'package:violet/pages/main/main_page.dart';
 import 'package:violet/pages/search/search_page.dart';
 import 'package:violet/pages/segment/double_tap_to_top.dart';
 import 'package:violet/pages/settings/settings_page.dart';
@@ -117,7 +116,7 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
   bool _isDoubleTap = false;
 
   late final List<GlobalKey<State>> _widgetKeys =
-      List.generate(7, (index) => GlobalKey());
+      List.generate(5, (index) => GlobalKey());
 
   Widget _buildBottomNavigationBar(BuildContext context) {
     final translations = Translations.instance!;
@@ -159,7 +158,6 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
           } else {
             if (_isDoubleTap) {
               // something to do for double tap
-              if (index >= 2 || Settings.liteMode) index += 1;
               (_widgetKeys[index].currentState as DoubleTapToTopMixin)
                   .animateToTop();
 
@@ -173,9 +171,8 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
           }
         },
         items: <BottomNavigationBarItem>[
-          if (!Settings.liteMode) buildItem(MdiIcons.home, 'main'),
           buildItem(Icons.search, 'search'),
-          if (Settings.liteMode) buildItem(MdiIcons.fire, 'hot'),
+          buildItem(MdiIcons.fire, 'hot'),
           buildItem(Icons.bookmark, 'bookmark'),
           buildItem(Icons.file_download, 'download'),
           buildItem(Icons.settings, 'settings'),
@@ -281,9 +278,8 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
                 ],
               ),
             ),
-            if (!Settings.liteMode) buildButton(MdiIcons.home, 0, 'main'),
-            buildButton(Icons.search, !Settings.liteMode ? 1 : 0, 'search'),
-            if (Settings.liteMode) buildButton(MdiIcons.fire, 1, 'hot'),
+            buildButton(Icons.search, 0, 'search'),
+            buildButton(MdiIcons.fire, 1, 'hot'),
             buildButton(MdiIcons.bookmark, 2, 'bookmark'),
             buildButton(MdiIcons.download, 3, 'download'),
             buildButton(Icons.settings, 4, 'settings'),
@@ -357,12 +353,11 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
                   setState(() {});
                 },
                 children: <Widget>[
-                  if (!Settings.liteMode) MainPage(key: _widgetKeys[0]),
-                  SearchPage(key: _widgetKeys[1]),
-                  if (Settings.liteMode) HotPage(key: _widgetKeys[2]),
-                  BookmarkPage(key: _widgetKeys[3]),
-                  DownloadPage(key: _widgetKeys[4]),
-                  SettingsPage(key: _widgetKeys[5]),
+                  SearchPage(key: _widgetKeys[0]),
+                  HotPage(key: _widgetKeys[1]),
+                  BookmarkPage(key: _widgetKeys[2]),
+                  DownloadPage(key: _widgetKeys[3]),
+                  SettingsPage(key: _widgetKeys[4]),
                 ],
               ),
             ],

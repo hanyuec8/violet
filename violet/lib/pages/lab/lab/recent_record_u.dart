@@ -12,7 +12,7 @@ import 'package:violet/database/query.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/model/article_list_item.dart';
-import 'package:violet/pages/main/info/lab/recent_user_record.dart';
+import 'package:violet/pages/lab/lab/recent_user_record.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/server/violet.dart';

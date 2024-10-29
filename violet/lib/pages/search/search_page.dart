@@ -14,7 +14,6 @@ import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:violet/component/hentai.dart';
 import 'package:violet/component/hitomi/population.dart';
@@ -24,8 +23,7 @@ import 'package:violet/database/user/search.dart';
 import 'package:violet/locale/locale.dart' as trans;
 import 'package:violet/log/log.dart';
 import 'package:violet/model/article_list_item.dart';
-import 'package:violet/other/dialogs.dart';
-import 'package:violet/pages/main/info/lab/search_message.dart';
+import 'package:violet/pages/lab/lab/search_message.dart';
 import 'package:violet/pages/search/search_bar_page.dart';
 import 'package:violet/pages/search/search_page_controller.dart';
 import 'package:violet/pages/search/search_page_modify.dart';
@@ -109,19 +107,9 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
     }
   }
 
-  welcomeMessage() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    if (prefs.getBool('litemode_welcome_message') == null) {
-      prefs.setBool('litemode_welcome_message', true);
-      showOkDialog(context, '라이트 모드가 활성화되었습니다! 설정에서 라이트 모드를 끌 수 있습니다.');
-    }
-  }
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    welcomeMessage();
     c.initScroll(context);
     doubleTapToTopScrollController = c.scrollController;
   }

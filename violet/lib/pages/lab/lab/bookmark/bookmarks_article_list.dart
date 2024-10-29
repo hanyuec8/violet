@@ -12,7 +12,7 @@ import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/model/article_list_item.dart';
 import 'package:violet/network/wrapper.dart' as http;
 import 'package:violet/pages/artist_info/search_type2.dart';
-import 'package:violet/pages/main/info/lab/bookmark/bookmarks_artist_list.dart';
+import 'package:violet/pages/lab/lab/bookmark/bookmarks_artist_list.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/filter_page.dart';
 import 'package:violet/pages/segment/filter_page_controller.dart';

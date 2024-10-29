@@ -36,7 +36,7 @@ import 'package:violet/pages/artist_info/artist_info_page.dart';
 import 'package:violet/pages/common/toast.dart';
 import 'package:violet/pages/common/utils.dart';
 import 'package:violet/pages/download/download_page.dart';
-import 'package:violet/pages/main/info/lab/search_comment_author.dart';
+import 'package:violet/pages/lab/lab/search_comment_author.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/pages/viewer/viewer_page.dart';
 import 'package:violet/pages/viewer/viewer_page_provider.dart';

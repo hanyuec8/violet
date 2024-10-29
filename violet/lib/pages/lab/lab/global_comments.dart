@@ -7,7 +7,7 @@ import 'package:material_design_icons_flutter/material_design_icons_flutter.dart
 import 'package:mdi/mdi.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/other/dialogs.dart';
-import 'package:violet/pages/main/info/lab/recent_user_record.dart';
+import 'package:violet/pages/lab/lab/recent_user_record.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/server/community/anon.dart';
