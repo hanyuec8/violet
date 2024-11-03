@@ -226,8 +226,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
       var postfix = similars[i].$1.toLowerCase().replaceAll(' ', '_');
       var queryString = HitomiManager.translate2query(
           '$prefix:$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
-      final qm = QueryManager.queryPagination(queryString);
-      qm.itemsPerPage = 10;
+      final qm = QueryManager.queryPagination(queryString, 10);
 
       var x = await qm.next();
       if (x.isEmpty) {
