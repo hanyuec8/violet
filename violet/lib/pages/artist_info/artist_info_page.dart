@@ -160,7 +160,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
       similarsAll = similars;
       similars = similars.take(6).toList();
 
-      await querySimilars(similars, widget.type.name, qrs);
+      await querySimilars(similars, widget.type, qrs);
 
       if (widget.type.isCharacter || widget.type.isSeries) {
         if (widget.type.isCharacter) {
@@ -177,13 +177,13 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
 
         await querySimilars(
           relatedCharacterOrSeries,
-          widget.type.name,
+          widget.type,
           qrsCharacterOrSeries,
         );
 
         await querySimilars(
           relatedCOSSingle,
-          widget.type.name,
+          widget.type,
           qrsCOSSingle,
         );
       }
@@ -219,53 +219,10 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
     if (comments!.isNotEmpty) setState(() {});
   }
 
-  Future<void> querySimilars(List<(String, double)> similars, String prefix,
+  Future<void> querySimilars(List<(String, double)> similars, ArtistType type,
       List<List<QueryResult>> qrs) async {
-    var unescape = HtmlUnescape();
-    for (int i = 0; i < similars.length; i++) {
-      var postfix = similars[i].$1.toLowerCase().replaceAll(' ', '_');
-      var queryString = HitomiManager.translate2query(
-          '$prefix:$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
-      final qm = QueryManager.queryPagination(queryString, 10);
-
-      var x = await qm.next();
-      if (x.isEmpty) {
-        qrs.add(<QueryResult>[]);
-        continue;
-      }
-      var y = [x[0]];
-
-      var titles = [unescape.convert((x[0].title() as String).trim())];
-      if (titles[0].contains('Ch.')) {
-        titles[0] = titles[0].split('Ch.')[0];
-      } else if (titles[0].contains('ch.')) {
-        titles[0] = titles[0].split('ch.')[0];
-      }
-
-      for (int i = 1; i < x.length; i++) {
-        var skip = false;
-        var ff = unescape.convert((x[i].title() as String).trim());
-        if (ff.contains('Ch.')) {
-          ff = ff.split('Ch.')[0];
-        } else if (ff.contains('ch.')) {
-          ff = ff.split('ch.')[0];
-        }
-        for (int j = 0; j < titles.length; j++) {
-          var tt = titles[j];
-          if (Distance.levenshteinDistanceComparable(
-                  tt.runes.map((e) => e.toString()).toList(),
-                  ff.runes.map((e) => e.toString()).toList()) <
-              3) {
-            skip = true;
-            break;
-          }
-        }
-        if (skip) continue;
-        y.add(x[i]);
-        titles.add(ff.trim());
-      }
-
-      qrs.add(y);
+    for (final (name, _) in similars) {
+      qrs.add(await queryDedupedArtistArticles(type, name));
     }
   }
 

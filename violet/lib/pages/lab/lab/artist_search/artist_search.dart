@@ -13,6 +13,7 @@ import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/pages/artist_info/artist_info_page.dart';
+import 'package:violet/pages/artist_info/similar_list_page.dart';
 import 'package:violet/pages/lab/lab/artist_search/tag_group_modify.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:community_charts_flutter/community_charts_flutter.dart'
@@ -254,7 +255,7 @@ class _ArtistSearchState extends State<ArtistSearch> {
       itemBuilder: (BuildContext ctxt, int index) {
         final e = similarsAll[index];
         return FutureBuilder<List<QueryResult>>(
-          future: artistListfuture(e.$1),
+          future: queryDedupedArtistArticles(selectedType, e.$1),
           builder: (BuildContext context,
               AsyncSnapshot<List<QueryResult>> snapshot) {
             if (!snapshot.hasData) {
@@ -278,53 +279,5 @@ class _ArtistSearchState extends State<ArtistSearch> {
         );
       },
     );
-  }
-
-  Future<List<QueryResult>> artistListfuture(String e) async {
-    final unescape = HtmlUnescape();
-
-    final postfix = e.toLowerCase().replaceAll(' ', '_');
-
-    final queryString = HitomiManager.translate2query(
-        '${selectedType.name}:$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
-    final qm = QueryManager.queryPagination(queryString, 10);
-
-    final x = await qm.next();
-    final y = [x[0]];
-
-    final titles = [unescape.convert((x[0].title() as String).trim())];
-    if (titles[0].contains('Ch.')) {
-      titles[0] = titles[0].split('Ch.')[0];
-    } else if (titles[0].contains('ch.')) {
-      titles[0] = titles[0].split('ch.')[0];
-    }
-
-    for (int i = 1; i < x.length; i++) {
-      var skip = false;
-      var ff = unescape.convert((x[i].title() as String).trim());
-
-      if (ff.contains('Ch.')) {
-        ff = ff.split('Ch.')[0];
-      } else if (ff.contains('ch.')) {
-        ff = ff.split('ch.')[0];
-      }
-
-      for (int j = 0; j < titles.length; j++) {
-        var tt = titles[j];
-        if (Distance.levenshteinDistanceComparable(
-                tt.runes.map((e) => e.toString()).toList(),
-                ff.runes.map((e) => e.toString()).toList()) <
-            3) {
-          skip = true;
-          break;
-        }
-      }
-      if (skip) continue;
-
-      y.add(x[i]);
-      titles.add(ff.trim());
-    }
-
-    return y;
   }
 }
