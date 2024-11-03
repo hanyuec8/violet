@@ -217,7 +217,6 @@ class _SplashPageState extends State<SplashPage> {
       await Population.init();
       _changeMessage('init related...');
       await Related.init();
-      // await HisokiHash.init();
       _changeMessage('init downloader...');
       await IsolateDownloader.getInstance();
       _changeMessage('init api...');
