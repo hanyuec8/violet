@@ -24,38 +24,6 @@ class SimilarListPage extends StatelessWidget {
     required this.type,
   });
 
-  Future<List<QueryResult>> query(String e) async {
-    var postfix = e.toLowerCase().replaceAll(' ', '_');
-    if (type.isUploader) postfix = e;
-
-    final queryString = HitomiManager.translate2query(
-        '${type.name}:$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
-    final qm = QueryManager.queryPagination(queryString, 10);
-
-    var quries = await qm.next();
-
-    var titles = [removeChapter(quries[0].title() as String)];
-    var results = [quries[0]];
-
-    // 제목이 비슷한(중복) 작품을 보여주지 않기 위해 필터링
-    for (var i = 1; i < quries.length; i++) {
-      final target = removeChapter(quries[i].title() as String);
-      final hasSimilar = titles.any((source) {
-        return Distance.levenshteinDistanceComparable(
-                source.runes.map((e) => e.toString()).toList(),
-                target.runes.map((e) => e.toString()).toList()) <
-            3;
-      });
-
-      if (!hasSimilar) {
-        titles.add(target);
-        results.add(quries[i]);
-      }
-    }
-
-    return results;
-  }
-
   @override
   Widget build(BuildContext context) {
     return CardPanel.build(
@@ -68,7 +36,7 @@ class SimilarListPage extends StatelessWidget {
         itemBuilder: (BuildContext ctxt, int index) {
           var e = similarsAll[index];
           return FutureBuilder<List<QueryResult>>(
-            future: query(e.$1),
+            future: queryDedupedArtistArticles(type, e.$1),
             builder: (BuildContext context,
                 AsyncSnapshot<List<QueryResult>> snapshot) {
               if (!snapshot.hasData) {
@@ -94,6 +62,36 @@ class SimilarListPage extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<List<QueryResult>> queryDedupedArtistArticles(
+    ArtistType type, String e) async {
+  final postfix = e.toLowerCase().replaceAll(' ', '_');
+  final queryString = HitomiManager.translate2query(
+      '${type.name}:$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
+  final qm = QueryManager.queryPagination(queryString, 10);
+  final quries = await qm.next();
+
+  final titles = [removeChapter(quries[0].title() as String)];
+  final results = [quries[0]];
+
+  // 제목이 비슷한(중복) 작품을 보여주지 않기 위해 필터링
+  for (final query in quries) {
+    final target = removeChapter(query.title() as String);
+    final hasSimilar = titles.any((source) {
+      return Distance.levenshteinDistanceComparable(
+              source.runes.map((e) => e.toString()).toList(),
+              target.runes.map((e) => e.toString()).toList()) <
+          3;
+    });
+
+    if (!hasSimilar) {
+      titles.add(target);
+      results.add(query);
+    }
+  }
+
+  return results;
 }
 
 String removeChapter(String title) {
