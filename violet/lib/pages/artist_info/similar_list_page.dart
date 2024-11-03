@@ -30,8 +30,7 @@ class SimilarListPage extends StatelessWidget {
 
     final queryString = HitomiManager.translate2query(
         '${type.name}:$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
-    final qm = QueryManager.queryPagination(queryString);
-    qm.itemsPerPage = 10;
+    final qm = QueryManager.queryPagination(queryString, 10);
 
     var quries = await qm.next();
 

@@ -29,9 +29,9 @@ class SeriesFinder {
 
       if (kv.key.toLowerCase() == 'n/a') continue;
 
-      final qm = QueryManager.queryPagination(HitomiManager.translate2query(
-          'artist:${kv.key.replaceAll(' ', '_')}'));
-      qm.itemsPerPage = 99999;
+      final query = HitomiManager.translate2query(
+          'artist:${kv.key.replaceAll(' ', '_')}');
+      final qm = QueryManager.queryPagination(query, 99999);
       final qr = await qm.next();
 
       if (qr.length == 1) continue;
@@ -52,9 +52,9 @@ class SeriesFinder {
 
       if (kv.key.toLowerCase() == 'n/a') continue;
 
-      final qm = QueryManager.queryPagination(HitomiManager.translate2query(
-          'artist:${kv.key.replaceAll(' ', '_')}'));
-      qm.itemsPerPage = 99999;
+      final query = HitomiManager.translate2query(
+          'artist:${kv.key.replaceAll(' ', '_')}');
+      final qm = QueryManager.queryPagination(query, 99999);
       final qr = await qm.next();
 
       if (qr.length == 1) continue;
@@ -77,8 +77,7 @@ class SeriesFinder {
 
   static Future<void> doFind2() async {
     final qm = QueryManager.queryPagination(
-        'SELECT Title, Artists, Groups FROM HitomiColumnModel');
-    qm.itemsPerPage = 999999;
+        'SELECT Title, Artists, Groups FROM HitomiColumnModel', 999999);
     final qr = await qm.next();
 
     final artists = <String, List<int>>{};

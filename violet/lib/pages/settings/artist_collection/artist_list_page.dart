@@ -34,8 +34,7 @@ class ArtistListPage extends StatelessWidget {
     final queryString = HitomiManager.translate2query(
         '${isLast ? '' : 'artist:'}$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
 
-    final queryManager = QueryManager.queryPagination(queryString);
-    queryManager.itemsPerPage = 10;
+    final queryManager = QueryManager.queryPagination(queryString, 10);
 
     final queryResults = await queryManager.next();
     final filtered = <QueryResult>[];
