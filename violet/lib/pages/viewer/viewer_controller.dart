@@ -1,6 +1,8 @@
 // This source code is a part of Project Violet.
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -62,6 +64,10 @@ class ViewerController extends GetxController {
   var thumbSize = Settings.thumbSize.obs;
   var search = false.obs;
   var bookmark = false.obs;
+
+  double get thumbSizeValue =>
+      [180.0, 140.0, 120.0, 96.0][thumbSize.value] *
+      (Platform.isWindows ? 3.0 : 0);
 
   /// timer options
   var timer = false.obs;
