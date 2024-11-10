@@ -105,12 +105,12 @@ class _ViewerPageState extends State<ViewerPage> {
       onKeyEvent: (KeyEvent event) {
         if (event is KeyDownEvent) {
           switch (event.logicalKey) {
-            case LogicalKeyboardKey.arrowDown:
+            case LogicalKeyboardKey.arrowUp:
             case LogicalKeyboardKey.arrowLeft:
               c.prev();
               break;
 
-            case LogicalKeyboardKey.arrowUp:
+            case LogicalKeyboardKey.arrowDown:
             case LogicalKeyboardKey.arrowRight:
               c.next();
               break;
