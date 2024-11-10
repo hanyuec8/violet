@@ -10,6 +10,7 @@ import 'package:auto_animated/auto_animated.dart';
 import 'package:flare_flutter/flare_actor.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
@@ -42,8 +43,9 @@ bool blurred = false;
 
 class SearchPage extends StatefulWidget {
   final String? searchKeyWord;
+  final FocusNode? focusNode;
 
-  const SearchPage({super.key, this.searchKeyWord});
+  const SearchPage({super.key, this.searchKeyWord, this.focusNode});
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -117,6 +119,7 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
   bool _shouldReload = false;
   ResultPanelWidget? _cachedPannel;
   ObjectKey key = ObjectKey(const Uuid().v4());
+  Timer? _holdTimer;
 
   reloadForce() {
     setState(() {
@@ -222,10 +225,41 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
       );
     }
 
+    final pageKeyListener = KeyboardListener(
+      focusNode: widget.focusNode ?? FocusNode(),
+      autofocus: true,
+      onKeyEvent: (KeyEvent event) {
+        if (event is KeyDownEvent) {
+          _holdTimer ??= Timer.periodic(const Duration(milliseconds: 100), (_) {
+            switch (event.logicalKey) {
+              case LogicalKeyboardKey.keyW:
+                c.scrollController!.animateTo(
+                  c.scrollController!.offset - 300,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                );
+                break;
+              case LogicalKeyboardKey.keyS:
+                c.scrollController!.animateTo(
+                  c.scrollController!.offset + 300,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                );
+                break;
+            }
+          });
+        } else if (event is KeyUpEvent) {
+          _holdTimer?.cancel();
+          _holdTimer = null;
+        }
+      },
+      child: scrollView,
+    );
+
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: scrollView,
+        child: pageKeyListener,
       ),
       floatingActionButton: _floatingActionButton(),
     );

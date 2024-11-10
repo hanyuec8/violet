@@ -102,6 +102,8 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
 
   final PageController _pageController =
       PageController(initialPage: defaultInitialPage);
+  final FocusNode _focusNode = FocusNode();
+  final FocusNode nestedFocusNode = FocusNode();
 
   int get _currentPage => _pageController.hasClients
       ? _pageController.page!.round()
@@ -333,34 +335,62 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
           );
         }
       },
-      child: Scaffold(
-        bottomNavigationBar: _usesBottomNavigationBar
-            ? _buildBottomNavigationBar(context)
-            : null,
-        drawer: _usesDrawer ? _buildDrawer(context) : null,
-        body: AnnotatedRegion<SystemUiOverlayStyle>(
-          value: !Settings.themeWhat
-              ? SystemUiOverlayStyle.dark
-              : SystemUiOverlayStyle.light,
-          child: Stack(
-            children: [
-              if (kReleaseMode) const ScriptWebView(),
-              PageView(
-                controller: _pageController,
-                physics:
-                    _usesDrawer ? const NeverScrollableScrollPhysics() : null,
-                onPageChanged: (newPage) {
-                  setState(() {});
-                },
-                children: <Widget>[
-                  SearchPage(key: _widgetKeys[0]),
-                  HotPage(key: _widgetKeys[1]),
-                  BookmarkPage(key: _widgetKeys[2]),
-                  DownloadPage(key: _widgetKeys[3]),
-                  SettingsPage(key: _widgetKeys[4]),
-                ],
-              ),
-            ],
+      child: KeyboardListener(
+        focusNode: _focusNode,
+        autofocus: true,
+        onKeyEvent: (KeyEvent event) {
+          if (event is KeyDownEvent) {
+            switch (event.logicalKey) {
+              case LogicalKeyboardKey.keyA:
+                _pageController.animateToPage(
+                  _currentPage - 1,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                );
+                break;
+              case LogicalKeyboardKey.keyD:
+                _pageController.animateToPage(
+                  _currentPage + 1,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                );
+                break;
+            }
+          }
+          nestedFocusNode.requestFocus();
+        },
+        child: Scaffold(
+          bottomNavigationBar: _usesBottomNavigationBar
+              ? _buildBottomNavigationBar(context)
+              : null,
+          drawer: _usesDrawer ? _buildDrawer(context) : null,
+          body: AnnotatedRegion<SystemUiOverlayStyle>(
+            value: !Settings.themeWhat
+                ? SystemUiOverlayStyle.dark
+                : SystemUiOverlayStyle.light,
+            child: Stack(
+              children: [
+                if (kReleaseMode) const ScriptWebView(),
+                PageView(
+                  controller: _pageController,
+                  physics:
+                      _usesDrawer ? const NeverScrollableScrollPhysics() : null,
+                  onPageChanged: (newPage) {
+                    setState(() {});
+                  },
+                  children: <Widget>[
+                    SearchPage(
+                      key: _widgetKeys[0],
+                      focusNode: nestedFocusNode,
+                    ),
+                    HotPage(key: _widgetKeys[1]),
+                    BookmarkPage(key: _widgetKeys[2]),
+                    DownloadPage(key: _widgetKeys[3]),
+                    SettingsPage(key: _widgetKeys[4]),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
