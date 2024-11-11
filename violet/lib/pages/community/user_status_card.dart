@@ -42,7 +42,7 @@ class _UserStatusCardState extends ThemeSwitchableState<UserStatusCard>
     // load boards
     Future.delayed(const Duration(milliseconds: 100)).then((value) async {
       final prefs = await SharedPreferences.getInstance();
-      _userAppId = prefs.getString('fa_userid')!;
+      _userAppId = prefs.getString('fa_userid') ?? '';
       setState(() {});
 
       // if (id != null && pw != null) {
@@ -88,7 +88,7 @@ class _UserStatusCardState extends ThemeSwitchableState<UserStatusCard>
         Container(
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           alignment: Alignment.centerLeft,
-          height: 80,
+          height: 84,
           decoration: !Settings.themeFlat
               ? BoxDecoration(
                   // color: Colors.white,
