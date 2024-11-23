@@ -14,7 +14,6 @@ import 'package:html_unescape/html_unescape_small.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:violet/algorithm/distance.dart';
 import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:violet/component/hitomi/indexes.dart';
 import 'package:violet/component/hitomi/title_cluster.dart';
