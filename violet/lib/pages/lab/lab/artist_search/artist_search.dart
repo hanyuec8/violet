@@ -4,9 +4,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:html_unescape/html_unescape.dart';
 import 'package:uuid/uuid.dart';
-import 'package:violet/algorithm/distance.dart';
 import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:violet/component/hitomi/indexes.dart';
 import 'package:violet/database/query.dart';
