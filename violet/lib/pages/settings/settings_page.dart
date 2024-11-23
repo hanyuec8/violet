@@ -2377,9 +2377,9 @@ class _SettingsPageState extends State<SettingsPage>
               }
 
               Settings.searchRule =
-                  'ExHentai|EHentai|Hitomi|NHentai|Hisoki'.split('|');
+                  'ExHentai|EHentai|Hitomi|NHentai'.split('|');
               await prefs.setString(
-                  'searchrule', 'ExHentai|EHentai|Hitomi|NHentai|Hisoki');
+                  'searchrule', 'ExHentai|EHentai|Hitomi|NHentai');
             },
           ),
         ],

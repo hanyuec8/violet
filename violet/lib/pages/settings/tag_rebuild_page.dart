@@ -118,10 +118,10 @@ class _TagRebuildPageState extends State<TagRebuildPage> {
   }
 
   Future indexing() async {
-    QueryManager qm;
-    qm = QueryManager.queryPagination(HitomiManager.translate2query(
-        '${Settings.includeTags} ${Settings.serializedExcludeTags}'));
-    qm.itemsPerPage = 50000;
+    final qm = QueryManager.queryPagination(
+        HitomiManager.translate2query(
+            '${Settings.includeTags} ${Settings.serializedExcludeTags}'),
+        50000);
 
     var tags = <String, int>{};
     var languages = <String, int>{};

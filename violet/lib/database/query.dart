@@ -64,11 +64,12 @@ class QueryManager {
     return qm;
   }
 
-  static QueryManager queryPagination(String rawQuery) {
+  static QueryManager queryPagination(String rawQuery, int itemsPerPage) {
     QueryManager qm = QueryManager();
     qm.isPagination = true;
     qm.curPage = 0;
     qm.queryString = rawQuery;
+    qm.itemsPerPage = itemsPerPage;
     return qm;
   }
 

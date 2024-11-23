@@ -101,7 +101,6 @@ class _ViewerOverlayState extends State<ViewerOverlay> {
     final statusBarHeight =
         Settings.disableFullScreen ? MediaQuery.of(context).padding.top : 0;
     final height = MediaQuery.of(context).size.height;
-    final thumbHeight = [180, 140, 120, 96][c.thumbSize.value];
 
     return Obx(
       () => AnimatedOpacity(
@@ -118,12 +117,12 @@ class _ViewerOverlayState extends State<ViewerOverlay> {
                   Variables.bottomBarHeight -
                   (48 + 48 + 48 + 32 - 24) -
                   (c.search.value ? 48 : 0) -
-                  (c.thumb.value ? thumbHeight : 0) -
+                  (c.thumb.value ? c.thumbSizeValue : 0) -
                   (c.showSlider.value ? 48.0 : 0) -
                   statusBarHeight,
               bottom: (48 + 48.0 + 32 - 24) +
                   (c.search.value ? 48 : 0) +
-                  (c.thumb.value ? thumbHeight : 0) +
+                  (c.thumb.value ? c.thumbSizeValue : 0) +
                   (c.showSlider.value ? 48.0 : 0),
               left: 48.0,
               right: 48.0,
@@ -637,8 +636,6 @@ class _ViewerOverlayState extends State<ViewerOverlay> {
       },
     );
 
-    final thumbHeight = [180.0, 140.0, 120.0, 96.0][c.thumbSize.value];
-
     return Obx(
       () => AnimatedOpacity(
         opacity: c.opacity.value,
@@ -663,7 +660,7 @@ class _ViewerOverlayState extends State<ViewerOverlay> {
                           Variables.bottomBarHeight -
                           (48) -
                           (Platform.isIOS ? 48 - 24 : 0) -
-                          (c.thumb.value ? thumbHeight : 0) -
+                          (c.thumb.value ? c.thumbSizeValue : 0) -
                           (c.search.value ? 48 : 0) -
                           statusBarHeight -
                           (c.appBarToBottom.value ? 48 : 0))),
@@ -674,7 +671,7 @@ class _ViewerOverlayState extends State<ViewerOverlay> {
                 height: MediaQuery.of(context).viewInsets.bottom > 1
                     ? MediaQuery.of(context).viewInsets.bottom + 48
                     : (48 +
-                        (c.thumb.value ? thumbHeight : 0) +
+                        (c.thumb.value ? c.thumbSizeValue : 0) +
                         (c.search.value ? 48 : 0) +
                         (!c.appBarToBottom.value ? 48 : 0)),
                 curve: Curves.easeInOut,
@@ -701,7 +698,7 @@ class _ViewerOverlayState extends State<ViewerOverlay> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 300),
                             curve: Curves.easeInOut,
-                            height: c.thumb.value ? thumbHeight : 0,
+                            height: c.thumb.value ? c.thumbSizeValue : 0,
                             child: _thumbArea(),
                           ),
                         ),
@@ -738,7 +735,6 @@ class _ViewerOverlayState extends State<ViewerOverlay> {
   }
 
   _preprocessImageInfoForFileImage() {
-    final thumbHeight = [180, 140, 120, 96][c.thumbSize.value];
     c.thumb.value = Settings.enableThumbSlider;
 
     var imageSizes = c.provider.uris.map((e) {
@@ -757,9 +753,9 @@ class _ViewerOverlayState extends State<ViewerOverlay> {
 
       if (sz != null) {
         _thumbImageStartPos[i + 1] =
-            (thumbHeight - 14.0) * sz.width / sz.height;
+            (c.thumbSizeValue - 14.0) * sz.width / sz.height;
       } else {
-        _thumbImageStartPos[i + 1] = (thumbHeight - 14.0) / 36 * 25;
+        _thumbImageStartPos[i + 1] = (c.thumbSizeValue - 14.0) / 36 * 25;
       }
 
       _thumbImageWidth[i] = _thumbImageStartPos[i + 1];
@@ -818,9 +814,7 @@ class _ViewerOverlayState extends State<ViewerOverlay> {
                         width: double.infinity,
                         height: double.infinity,
                         isAntiAlias: true,
-                        cacheHeight:
-                            ([180, 140, 120, 96][c.thumbSize.value] * 2.0)
-                                .toInt(),
+                        cacheHeight: (c.thumbSizeValue * 2.0).toInt(),
                         filterQuality: FilterQuality.high,
                       ),
                     ),

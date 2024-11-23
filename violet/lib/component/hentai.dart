@@ -6,8 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violet/component/eh/eh_headers.dart';
 import 'package:violet/component/eh/eh_parser.dart';
 import 'package:violet/component/eh/eh_provider.dart';
-import 'package:violet/component/hisoki/hisoki_getter.dart';
-import 'package:violet/component/hisoki/hisoki_provider.dart';
 import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:violet/component/hitomi/hitomi_parser.dart';
 import 'package:violet/component/hitomi/hitomi_provider.dart';
@@ -567,13 +565,6 @@ class HentaiManager {
                 break;
               }
               return HitomiImageProvider(imgList, qr.id().toString());
-            }
-
-          case 'Hisoki':
-            {
-              var urls = await HisokiGetter.getImages(qr.id());
-              if (urls == null || urls.isEmpty) break;
-              return HisokiImageProvider(infos: urls, id: qr.id());
             }
         }
       } catch (e, st) {

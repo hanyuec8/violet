@@ -268,9 +268,8 @@ class DataBaseDownloadPageState extends State<DataBaseDownloadPage> {
   }
 
   Future indexing() async {
-    QueryManager qm;
-    qm = QueryManager.queryPagination('SELECT * FROM HitomiColumnModel');
-    qm.itemsPerPage = 50000;
+    final qm =
+        QueryManager.queryPagination('SELECT * FROM HitomiColumnModel', 50000);
 
     var tags = <String, int>{};
     var languages = <String, int>{};

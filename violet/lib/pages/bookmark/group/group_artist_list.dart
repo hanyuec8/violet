@@ -49,8 +49,7 @@ class _GroupArtistListState extends State<GroupArtistList>
       var postfix = artists[i].artist().toLowerCase().replaceAll(' ', '_');
       var queryString = HitomiManager.translate2query(
           '${artists[i].type().name}:$postfix ${Settings.includeTags}');
-      final qm = QueryManager.queryPagination(queryString);
-      qm.itemsPerPage = 1;
+      final qm = QueryManager.queryPagination(queryString, 1);
       var query = (await qm.next())[0].id();
       ids.add((query, i));
     }
@@ -68,8 +67,7 @@ class _GroupArtistListState extends State<GroupArtistList>
     var postfix = e.toLowerCase().replaceAll(' ', '_');
     var queryString = HitomiManager.translate2query(
         '${type.name}:$postfix ${Settings.includeTags}');
-    final qm = QueryManager.queryPagination(queryString);
-    qm.itemsPerPage = 4;
+    final qm = QueryManager.queryPagination(queryString, 4);
     return await qm.next();
   }
 

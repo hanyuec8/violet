@@ -55,8 +55,7 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
                 '${e.type().name}:${e.artist().toLowerCase().replaceAll(' ', '_')} ${Settings.includeTags}')
             .join(' or '));
 
-        final qm = QueryManager.queryPagination(queryString);
-        qm.itemsPerPage = 100;
+        final qm = QueryManager.queryPagination(queryString, 100);
         return await qm.next();
       }),
       builder: (context, AsyncSnapshot<List<QueryResult>> snapshot) {
