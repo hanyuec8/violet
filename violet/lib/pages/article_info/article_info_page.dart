@@ -88,42 +88,7 @@ class ArticleInfoPage extends StatelessWidget {
                       : Colors.white.withOpacity(0.2),
                   child: SimpleInfoWidget(),
                 ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Settings.majorColor.withAlpha(230),
-                      ),
-                      onPressed: () async =>
-                          await downloadButtonEvent(context, data),
-                      child: SizedBox(
-                        width: (width - 32 - 64 - 32) / 2,
-                        child: Text(
-                          Translations.instance!.trans('download'),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4.0),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Settings.majorColor,
-                      ),
-                      onPressed: data.lockRead
-                          ? null
-                          : () async => await readButtonEvent(context, data),
-                      child: SizedBox(
-                        width: (width - 32 - 64 - 32) / 2,
-                        child: Text(
-                          Translations.instance!.trans('read'),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                buttonArea(context),
                 TagInfoAreaWidget(queryResult: data.queryResult),
                 const DividerWidget(),
                 _CommentArea(
@@ -198,6 +163,66 @@ class ArticleInfoPage extends StatelessWidget {
     const bottomPadding = 16;
     final height = Platform.isWindows ? 4 * 100.0 : 4 * 50.0;
     return height + bottomPadding;
+  }
+
+  Row buttonArea(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final buttonWidth = (width - 32 - 64 - 32) / 2;
+    final buttonHeight = Platform.isWindows ? 36.0 : null;
+    final iconSize = Platform.isWindows ? 20.0 : null;
+    final data = Provider.of<ArticleInfo>(context);
+
+    SizedBox buttonInner(IconData icon, String text) {
+      return SizedBox(
+        width: buttonWidth,
+        height: buttonHeight,
+        child: Align(
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: iconSize),
+              const SizedBox(width: 6.0),
+              Text(
+                text,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Settings.majorColor.withAlpha(230),
+          ),
+          onPressed: () async => await downloadButtonEvent(context, data),
+          child: buttonInner(
+            MdiIcons.download,
+            Translations.instance!.trans('download'),
+          ),
+        ),
+        const SizedBox(width: 4.0),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Settings.majorColor,
+          ),
+          onPressed: data.lockRead
+              ? null
+              : () async => await readButtonEvent(context, data),
+          child: buttonInner(
+            MdiIcons.bookOpenPageVariant,
+            Translations.instance!.trans('read'),
+          ),
+        ),
+      ],
+    );
   }
 
   downloadButtonEvent(context, data) async {
