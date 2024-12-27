@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_downloader/flutter_downloader.dart'; // @dependent: android
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:fullscreen_window/fullscreen_window.dart';
 import 'package:get/get.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -248,11 +249,14 @@ class CustomScrollBehavior extends MaterialScrollBehavior {
 }
 
 // A widget to listen for the Escape key, XButton1 and raise the WillPopScope event
+// ignore: must_be_immutable
 class EscapeKeyListener extends StatelessWidget {
   final Widget child;
   final GlobalKey<NavigatorState> navigatorKey;
 
-  const EscapeKeyListener({
+  bool toggleFullScreen = false;
+
+  EscapeKeyListener({
     super.key,
     required this.navigatorKey,
     required this.child,
@@ -264,9 +268,16 @@ class EscapeKeyListener extends StatelessWidget {
       autofocus: true,
       focusNode: FocusNode(),
       onKeyEvent: (KeyEvent event) {
-        if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.escape) {
-          navigatorPop();
+        if (event is KeyDownEvent) {
+          switch (event.logicalKey) {
+            case LogicalKeyboardKey.escape:
+              navigatorPop();
+              break;
+            case LogicalKeyboardKey.f11:
+              toggleFullScreen = !toggleFullScreen;
+              FullScreenWindow.setFullScreen(toggleFullScreen);
+              break;
+          }
         }
       },
       // https://github.com/flutter/flutter/issues/115641#issuecomment-2267579790
