@@ -96,7 +96,7 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
     }
 
     if (int.tryParse(uri.host) != null) {
-      showArticleInfo(context, int.parse(uri.host));
+      showArticleInfoById(context, int.parse(uri.host));
     }
   }
 
