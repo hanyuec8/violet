@@ -64,7 +64,7 @@ Future showArticleInfoRaw({
 
   var defaultShowHeight = 400;
   if (Platform.isWindows) {
-    defaultShowHeight = (height * 0.9).toInt();
+    defaultShowHeight = (height * 0.85).toInt();
   }
 
   // https://github.com/flutter/flutter/issues/67219
