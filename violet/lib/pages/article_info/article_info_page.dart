@@ -781,7 +781,7 @@ class __InfoAreaWidgetState extends State<_InfoAreaWidget> {
     if (ehPattern.stringMatch(url) == url) {
       var match = ehPattern.allMatches(url);
       var id = match.first.namedGroup('id')!.trim();
-      showArticleInfo(context, int.parse(id));
+      showArticleInfoById(context, int.parse(id));
     } else if (await canLaunchUrlString(url)) {
       await launchUrlString(url);
     }

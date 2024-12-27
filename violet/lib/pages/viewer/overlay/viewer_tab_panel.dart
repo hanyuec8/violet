@@ -16,6 +16,7 @@ import 'package:violet/database/user/record.dart';
 import 'package:violet/model/article_info.dart';
 import 'package:violet/model/article_list_item.dart';
 import 'package:violet/pages/article_info/article_info_page.dart';
+import 'package:violet/pages/common/utils.dart';
 import 'package:violet/pages/viewer/viewer_page.dart';
 import 'package:violet/pages/viewer/viewer_page_provider.dart';
 import 'package:violet/server/violet.dart';
@@ -409,44 +410,11 @@ class __ArtistsArticleTabListState extends State<_ArtistsArticleTabList>
           );
   }
 
-  Future<void> _showArticleInfo(QueryResult e) async {
-    var prov = await ProviderManager.get(e.id());
-    var thumbnail = await prov.getThumbnailUrl();
-    var headers = await prov.getHeader(0);
-    ProviderManager.insert(e.id(), prov);
-
-    var isBookmarked = await (await Bookmark.getInstance()).isBookmark(e.id());
-
-    if (!mounted) return;
-    Provider<ArticleInfo>? cache;
-    showModalBottomSheet(
+  Future<void> _showArticleInfo(QueryResult queryResult) async {
+    return showArticleInfoRaw(
       context: context,
-      isScrollControlled: true,
-      builder: (_) {
-        return DraggableScrollableSheet(
-          initialChildSize: 400 / widget.height,
-          minChildSize: 400 / widget.height,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (_, controller) {
-            cache ??= Provider<ArticleInfo>.value(
-              value: ArticleInfo.fromArticleInfo(
-                queryResult: e,
-                thumbnail: thumbnail,
-                headers: headers,
-                heroKey: 'zxcvzxcvzxcv',
-                isBookmarked: isBookmarked,
-                controller: controller,
-                usableTabList: articleList,
-              ),
-              child: const ArticleInfoPage(
-                key: ObjectKey('asdfasdf'),
-              ),
-            );
-            return cache!;
-          },
-        );
-      },
+      queryResult: queryResult,
+      usableTabList: articleList,
     );
   }
 

@@ -22,6 +22,7 @@ import 'package:violet/locale/locale.dart' as locale;
 import 'package:violet/model/article_info.dart';
 import 'package:violet/other/dialogs.dart';
 import 'package:violet/pages/article_info/article_info_page.dart';
+import 'package:violet/pages/common/utils.dart';
 import 'package:violet/pages/viewer/others/preload_page_view.dart';
 import 'package:violet/pages/viewer/overlay/page_label.dart';
 import 'package:violet/pages/viewer/overlay/viewer_record_panel.dart';
@@ -303,8 +304,6 @@ class _ViewerOverlayState extends State<ViewerOverlay> {
       icon: const Icon(MdiIcons.information),
       color: Colors.white,
       onPressed: () async {
-        final height = MediaQuery.of(context).size.height;
-
         final search = await HentaiManager.idSearch(c.articleId.toString());
         if (search.results.length != 1) return;
 
@@ -316,47 +315,14 @@ class _ViewerOverlayState extends State<ViewerOverlay> {
           });
         }
 
-        var prov = await ProviderManager.get(c.articleId);
-        var thumbnail = await prov.getThumbnailUrl();
-        var headers = await prov.getHeader(0);
-        ProviderManager.insert(qr.id(), prov);
-
-        var isBookmarked =
-            await (await Bookmark.getInstance()).isBookmark(qr.id());
-
         c.isStaring = false;
         c.stopTimer();
 
-        if (!mounted) return;
-        Provider<ArticleInfo>? cache;
-        showModalBottomSheet(
+        if (!context.mounted) return;
+        return showArticleInfoRaw(
           context: context,
-          isScrollControlled: true,
-          builder: (_) {
-            return DraggableScrollableSheet(
-              initialChildSize: 400 / height,
-              minChildSize: 400 / height,
-              maxChildSize: 0.9,
-              expand: false,
-              builder: (_, controller) {
-                cache ??= Provider<ArticleInfo>.value(
-                  value: ArticleInfo.fromArticleInfo(
-                    queryResult: qr,
-                    thumbnail: thumbnail,
-                    headers: headers,
-                    heroKey: 'zxcvzxcvzxcv',
-                    isBookmarked: isBookmarked,
-                    controller: controller,
-                    lockRead: true,
-                  ),
-                  child: const ArticleInfoPage(
-                    key: ObjectKey('asdfasdf'),
-                  ),
-                );
-                return cache!;
-              },
-            );
-          },
+          queryResult: qr,
+          lockRead: true,
         ).then((value) {
           c.isStaring = true;
           c.startTimer();
