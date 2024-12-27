@@ -1,6 +1,7 @@
 // This source code is a part of Project Violet.
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
+import 'dart:io';
 import 'dart:math';
 
 import 'package:auto_animated/auto_animated.dart';
@@ -73,8 +74,6 @@ class ArticleInfoPage extends StatelessWidget {
           width: width - 16,
           height: Variables.articleInfoHeight,
           child: Container(
-            // width: width,
-            // height: height,
             color: Settings.themeWhat
                 ? Colors.black.withOpacity(0.9)
                 : Colors.white.withOpacity(0.97),
@@ -83,13 +82,12 @@ class ArticleInfoPage extends StatelessWidget {
               children: [
                 Container(
                   width: width,
-                  height: 4 * 50.0 + 16,
+                  height: simpleInfoHeight(),
                   color: Settings.themeWhat
                       ? Colors.grey.shade900.withOpacity(0.6)
                       : Colors.white.withOpacity(0.2),
                   child: SimpleInfoWidget(),
                 ),
-                // _functionButtons(width, context, data),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -99,7 +97,7 @@ class ArticleInfoPage extends StatelessWidget {
                         backgroundColor: Settings.majorColor.withAlpha(230),
                       ),
                       onPressed: () async =>
-                          await _downloadButtonEvent(context, data),
+                          await downloadButtonEvent(context, data),
                       child: SizedBox(
                         width: (width - 32 - 64 - 32) / 2,
                         child: Text(
@@ -115,7 +113,7 @@ class ArticleInfoPage extends StatelessWidget {
                       ),
                       onPressed: data.lockRead
                           ? null
-                          : () async => await _readButtonEvent(context, data),
+                          : () async => await readButtonEvent(context, data),
                       child: SizedBox(
                         width: (width - 32 - 64 - 32) / 2,
                         child: Text(
@@ -152,7 +150,7 @@ class ArticleInfoPage extends StatelessWidget {
                         expanded: PreviewAreaWidget(
                           queryResult: data.queryResult,
                           onPageTapped: (page) async =>
-                              await _readButtonEvent(context, data, page),
+                              await readButtonEvent(context, data, page),
                         ),
                         collapsed: Container(),
                       ),
@@ -196,45 +194,13 @@ class ArticleInfoPage extends StatelessWidget {
     );
   }
 
-  /*_functionButtons(width, context, data) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: <Widget>[
-        ElevatedButton(
-          child: Container(
-            width: (width - 32 - 64 - 32) / 2,
-            child: Text(
-              Translations.instance!.trans('download'),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          style: ElevatedButton.styleFrom(
-            primary: Settings.majorColor.withAlpha(230),
-          ),
-          onPressed: () async => await _downloadButtonEvent(context, data),
-        ),
-        const SizedBox(width: 4.0),
-        ElevatedButton(
-          child: Container(
-            width: (width - 32 - 64 - 32) / 2,
-            child: Text(
-              Translations.instance!.trans('read'),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          style: ElevatedButton.styleFrom(
-            primary: Settings.majorColor,
-          ),
-          onPressed: data.lockRead
-              ? null
-              : () async => await _readButtonEvent(context, data),
-        ),
-      ],
-    );
-  }*/
+  double simpleInfoHeight() {
+    const bottomPadding = 16;
+    final height = Platform.isWindows ? 4 * 100.0 : 4 * 50.0;
+    return height + bottomPadding;
+  }
 
-  _downloadButtonEvent(context, data) async {
+  downloadButtonEvent(context, data) async {
     if (!Settings.useInnerStorage &&
         !await Permission.manageExternalStorage.isGranted) {
       if (await Permission.manageExternalStorage.request() ==
@@ -273,7 +239,7 @@ class ArticleInfoPage extends StatelessWidget {
     Navigator.pop(context);
   }
 
-  _readButtonEvent(BuildContext context, ArticleInfo data, [int? page]) async {
+  readButtonEvent(BuildContext context, ArticleInfo data, [int? page]) async {
     if (Settings.useVioletServer) {
       Future.delayed(const Duration(milliseconds: 100)).then((value) async {
         await VioletServer.view(data.queryResult.id());
