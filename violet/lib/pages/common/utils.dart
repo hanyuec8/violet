@@ -1,6 +1,8 @@
 // This source code is a part of Project Violet.
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:violet/component/hentai.dart';
@@ -10,6 +12,9 @@ import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/model/article_info.dart';
 import 'package:violet/pages/article_info/article_info_page.dart';
 import 'package:violet/widgets/article_item/image_provider_manager.dart';
+
+const String heroKey = 'articleInfoHero';
+const String pageKey = 'artcieInfoPage';
 
 // TODO: expand using optional arguments
 Future showArticleInfoById(BuildContext context, int id) async {
@@ -56,6 +61,12 @@ Future showArticleInfoRaw({
 
   if (!context.mounted) return;
   final height = MediaQuery.of(context).size.height;
+
+  var defaultShowHeight = 400;
+  if (Platform.isWindows) {
+    defaultShowHeight = (height * 0.9).toInt();
+  }
+
   // https://github.com/flutter/flutter/issues/67219
   Provider<ArticleInfo>? cache;
   showModalBottomSheet(
@@ -63,7 +74,7 @@ Future showArticleInfoRaw({
     isScrollControlled: true,
     builder: (_) {
       return DraggableScrollableSheet(
-        initialChildSize: 400 / height,
+        initialChildSize: defaultShowHeight / height,
         minChildSize: 400 / height,
         maxChildSize: 0.9,
         expand: false,
@@ -73,14 +84,14 @@ Future showArticleInfoRaw({
               queryResult: queryResult,
               thumbnail: thumbnail,
               headers: headers,
-              heroKey: 'zxcvzxcvzxcv',
+              heroKey: heroKey,
               isBookmarked: isBookmarked,
               controller: controller,
               usableTabList: usableTabList,
               lockRead: lockRead,
             ),
             child: const ArticleInfoPage(
-              key: ObjectKey('asdfasdf'),
+              key: ObjectKey(pageKey),
             ),
           );
           return cache!;
