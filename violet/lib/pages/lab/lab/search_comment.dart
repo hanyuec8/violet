@@ -50,7 +50,7 @@ class _LabSearchCommentsState extends State<LabSearchComments> {
                 return InkWell(
                   onTap: () async {
                     FocusScope.of(context).unfocus();
-                    showArticleInfo(context, e.$1);
+                    showArticleInfoById(context, e.$1);
                   },
                   onLongPress: () async {
                     FocusScope.of(context).unfocus();

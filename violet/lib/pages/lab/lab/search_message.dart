@@ -169,7 +169,7 @@ class _LabSearchMessageState extends State<LabSearchMessage> {
                     return InkWell(
                       onTap: () async {
                         FocusScope.of(context).unfocus();
-                        showArticleInfo(context, e.$2);
+                        showArticleInfoById(context, e.$2);
                       },
                       splashColor: Colors.white,
                       child: Column(

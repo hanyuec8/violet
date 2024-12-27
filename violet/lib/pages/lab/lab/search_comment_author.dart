@@ -47,7 +47,7 @@ class _LabSearchCommentsAuthorState extends State<LabSearchCommentsAuthor> {
           return InkWell(
             onTap: () async {
               FocusScope.of(context).unfocus();
-              showArticleInfo(context, e.$1);
+              showArticleInfoById(context, e.$1);
             },
             splashColor: Colors.white,
             child: ListTile(

@@ -363,7 +363,7 @@ class DownloadItemWidgetState extends State<DownloadItemWidget>
           scale = 1.0;
         });
         if (int.tryParse(widget.item.url()) != null) {
-          showArticleInfo(context, int.parse(widget.item.url()));
+          showArticleInfoById(context, int.parse(widget.item.url()));
         }
       },
     );

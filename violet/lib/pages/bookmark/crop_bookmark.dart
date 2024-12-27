@@ -209,7 +209,7 @@ class _CropBookmarkPageState extends State<CropBookmarkPage> {
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: () async {
-                        showArticleInfo(context, articleId);
+                        showArticleInfoById(context, articleId);
                       },
                       onDoubleTap: () async {
                         _showViewer(articleId, page);

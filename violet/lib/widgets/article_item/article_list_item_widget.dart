@@ -16,14 +16,12 @@ import 'package:uuid/uuid.dart';
 import 'package:violet/component/hentai.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
 import 'package:violet/context/modal_bottom_sheet_context.dart';
-import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/database/user/record.dart';
 import 'package:violet/locale/locale.dart' as locale;
-import 'package:violet/model/article_info.dart';
 import 'package:violet/model/article_list_item.dart';
 import 'package:violet/other/dialogs.dart';
-import 'package:violet/pages/article_info/article_info_page.dart';
+import 'package:violet/pages/common/utils.dart';
 import 'package:violet/pages/search/search_page.dart';
 import 'package:violet/pages/viewer/viewer_page.dart';
 import 'package:violet/pages/viewer/viewer_page_provider.dart';
@@ -241,69 +239,10 @@ class _ArticleListItemWidgetState extends State<ArticleListItemWidget>
 
     _animateScale(1.0);
 
-    _showArticleInfo();
-  }
-
-  Future<void> _showArticleInfo() async {
-    /**
-     * It shows up details with [Download button, Read button]
-     */
-    final height = MediaQuery.of(context).size.height;
-
-    // https://github.com/flutter/flutter/issues/67219
-    FutureBuilder<QueryResult>? cache;
-    showModalBottomSheet(
+    showArticleInfoRaw(
       context: context,
-      isScrollControlled: true,
-      builder: (_) {
-        return DraggableScrollableSheet(
-          initialChildSize: 400 / height,
-          minChildSize: 400 / height,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (_, controller) {
-            cache ??= FutureBuilder<QueryResult>(
-              /*
-                * This checks QueryResult then 
-                * do idQueryWeb when QueryResult keys was only exists 'Id'
-                */
-              future: (() {
-                if (data.queryResult.result.keys.length == 1 &&
-                    data.queryResult.result.keys.lastOrNull == 'Id') {
-                  return HentaiManager.idQueryWeb('${data.queryResult.id()}');
-                } else {
-                  return Future.value(data.queryResult);
-                }
-              })(),
-              builder: (context, snapshot) {
-                createBody(queryResult) {
-                  return Provider<ArticleInfo>.value(
-                    value: ArticleInfo.fromArticleInfo(
-                      queryResult: queryResult,
-                      thumbnail: c.thumbnail.value,
-                      headers: c.headers,
-                      heroKey: data.thumbnailTag,
-                      isBookmarked: c.isBookmarked.value,
-                      controller: controller,
-                      usableTabList: data.usableTabList,
-                    ),
-                    child: const ArticleInfoPage(
-                      key: ObjectKey('asdfasdf'),
-                    ),
-                  );
-                }
-
-                if (snapshot.hasData) {
-                  return createBody(snapshot.data);
-                } else {
-                  return createBody(data.queryResult);
-                }
-              },
-            );
-            return cache!;
-          },
-        );
-      },
+      queryResult: data.queryResult,
+      usableTabList: data.usableTabList,
     );
   }
 
