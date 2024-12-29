@@ -61,7 +61,9 @@ class ScriptManager {
 
   static Future<void> refresh() async {
     if (enableV4 && ScriptWebViewProxy.reload != null) {
+      /// proxy may be calling `refreshV4` function
       ScriptWebViewProxy.reload!();
+      return;
     }
 
     if (DateTime.now().difference(latestUpdate).inMinutes < 5) {
