@@ -15,22 +15,22 @@ import 'package:violet/script/script_webview.dart';
 import 'package:violet/widgets/article_item/image_provider_manager.dart';
 
 class ScriptManager {
-  static const String _scriptNoCDNUrl =
+  static const String scriptNoCDNUrl =
       'https://github.com/project-violet/scripts/blob/main/hitomi_get_image_list_v3.js';
-  static const String _scriptUrl =
+  static const String scriptUrl =
       'https://raw.githubusercontent.com/project-violet/scripts/main/hitomi_get_image_list_v3.js';
-  static const String _scriptV4 =
+  static const String scriptV4Url =
       'https://github.com/project-violet/scripts/raw/main/hitomi_get_image_list_v4_model.js';
   static bool enableV4 = false;
-  static String? _v4Cache;
-  static String? _scriptCache;
-  static late JavascriptRuntime _runtime;
-  static late DateTime _latestUpdate;
+  static String? v4Cache;
+  static String? scriptCache;
+  static late JavascriptRuntime runtime;
+  static late DateTime latestUpdate;
 
   static Future<void> init() async {
     try {
-      final scriptHtml = (await http.get(_scriptNoCDNUrl)).body;
-      _scriptCache = json.decode(parse(scriptHtml)
+      final scriptHtml = (await http.get(scriptNoCDNUrl)).body;
+      scriptCache = json.decode(parse(scriptHtml)
           .querySelector("script[data-target='react-app.embeddedData']")!
           .text)['payload']['blob']['rawBlob'];
     } catch (e, st) {
@@ -38,9 +38,9 @@ class ScriptManager {
           '$st');
       debugPrint(e.toString());
     }
-    if (_scriptCache == null) {
+    if (scriptCache == null) {
       try {
-        _scriptCache = (await http.get(_scriptUrl)).body;
+        scriptCache = (await http.get(scriptUrl)).body;
       } catch (e, st) {
         await Logger.warning('[ScriptManager-init] W: $e\n'
             '$st');
@@ -48,13 +48,13 @@ class ScriptManager {
       }
     }
     try {
-      _v4Cache = (await http.get(_scriptV4)).body;
+      v4Cache = (await http.get(scriptV4Url)).body;
     } catch (e, st) {
       await Logger.warning('[ScriptManager-init] W: $e\n'
           '$st');
       debugPrint(e.toString());
     }
-    _latestUpdate = DateTime.now();
+    latestUpdate = DateTime.now();
     try {
       _initRuntime();
     } catch (e, st) {
@@ -72,15 +72,15 @@ class ScriptManager {
       return false;
     }
 
-    if (DateTime.now().difference(_latestUpdate).inMinutes < 5) {
+    if (DateTime.now().difference(latestUpdate).inMinutes < 5) {
       return false;
     }
 
-    var scriptTemp = (await http.get(_scriptUrl)).body;
+    var scriptTemp = (await http.get(scriptUrl)).body;
 
-    if (_scriptCache != scriptTemp) {
-      _scriptCache = scriptTemp;
-      _latestUpdate = DateTime.now();
+    if (scriptCache != scriptTemp) {
+      scriptCache = scriptTemp;
+      latestUpdate = DateTime.now();
       _initRuntime();
       ProviderManager.checkMustRefresh();
       return true;
@@ -92,15 +92,15 @@ class ScriptManager {
   static Future<void> setV4(String ggM, String ggB) async {
     enableV4 = true;
 
-    _v4Cache ??= (await http.get(_scriptV4)).body;
+    v4Cache ??= (await http.get(scriptV4Url)).body;
 
-    var scriptTemp = _v4Cache!;
+    var scriptTemp = v4Cache!;
     scriptTemp = scriptTemp.replaceAll('%%gg.m%', ggM);
     scriptTemp = scriptTemp.replaceAll('%%gg.b%', ggB);
 
-    if (_scriptCache != scriptTemp) {
-      _scriptCache = scriptTemp;
-      _latestUpdate = DateTime.now();
+    if (scriptCache != scriptTemp) {
+      scriptCache = scriptTemp;
+      latestUpdate = DateTime.now();
       _initRuntime();
       ProviderManager.checkMustRefresh();
       ViewerContext.signal((c) => c.refreshImgUrlWhenRequired());
@@ -110,13 +110,13 @@ class ScriptManager {
   }
 
   static void _initRuntime() {
-    _runtime = getJavascriptRuntime();
-    _runtime.evaluate(_scriptCache!);
+    runtime = getJavascriptRuntime();
+    runtime.evaluate(scriptCache!);
   }
 
   static Future<String?> getGalleryInfo(String id) async {
     var downloadUrl =
-        _runtime.evaluate("create_download_url('$id')").stringResult;
+        runtime.evaluate("create_download_url('$id')").stringResult;
     var headers = await runHitomiGetHeaderContent(id);
     var galleryInfo = await http.get(downloadUrl, headers: headers);
     if (galleryInfo.statusCode != 200) return null;
@@ -124,17 +124,17 @@ class ScriptManager {
   }
 
   static Future<ImageList?> runHitomiGetImageList(int id) async {
-    if (_scriptCache == null) return null;
+    if (scriptCache == null) return null;
 
     try {
       var downloadUrl =
-          _runtime.evaluate("create_download_url('$id')").stringResult;
+          runtime.evaluate("create_download_url('$id')").stringResult;
       var headers = await runHitomiGetHeaderContent(id.toString());
       var galleryInfo = await http.get(downloadUrl,
           headers: headers, timeout: const Duration(milliseconds: 1000));
       if (galleryInfo.statusCode != 200) return null;
-      _runtime.evaluate(galleryInfo.body);
-      final jResult = _runtime.evaluate('hitomi_get_image_list()').stringResult;
+      runtime.evaluate(galleryInfo.body);
+      final jResult = runtime.evaluate('hitomi_get_image_list()').stringResult;
       final jResultImageList = ScriptImageList.fromJson(jsonDecode(jResult));
 
       return ImageList(
@@ -152,10 +152,10 @@ class ScriptManager {
 
   static Future<Map<String, String>> runHitomiGetHeaderContent(
       String id) async {
-    if (_scriptCache == null) return <String, String>{};
+    if (scriptCache == null) return <String, String>{};
     try {
       final jResult =
-          _runtime.evaluate("hitomi_get_header_content('$id')").stringResult;
+          runtime.evaluate("hitomi_get_header_content('$id')").stringResult;
       final jResultObject = jsonDecode(jResult);
 
       if (jResultObject is Map<dynamic, dynamic>) {
