@@ -23,6 +23,7 @@ class ScriptManager {
   static const String scriptV4Url =
       'https://github.com/project-violet/scripts/raw/main/hitomi_get_image_list_v4_model.js';
   static bool enableV4 = false;
+  static bool enableRefreshV4NoWebView = true;
   static String? v4Cache;
   static String? scriptCache;
   static late JavascriptRuntime runtime;
@@ -37,7 +38,7 @@ class ScriptManager {
       });
     }
 
-    fallbackFail(() async {
+    await fallbackFail(() async {
       final scriptHtml = (await http.get(scriptNoCDNUrl)).body;
       scriptCache = json.decode(parse(scriptHtml)
           .querySelector("script[data-target='react-app.embeddedData']")!
@@ -45,22 +46,32 @@ class ScriptManager {
     });
 
     if (scriptCache == null) {
-      fallbackFail(() async {
+      await fallbackFail(() async {
         scriptCache = (await http.get(scriptUrl)).body;
       });
     }
 
-    fallbackFail(() async {
+    await fallbackFail(() async {
       v4Cache = (await http.get(scriptV4Url)).body;
     });
 
-    fallbackFail(() async {
+    await fallbackFail(() async {
+      if (enableRefreshV4NoWebView) {
+        await refreshV4NoWebView();
+      }
+    });
+
+    await fallbackFail(() async {
       initRuntime();
     });
   }
 
   static Future<void> refresh() async {
-    if (enableV4 && ScriptWebViewProxy.reload != null) {
+    if (enableRefreshV4NoWebView) {
+      if (await refreshV4NoWebView()) {
+        return;
+      }
+    } else if (enableV4 && ScriptWebViewProxy.reload != null) {
       /// proxy may be calling `refreshV4` function
       ScriptWebViewProxy.reload!();
       return;
@@ -76,6 +87,30 @@ class ScriptManager {
   static Future<void> refreshV3() async {
     final scriptTemp = (await http.get(scriptUrl)).body;
     replaceScriptCacheIfRequired(scriptTemp);
+  }
+
+  static Future<bool> refreshV4NoWebView() async {
+    var success = false;
+    await catchUnwind(() async {
+      final ggBody = (await http.get('https://ltn.hitomi.la/gg.js')).body;
+      final ggRuntime = getJavascriptRuntime();
+      ggRuntime.evaluate(ggBody.split("'use strict';")[1]);
+      final gg = ggRuntime.evaluate('''
+              var r = "";
+              for (var i = 0; i < 4096; i++) {
+                r += gg.m(i).toString();
+                r += ",";
+              }
+              r + '|' + gg.b
+              ''').stringResult;
+      await refreshV4(gg.split('|')[0], gg.split('|')[1]);
+      success = true;
+    }, (e, st) async {
+      await Logger.warning('[ScriptManager-refreshV4NoWebView] W: $e\n'
+          '$st');
+      debugPrint(e.toString());
+    });
+    return success;
   }
 
   /// this function may be called by `ScriptWebView`
