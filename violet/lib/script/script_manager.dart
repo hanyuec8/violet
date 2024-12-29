@@ -59,47 +59,42 @@ class ScriptManager {
     });
   }
 
-  static Future<bool> refresh() async {
-    if (enableV4) {
-      if (ScriptWebViewProxy.reload != null) {
-        ScriptWebViewProxy.reload!();
-      }
-      return false;
+  static Future<void> refresh() async {
+    if (enableV4 && ScriptWebViewProxy.reload != null) {
+      ScriptWebViewProxy.reload!();
     }
 
     if (DateTime.now().difference(latestUpdate).inMinutes < 5) {
-      return false;
+      return;
     }
 
-    final scriptTemp = (await http.get(scriptUrl)).body;
-
-    if (scriptCache != scriptTemp) {
-      scriptCache = scriptTemp;
-      initRuntime();
-      ProviderManager.checkMustRefresh();
-      return true;
-    }
-
-    return false;
+    await refreshV3();
   }
 
+  static Future<void> refreshV3() async {
+    final scriptTemp = (await http.get(scriptUrl)).body;
+    replaceScriptCacheIfRequired(scriptTemp);
+  }
+
+  /// this function may be called by `ScriptWebView`
   static Future<void> setV4(String ggM, String ggB) async {
     enableV4 = true;
-
     v4Cache ??= (await http.get(scriptV4Url)).body;
+    final scriptTemp =
+        v4Cache!.replaceAll('%%gg.m%', ggM).replaceAll('%%gg.b%', ggB);
+    replaceScriptCacheIfRequired(scriptTemp);
+  }
 
-    var scriptTemp = v4Cache!;
-    scriptTemp = scriptTemp.replaceAll('%%gg.m%', ggM);
-    scriptTemp = scriptTemp.replaceAll('%%gg.b%', ggB);
-
-    if (scriptCache != scriptTemp) {
-      scriptCache = scriptTemp;
-      initRuntime();
-      ProviderManager.checkMustRefresh();
-      ViewerContext.signal((c) => c.refreshImgUrlWhenRequired());
-
-      Logger.info('[Script Manager] Update Sync!');
+  static void replaceScriptCacheIfRequired(String scriptTemp) {
+    if (scriptCache == scriptTemp) {
+      return;
     }
+
+    scriptCache = scriptTemp;
+    initRuntime();
+    ProviderManager.checkMustRefresh();
+    ViewerContext.signal((c) => c.refreshImgUrlWhenRequired());
+    Logger.info('[Script Manager] Update Sync!');
   }
 
   static void initRuntime() {
