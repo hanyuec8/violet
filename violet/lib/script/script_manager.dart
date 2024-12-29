@@ -12,6 +12,7 @@ import 'package:violet/log/log.dart';
 import 'package:violet/network/wrapper.dart' as http;
 import 'package:violet/script/freezed/script_model.dart';
 import 'package:violet/script/script_webview.dart';
+import 'package:violet/util/helper.dart';
 import 'package:violet/widgets/article_item/image_provider_manager.dart';
 
 class ScriptManager {
@@ -28,40 +29,34 @@ class ScriptManager {
   static late DateTime latestUpdate;
 
   static Future<void> init() async {
-    try {
+    Future fallbackFail(Future Function() fn) async {
+      await catchUnwind(fn, (e, st) async {
+        await Logger.warning('[ScriptManager-init] W: $e\n'
+            '$st');
+        debugPrint(e.toString());
+      });
+    }
+
+    fallbackFail(() async {
       final scriptHtml = (await http.get(scriptNoCDNUrl)).body;
       scriptCache = json.decode(parse(scriptHtml)
           .querySelector("script[data-target='react-app.embeddedData']")!
           .text)['payload']['blob']['rawBlob'];
-    } catch (e, st) {
-      await Logger.warning('[ScriptManager-init] W: $e\n'
-          '$st');
-      debugPrint(e.toString());
-    }
+    });
+
     if (scriptCache == null) {
-      try {
+      fallbackFail(() async {
         scriptCache = (await http.get(scriptUrl)).body;
-      } catch (e, st) {
-        await Logger.warning('[ScriptManager-init] W: $e\n'
-            '$st');
-        debugPrint(e.toString());
-      }
+      });
     }
-    try {
+
+    fallbackFail(() async {
       v4Cache = (await http.get(scriptV4Url)).body;
-    } catch (e, st) {
-      await Logger.warning('[ScriptManager-init] W: $e\n'
-          '$st');
-      debugPrint(e.toString());
-    }
-    latestUpdate = DateTime.now();
-    try {
-      _initRuntime();
-    } catch (e, st) {
-      await Logger.error('[ScriptManager-init] E: $e\n'
-          '$st');
-      debugPrint(e.toString());
-    }
+    });
+
+    fallbackFail(() async {
+      initRuntime();
+    });
   }
 
   static Future<bool> refresh() async {
@@ -76,12 +71,11 @@ class ScriptManager {
       return false;
     }
 
-    var scriptTemp = (await http.get(scriptUrl)).body;
+    final scriptTemp = (await http.get(scriptUrl)).body;
 
     if (scriptCache != scriptTemp) {
       scriptCache = scriptTemp;
-      latestUpdate = DateTime.now();
-      _initRuntime();
+      initRuntime();
       ProviderManager.checkMustRefresh();
       return true;
     }
@@ -100,8 +94,7 @@ class ScriptManager {
 
     if (scriptCache != scriptTemp) {
       scriptCache = scriptTemp;
-      latestUpdate = DateTime.now();
-      _initRuntime();
+      initRuntime();
       ProviderManager.checkMustRefresh();
       ViewerContext.signal((c) => c.refreshImgUrlWhenRequired());
 
@@ -109,16 +102,17 @@ class ScriptManager {
     }
   }
 
-  static void _initRuntime() {
+  static void initRuntime() {
+    latestUpdate = DateTime.now();
     runtime = getJavascriptRuntime();
     runtime.evaluate(scriptCache!);
   }
 
-  static Future<String?> getGalleryInfo(String id) async {
-    var downloadUrl =
+  static Future<String?> getGalleryInfoRaw(String id) async {
+    final downloadUrl =
         runtime.evaluate("create_download_url('$id')").stringResult;
-    var headers = await runHitomiGetHeaderContent(id);
-    var galleryInfo = await http.get(downloadUrl, headers: headers);
+    final headers = await runHitomiGetHeaderContent(id.toString());
+    final galleryInfo = await http.get(downloadUrl, headers: headers);
     if (galleryInfo.statusCode != 200) return null;
     return galleryInfo.body;
   }
@@ -127,13 +121,9 @@ class ScriptManager {
     if (scriptCache == null) return null;
 
     try {
-      var downloadUrl =
-          runtime.evaluate("create_download_url('$id')").stringResult;
-      var headers = await runHitomiGetHeaderContent(id.toString());
-      var galleryInfo = await http.get(downloadUrl,
-          headers: headers, timeout: const Duration(milliseconds: 1000));
-      if (galleryInfo.statusCode != 200) return null;
-      runtime.evaluate(galleryInfo.body);
+      final galleryInfoRaw = await getGalleryInfoRaw(id.toString());
+      if (galleryInfoRaw == null) return null;
+      runtime.evaluate(galleryInfoRaw);
       final jResult = runtime.evaluate('hitomi_get_image_list()').stringResult;
       final jResultImageList = ScriptImageList.fromJson(jsonDecode(jResult));
 
