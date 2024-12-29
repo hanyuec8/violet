@@ -77,7 +77,7 @@ class ScriptManager {
   }
 
   /// this function may be called by `ScriptWebView`
-  static Future<void> setV4(String ggM, String ggB) async {
+  static Future<void> refreshV4(String ggM, String ggB) async {
     enableV4 = true;
     v4Cache ??= (await http.get(scriptV4Url)).body;
     final scriptTemp =
