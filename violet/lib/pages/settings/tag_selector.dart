@@ -3,7 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:violet/component/hitomi/displayed_tag.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/index.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/settings/settings.dart';
 
@@ -184,7 +184,7 @@ class _TagSelectorDialogState extends State<TagSelectorDialog> {
     _insertPos = pos;
     _insertLength = token.length;
     _searchText = target;
-    final result = (await HitomiManager.queryAutoComplete(token))
+    final result = (await HentaiIndex.queryAutoComplete(token))
         .take(_searchResultMaximum)
         .toList();
     if (result.isEmpty) _nothing = true;

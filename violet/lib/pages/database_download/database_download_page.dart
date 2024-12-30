@@ -14,7 +14,7 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/database.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/locale/locale.dart';
@@ -214,7 +214,7 @@ class DataBaseDownloadPageState extends State<DataBaseDownloadPage> {
   }
 
   Future deleteUnused() async {
-    var sql = HitomiManager.translate2query(
+    var sql = translate2query(
             '${Settings.includeTags} ${Settings.serializedExcludeTags}')
         .replaceAll(' AND ExistOnHitomi=1', '');
     await (await DataBaseManager.getInstance()).delete('HitomiColumnModel',

@@ -5,7 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/model/article_list_item.dart';
@@ -50,7 +50,7 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
 
         if (artists.isEmpty) return <QueryResult>[];
 
-        final queryString = HitomiManager.translate2query(artists
+        final queryString = translate2query(artists
             .map((e) =>
                 '${e.type().name}:${e.artist().toLowerCase().replaceAll(' ', '_')} ${Settings.includeTags}')
             .join(' or '));

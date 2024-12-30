@@ -5,7 +5,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:html_unescape/html_unescape_small.dart';
 import 'package:violet/algorithm/distance.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/index.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
@@ -51,7 +52,7 @@ class SimilarListPage extends StatelessWidget {
                   name: e.$1,
                 ),
                 title:
-                    ' ${e.$1} (${HitomiManager.getArticleCount(type.name, e.$1)})',
+                    ' ${e.$1} (${HentaiIndex.getArticleCount(type.name, e.$1)})',
                 count:
                     '${Translations.instance!.trans('score')}: ${e.$2.toStringAsFixed(1)} ',
                 articles: snapshot.data!,
@@ -67,7 +68,7 @@ class SimilarListPage extends StatelessWidget {
 Future<List<QueryResult>> queryDedupedArtistArticles(
     ArtistType type, String e) async {
   final postfix = e.toLowerCase().replaceAll(' ', '_');
-  final queryString = HitomiManager.translate2query(
+  final queryString = translate2query(
       '${type.name}:$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
   final qm = QueryManager.queryPagination(queryString, 10);
   final quries = await qm.next();

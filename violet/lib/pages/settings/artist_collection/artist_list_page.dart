@@ -6,7 +6,8 @@ import 'package:html_unescape/html_unescape_small.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:violet/algorithm/distance.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/index.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/model/article_list_item.dart';
@@ -31,7 +32,7 @@ class ArtistListPage extends StatelessWidget {
     }
 
     final postfix = e.trim().toLowerCase().replaceAll(' ', '_');
-    final queryString = HitomiManager.translate2query(
+    final queryString = translate2query(
         '${isLast ? '' : 'artist:'}$postfix ${Settings.includeTags} ${Settings.serializedExcludeTags}');
 
     final queryManager = QueryManager.queryPagination(queryString, 10);
@@ -132,7 +133,7 @@ class ArtistListPage extends StatelessWidget {
 
                   final queryResults = snapshot.data!;
                   final articleCount =
-                      HitomiManager.getArticleCount(classification, name);
+                      HentaiIndex.getArticleCount(classification, name);
 
                   late final ArtistType type;
                   if (isLast && classification == 'group') {

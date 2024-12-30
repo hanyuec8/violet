@@ -6,7 +6,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/settings/settings.dart';
@@ -119,7 +119,7 @@ class _TagRebuildPageState extends State<TagRebuildPage> {
 
   Future indexing() async {
     final qm = QueryManager.queryPagination(
-        HitomiManager.translate2query(
+        translate2query(
             '${Settings.includeTags} ${Settings.serializedExcludeTags}'),
         50000);
 

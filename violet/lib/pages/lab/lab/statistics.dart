@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_heatmap_calendar/flutter_heatmap_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/record.dart';
 import 'package:violet/log/act_log.dart';
@@ -71,7 +71,7 @@ class _StatisticsState extends State<Statistics> {
               }));
 
       final queryRaw =
-          '${HitomiManager.translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND '
+          '${translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND '
           'Id IN (${articles.map((e) => e.articleId()).join(',')})';
       final query = await QueryManager.query(queryRaw);
 
