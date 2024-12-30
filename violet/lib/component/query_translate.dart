@@ -122,9 +122,6 @@ class _QueryTranslator {
       case 'class':
         name = ss[1].replaceAll('_', ' ');
         break;
-
-      case 'recent':
-        return 'SELECT * FROM HitomiColumnModel';
     }
 
     var compare = "$column LIKE '%$name%'";
