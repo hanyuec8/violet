@@ -7,8 +7,8 @@ import 'package:material_design_icons_flutter/material_design_icons_flutter.dart
 import 'package:mdi/mdi.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:violet/component/index.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
@@ -48,7 +48,7 @@ class _GroupArtistListState extends State<GroupArtistList>
     var ids = <(int, int)>[];
     for (int i = 0; i < artists.length; i++) {
       var postfix = artists[i].artist().toLowerCase().replaceAll(' ', '_');
-      var queryString = HitomiManager.translate2query(
+      var queryString = translate2query(
           '${artists[i].type().name}:$postfix ${Settings.includeTags}');
       final qm = QueryManager.queryPagination(queryString, 1);
       var query = (await qm.next())[0].id();
@@ -66,8 +66,8 @@ class _GroupArtistListState extends State<GroupArtistList>
 
   Future<List<QueryResult>> _future(String e, ArtistType type) async {
     var postfix = e.toLowerCase().replaceAll(' ', '_');
-    var queryString = HitomiManager.translate2query(
-        '${type.name}:$postfix ${Settings.includeTags}');
+    var queryString =
+        translate2query('${type.name}:$postfix ${Settings.includeTags}');
     final qm = QueryManager.queryPagination(queryString, 4);
     return await qm.next();
   }

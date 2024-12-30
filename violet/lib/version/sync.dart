@@ -9,7 +9,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:http/http.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/database.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/log/log.dart';
@@ -234,7 +234,7 @@ class SyncManager {
       }
 
       if (Settings.useOptimizeDatabase && filteredIter.isNotEmpty) {
-        final sql = HitomiManager.translate2query(
+        final sql = translate2query(
           '${Settings.includeTags} ${Settings.serializedExcludeTags}',
           filter: false,
         );

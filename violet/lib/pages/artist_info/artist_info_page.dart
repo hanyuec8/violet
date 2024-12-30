@@ -14,9 +14,9 @@ import 'package:html_unescape/html_unescape_small.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:violet/component/index.dart';
 import 'package:violet/component/hitomi/title_cluster.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
@@ -227,7 +227,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
 
   Future<List<QueryResult>> query() async {
     final token = '${widget.type.name}:${widget.name.replaceAll(' ', '_')}';
-    final query = HitomiManager.translate2query(
+    final query = translate2query(
         '$token ${Settings.includeTags} ${Settings.serializedExcludeTags}');
     final qm = await QueryManager.query('$query ORDER BY Id DESC');
     return qm.results!;

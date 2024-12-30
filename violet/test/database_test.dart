@@ -8,6 +8,7 @@ import 'package:path/path.dart';
 import 'package:violet/component/hentai.dart';
 import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/settings/settings.dart';
 
 void main() {
@@ -26,8 +27,7 @@ void main() {
   });
 
   test('Test korean db search', () async {
-    final queryString =
-        HitomiManager.translate2query('artist:michiking (lang:korean)');
+    final queryString = translate2query('artist:michiking (lang:korean)');
     final count = (await db!.rawQuery(queryString.replaceAll(
         'SELECT * FROM', 'SELECT COUNT(*) as cnt FROM')));
 
