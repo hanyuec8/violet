@@ -22,6 +22,8 @@ class ScriptManager {
       'https://raw.githubusercontent.com/project-violet/scripts/main/hitomi_get_image_list_v3.js';
   static const String scriptV4Url =
       'https://github.com/project-violet/scripts/raw/main/hitomi_get_image_list_v4_model.js';
+  static const String enableRefreshV4NoWebViewCheckUrl =
+      'https://raw.githubusercontent.com/project-violet/scripts/refs/heads/main/enableRefreshV4NoWebView';
   static bool enableV4 = false;
   static bool enableRefreshV4NoWebView = true;
   static String? v4Cache;
@@ -69,6 +71,7 @@ class ScriptManager {
   }
 
   static Future<void> refresh() async {
+    // 1. (V4) NoWebView가 활성화되어 있다면 해당 방법으로 refresh 시도, 아니라면 webview로 시도
     if (enableRefreshV4NoWebView) {
       if (await refreshV4NoWebView()) {
         return;
@@ -79,6 +82,8 @@ class ScriptManager {
       return;
     }
 
+    // 2. (V3) V4 disable 상태이거나 no web-view가 실패한다면 V3로 fallback한다
+    // 너무 잦은 refresh try를 방지하기 위해 많아도 5분에 한 번씩만 실행되게 끔 설정
     if (DateTime.now().difference(latestUpdate).inMinutes < 5) {
       return;
     }
@@ -96,6 +101,7 @@ class ScriptManager {
     await catchUnwind(() async {
       final ggBody = (await http.get('https://ltn.hitomi.la/gg.js')).body;
       final ggRuntime = getJavascriptRuntime();
+      // TODO: 이유는 잘 모르겠으나 use strict를 삭제하지 않으면 gg instance를 찾을 수 없어서 실패함
       ggRuntime.evaluate(ggBody.split("'use strict';")[1]);
       final gg = ggRuntime.evaluate('''
               var r = "";
