@@ -56,6 +56,8 @@ class ScriptManager {
     });
 
     await fallbackFail(() async {
+      final check = (await http.get(enableRefreshV4NoWebViewCheckUrl)).body;
+      enableRefreshV4NoWebView = int.parse(check) == 1;
       if (enableRefreshV4NoWebView) {
         await refreshV4NoWebView();
       }
