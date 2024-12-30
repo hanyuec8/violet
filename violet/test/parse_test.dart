@@ -17,7 +17,7 @@ void main() {
             Uri.parse('https://exhentai.org/g/2504057/6757b3c4b8/'),
             headers: {
           'Cookie':
-              'yay=louder; ipb_member_id=2742770; ipb_pass_hash=622fcc2be82c922135bb0516e0ee497d; ipb_session_id=8c457abd02a2ee708e532d7ba379a186; igneous=19f996fc4; sl=dm_1; sk=t8inbzaqn45ttyn9f78eanzuqizh'
+              'ipb_member_id=2742770; ipb_pass_hash=622fcc2be82c922135bb0516e0ee497d; sk=t8inbzaqn45ttyn9f78eanzuqizh; igneous=rcrmcztqgf1v8p1e0'
         }))
         .body;
 

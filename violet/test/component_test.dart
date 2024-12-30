@@ -13,29 +13,25 @@ void main() {
     WidgetsFlutterBinding.ensureInitialized();
     SharedPreferences.setMockInitialValues({
       'eh_cookies':
-          'yay=louder; ipb_member_id=2742770; ipb_pass_hash=622fcc2be82c922135bb0516e0ee497d; sl=dm_2; sk=t8inbzaqn45ttyn9f78eanzuqizh; igneous=hez0uu1qwsa7r91eqpt sl=dm_1'
+          'ipb_member_id=2742770; ipb_pass_hash=622fcc2be82c922135bb0516e0ee497d; sk=t8inbzaqn45ttyn9f78eanzuqizh; igneous=rcrmcztqgf1v8p1e0'
     });
-  });
 
-  test('EHentai Gallery Parse', () async {
     Settings.searchCategory = 1;
     Settings.searchExpunged = false;
     Settings.ignoreTimeout = true;
+    Settings.includeTagNetwork = false;
+    Settings.excludeTagNetwork = false;
+  });
 
+  test('EHentai Gallery Parse', () async {
     final result =
         await HentaiManager.searchEHentai('"female:big breasts"', 0, false);
-
     expect(result.length >= 25, true);
   });
 
   test('ExHentai Gallery Parse', () async {
-    Settings.searchCategory = 1;
-    Settings.searchExpunged = false;
-    Settings.ignoreTimeout = true;
-
     final result =
         await HentaiManager.searchEHentai('"female:big breasts"', 0, true);
-
     expect(result.length >= 25, true);
   });
 
