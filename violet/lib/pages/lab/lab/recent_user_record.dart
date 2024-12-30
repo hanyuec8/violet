@@ -10,7 +10,7 @@ import 'package:flare_flutter/flare_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
@@ -56,7 +56,7 @@ class _LabUserRecentRecordsState extends State<LabUserRecentRecords> {
       var xrecords = trecords as List<(int, int, int)>;
 
       var queryRaw =
-          '${HitomiManager.translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND ';
+          '${translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND ';
 
       queryRaw += '(${xrecords.map((e) => 'Id=${e.$2}').join(' OR ')})';
       var query = await QueryManager.query(queryRaw);

@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:violet/component/hentai.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/database.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/record.dart';
@@ -300,7 +300,7 @@ class __ArtistsArticleTabListState extends State<_ArtistsArticleTabList>
         return;
       }
 
-      final queryString = HitomiManager.translate2query(
+      final queryString = translate2query(
           '($what) ${Settings.includeTags} ${Settings.serializedExcludeTags}');
       var queryResult = (await (await DataBaseManager.getInstance())
               .query('$queryString ORDER BY Id DESC LIMIT 500'))

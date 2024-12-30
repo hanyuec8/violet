@@ -7,7 +7,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/log/log.dart';
@@ -76,7 +76,7 @@ class _LabRecentRecordsUState extends State<LabRecentRecordsU> {
           max(latestId, xrecords.reduce((x, y) => x.$1 > y.$1 ? x : y).$1 + 1);
 
       var queryRaw =
-          '${HitomiManager.translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND ';
+          '${translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND ';
 
       queryRaw += '(${xrecords.map((e) => 'Id=${e.$2}').join(' OR ')})';
       var query = await QueryManager.query(queryRaw);

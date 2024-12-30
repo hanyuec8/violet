@@ -10,6 +10,7 @@ import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:violet/component/hitomi/hitomi_parser.dart';
 import 'package:violet/component/hitomi/hitomi_provider.dart';
 import 'package:violet/component/image_provider.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/database.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/log/log.dart';
@@ -68,7 +69,7 @@ class HentaiManager {
   }
 
   static Future<SearchResult> idSearch(String what) async {
-    final queryString = HitomiManager.translate2query(what);
+    final queryString = translate2query(what);
     final queryResult = (await (await DataBaseManager.getInstance())
             .query('$queryString ORDER BY Id DESC LIMIT 1 OFFSET 0'))
         .map((e) => QueryResult(result: e))
@@ -237,7 +238,7 @@ class HentaiManager {
         return const SearchResult(results: [], offset: -1);
       }
     }
-    final queryString = HitomiManager.translate2query(
+    final queryString = translate2query(
         '$wwhat ${Settings.includeTags} ${Settings.serializedExcludeTags}');
 
     // if (offset == 0 && seed < 0) _latestSeed = new Random().nextDouble() + 1;
@@ -258,7 +259,7 @@ class HentaiManager {
   }
 
   static Future<SearchResult> _dbSearch(String what, [int offset = 0]) async {
-    final queryString = HitomiManager.translate2query(
+    final queryString = translate2query(
         '$what ${Settings.includeTags} ${Settings.serializedExcludeTags}');
 
     await Logger.info('[Database Query]\nSQL: $queryString');
@@ -315,7 +316,7 @@ class HentaiManager {
   }
 
   static Future<int> countSearch(String what) async {
-    final queryString = HitomiManager.translate2query(
+    final queryString = translate2query(
         '$what ${Settings.includeTags} ${Settings.serializedExcludeTags}');
 
     var count = (await (await DataBaseManager.getInstance()).query(queryString

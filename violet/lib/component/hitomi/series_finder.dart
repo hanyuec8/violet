@@ -5,8 +5,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:violet/component/hitomi/title_cluster.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 
 class SeriesFinder {
@@ -29,8 +29,7 @@ class SeriesFinder {
 
       if (kv.key.toLowerCase() == 'n/a') continue;
 
-      final query = HitomiManager.translate2query(
-          'artist:${kv.key.replaceAll(' ', '_')}');
+      final query = translate2query('artist:${kv.key.replaceAll(' ', '_')}');
       final qm = QueryManager.queryPagination(query, 99999);
       final qr = await qm.next();
 
@@ -52,8 +51,7 @@ class SeriesFinder {
 
       if (kv.key.toLowerCase() == 'n/a') continue;
 
-      final query = HitomiManager.translate2query(
-          'artist:${kv.key.replaceAll(' ', '_')}');
+      final query = translate2query('artist:${kv.key.replaceAll(' ', '_')}');
       final qm = QueryManager.queryPagination(query, 99999);
       final qr = await qm.next();
 
