@@ -2,7 +2,7 @@
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
 import 'package:flutter/material.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/database.dart';
 import 'package:violet/settings/settings.dart';
 import 'package:violet/style/palette.dart';
@@ -110,7 +110,7 @@ class _DBRebuildPagePageState extends State<DBRebuildPage> {
   }
 
   Future indexing() async {
-    var sql = HitomiManager.translate2query(
+    var sql = translate2query(
         '${Settings.includeTags} ${Settings.serializedExcludeTags}');
 
     await (await DataBaseManager.getInstance()).delete('HitomiColumnModel',

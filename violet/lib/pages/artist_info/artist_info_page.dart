@@ -14,9 +14,9 @@ import 'package:html_unescape/html_unescape_small.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
-import 'package:violet/component/hitomi/indexes.dart';
+import 'package:violet/component/index.dart';
 import 'package:violet/component/hitomi/title_cluster.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
@@ -140,19 +140,19 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
       //
       switch (widget.type) {
         case ArtistType.artist:
-          similars = HitomiIndexes.calculateSimilarArtists(widget.name);
+          similars = HentaiIndex.calculateSimilarArtists(widget.name);
           break;
         case ArtistType.group:
-          similars = HitomiIndexes.calculateSimilarGroups(widget.name);
+          similars = HentaiIndex.calculateSimilarGroups(widget.name);
           break;
         case ArtistType.uploader:
-          similars = HitomiIndexes.calculateSimilarUploaders(widget.name);
+          similars = HentaiIndex.calculateSimilarUploaders(widget.name);
           break;
         case ArtistType.series:
-          similars = HitomiIndexes.calculateSimilarSeries(widget.name);
+          similars = HentaiIndex.calculateSimilarSeries(widget.name);
           break;
         case ArtistType.character:
-          similars = HitomiIndexes.calculateSimilarCharacter(widget.name);
+          similars = HentaiIndex.calculateSimilarCharacter(widget.name);
           break;
       }
 
@@ -164,12 +164,12 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
       if (widget.type.isCharacter || widget.type.isSeries) {
         if (widget.type.isCharacter) {
           relatedCharacterOrSeriesAll =
-              HitomiIndexes.calculateRelatedSeriesCharacter(widget.name);
-          relatedCOSSingleAll = HitomiIndexes.getRelatedSeries(widget.name);
+              HentaiIndex.calculateRelatedSeriesCharacter(widget.name);
+          relatedCOSSingleAll = HentaiIndex.getRelatedSeries(widget.name);
         } else {
           relatedCharacterOrSeriesAll =
-              HitomiIndexes.calculateRelatedCharacterSeries(widget.name);
-          relatedCOSSingleAll = HitomiIndexes.getRelatedCharacters(widget.name);
+              HentaiIndex.calculateRelatedCharacterSeries(widget.name);
+          relatedCOSSingleAll = HentaiIndex.getRelatedCharacters(widget.name);
         }
         relatedCharacterOrSeries = relatedCharacterOrSeriesAll.take(6).toList();
         relatedCOSSingle = relatedCOSSingleAll.take(6).toList();
@@ -227,7 +227,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
 
   Future<List<QueryResult>> query() async {
     final token = '${widget.type.name}:${widget.name.replaceAll(' ', '_')}';
-    final query = HitomiManager.translate2query(
+    final query = translate2query(
         '$token ${Settings.includeTags} ${Settings.serializedExcludeTags}');
     final qm = await QueryManager.query('$query ORDER BY Id DESC');
     return qm.results!;
@@ -661,7 +661,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
             name: e.$1,
           ),
           title:
-              ' ${e.$1} (${HitomiManager.getArticleCount(widget.type.name, e.$1).toString()})',
+              ' ${e.$1} (${HentaiIndex.getArticleCount(widget.type.name, e.$1).toString()})',
           count:
               '${Translations.instance!.trans('score')}: ${e.$2.toStringAsFixed(1)} ',
           articles: qq,
@@ -839,7 +839,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
             name: e.$1,
           ),
           title:
-              ' ${e.$1} (${HitomiManager.getArticleCount(widget.type.name, e.$1)})',
+              ' ${e.$1} (${HentaiIndex.getArticleCount(widget.type.name, e.$1)})',
           count:
               '${Translations.instance!.trans('score')}: ${e.$2.toStringAsFixed(1)} ',
           articles: qq,
@@ -870,7 +870,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
             name: e.$1,
           ),
           title:
-              ' ${e.$1} (${HitomiManager.getArticleCount(widget.type.name, e.$1)})',
+              ' ${e.$1} (${HentaiIndex.getArticleCount(widget.type.name, e.$1)})',
           count:
               '${Translations.instance!.trans('score')}: ${e.$2.toStringAsFixed(1)} ',
           articles: qq,

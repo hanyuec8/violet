@@ -6,7 +6,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/model/article_list_item.dart';
@@ -61,7 +61,7 @@ class _LabTopRecentState extends State<LabTopRecent> {
       var xrecords = trecords as List<(int, int)>;
 
       var queryRaw =
-          '${HitomiManager.translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND ';
+          '${translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND ';
 
       queryRaw += 'Id IN (${xrecords.map((e) => e.$1).join(',')})';
       var query = await QueryManager.query(queryRaw);

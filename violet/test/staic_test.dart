@@ -3,10 +3,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:violet/component/hitomi/population.dart';
 import 'package:violet/component/hitomi/related.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
+import 'package:violet/component/index.dart';
 
 void main() {
   setUp(() async {
@@ -29,7 +29,7 @@ void main() {
   });
 
   test('Test Autocomplete', () async {
-    final query = (await HitomiManager.queryAutoComplete('청춘', true)).toList();
+    final query = (await HentaiIndex.queryAutoComplete('청춘', true)).toList();
 
     final t1 = query.any((e) =>
         e.$1.getTag() ==

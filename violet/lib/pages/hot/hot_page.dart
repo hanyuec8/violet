@@ -7,7 +7,7 @@ import 'package:lottie/lottie.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/model/article_list_item.dart';
@@ -193,7 +193,7 @@ class _HotPageState extends ThemeSwitchableState<HotPage>
       }
 
       var queryRaw =
-          '${HitomiManager.translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND ';
+          '${translate2query('${Settings.includeTags} ${Settings.serializedExcludeTags}')} AND ';
       queryRaw += '(${value.map((e) => 'Id=${e.$1}').join(' OR ')})';
       final query = await QueryManager.query(queryRaw);
 

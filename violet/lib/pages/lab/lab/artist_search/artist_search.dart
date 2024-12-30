@@ -5,8 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
-import 'package:violet/component/hitomi/indexes.dart';
+import 'package:violet/component/index.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
@@ -46,11 +45,11 @@ class _ArtistSearchState extends State<ArtistSearch> {
     final tagGroup = <String, dynamic>{};
 
     final tagSrcs = {
-      ArtistType.artist: HitomiIndexes.tagArtist,
-      ArtistType.group: HitomiIndexes.tagGroup,
-      ArtistType.series: HitomiIndexes.tagSeries,
-      ArtistType.character: HitomiIndexes.tagCharacter,
-      ArtistType.uploader: HitomiIndexes.tagUploader,
+      ArtistType.artist: HentaiIndex.tagArtist,
+      ArtistType.group: HentaiIndex.tagGroup,
+      ArtistType.series: HentaiIndex.tagSeries,
+      ArtistType.character: HentaiIndex.tagCharacter,
+      ArtistType.uploader: HentaiIndex.tagUploader,
     };
 
     for (var element in this.tagGroup.entries) {
@@ -60,10 +59,10 @@ class _ArtistSearchState extends State<ArtistSearch> {
         key = key.substring(4);
       }
 
-      if (HitomiIndexes.tagIndex.containsKey(key)) {
-        tagGroup[HitomiIndexes.tagIndex[key].toString()] = element.value;
-      } else if (HitomiIndexes.tagIndex.containsKey(key.replaceAll('_', ' '))) {
-        tagGroup[HitomiIndexes.tagIndex[key.replaceAll('_', ' ')].toString()] =
+      if (HentaiIndex.tagIndex.containsKey(key)) {
+        tagGroup[HentaiIndex.tagIndex[key].toString()] = element.value;
+      } else if (HentaiIndex.tagIndex.containsKey(key.replaceAll('_', ' '))) {
+        tagGroup[HentaiIndex.tagIndex[key.replaceAll('_', ' ')].toString()] =
             element.value;
       }
     }
@@ -71,7 +70,7 @@ class _ArtistSearchState extends State<ArtistSearch> {
     print(tagGroup);
 
     similarsAll =
-        HitomiIndexes.caclulateSimilarsManual(tagSrcs[selectedType]!, tagGroup);
+        HentaiIndex.caclulateSimilarsManual(tagSrcs[selectedType]!, tagGroup);
 
     setState(() {});
   }
@@ -268,7 +267,7 @@ class _ArtistSearchState extends State<ArtistSearch> {
                 name: e.$1,
               ),
               title:
-                  ' ${e.$1} (${HitomiManager.getArticleCount(selectedType.name, e.$1)})',
+                  ' ${e.$1} (${HentaiIndex.getArticleCount(selectedType.name, e.$1)})',
               count:
                   '${Translations.instance!.trans('score')}: ${e.$2.toStringAsFixed(1)} ',
               articles: snapshot.data!,
