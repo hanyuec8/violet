@@ -6,7 +6,6 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart';
 import 'package:violet/component/hentai.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:violet/component/query_translate.dart';
 import 'package:violet/settings/settings.dart';
