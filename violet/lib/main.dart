@@ -17,7 +17,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_downloader/flutter_downloader.dart'; // @dependent: android
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:fullscreen_window/fullscreen_window.dart';
 import 'package:get/get.dart';
@@ -41,7 +41,7 @@ Future<void> main() async {
     await Logger.init();
 
     if (Platform.isAndroid || Platform.isIOS) {
-      await FlutterDownloader.initialize(); // @dependent: android
+      await FlutterDownloader.initialize();
     }
     FlareCache.doesPrune = false;
     FlutterError.onError = recordFlutterError;

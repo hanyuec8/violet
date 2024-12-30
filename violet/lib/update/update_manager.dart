@@ -7,7 +7,7 @@ import 'dart:ui';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter_downloader/flutter_downloader.dart'; // @dependent: android
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:open_file/open_file.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,11 +27,10 @@ class UpdateManager {
     // Update is only available for Android.
     if (Platform.isAndroid) {
       if (!context.mounted) return;
-      updateCheckAndDownload(context); // @dependent: android
+      updateCheckAndDownload(context);
     }
   }
 
-  // @dependent: android [
   static final ReceivePort _port = ReceivePort();
 
   @pragma('vm:entry-point')
@@ -109,6 +108,4 @@ class UpdateManager {
       await prefs.setBool('usevioletserver_check', false);
     });
   }
-
-  // @dependent: android ]
 }
