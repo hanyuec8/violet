@@ -140,34 +140,6 @@ class HentaiIndex {
     return tagCount![classification][name];
   }
 
-  static String normalizeTagPrefix(String pp) {
-    switch (pp) {
-      case 'tags':
-        return 'tag';
-
-      case 'language':
-      case 'languages':
-        return 'lang';
-
-      case 'artists':
-        return 'artist';
-
-      case 'groups':
-        return 'group';
-
-      case 'types':
-        return 'type';
-
-      case 'characters':
-        return 'character';
-
-      case 'classes':
-        return 'class';
-    }
-
-    return pp;
-  }
-
   static Future<List<(DisplayedTag, int)>> queryAutoComplete(String prefix,
       [bool useTranslated = false]) async {
     await loadCountMapIfRequired();
@@ -184,7 +156,7 @@ class HentaiIndex {
   static List<(DisplayedTag, int)> _queryAutoCompleteWithTagmap(
       String prefix, bool useTranslated) {
     final groupOrig = prefix.split(':')[0];
-    final group = normalizeTagPrefix(groupOrig);
+    final group = _normalizeTagPrefix(groupOrig);
     final name = prefix.split(':').last;
 
     final results = <(DisplayedTag, int)>[];
@@ -250,7 +222,7 @@ class HentaiIndex {
 
     if (prefix.contains(':')) {
       final groupOrig = prefix.split(':')[0];
-      final group = normalizeTagPrefix(groupOrig);
+      final group = _normalizeTagPrefix(groupOrig);
       final name = prefix.split(':').last;
 
       // <Tag, Similarity, Count>
@@ -423,4 +395,32 @@ class HentaiIndex {
     ll.sort((x, y) => y.$2.compareTo(x.$2));
     return ll;
   }
+}
+
+String _normalizeTagPrefix(String pp) {
+  switch (pp) {
+    case 'tags':
+      return 'tag';
+
+    case 'language':
+    case 'languages':
+      return 'lang';
+
+    case 'artists':
+      return 'artist';
+
+    case 'groups':
+      return 'group';
+
+    case 'types':
+      return 'type';
+
+    case 'characters':
+      return 'character';
+
+    case 'classes':
+      return 'class';
+  }
+
+  return pp;
 }
