@@ -11,7 +11,7 @@ import 'package:violet/component/hitomi/tag_translate.dart';
 import 'package:violet/log/log.dart';
 
 // This is used for estimation similiar Aritst/Group/Uplaoder with each others.
-class HitomiIndexes {
+class HentaiIndex {
   // Tag, Index
   // Map<String, int>
   static late Map<String, dynamic> tagIndex;
