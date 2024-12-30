@@ -177,6 +177,6 @@ class _ScriptWebViewState extends State<ScriptWebView>
 
     print(ggB);
 
-    await ScriptManager.setV4(ggM!, ggB!);
+    await ScriptManager.refreshV4(ggM!, ggB!);
   }
 }

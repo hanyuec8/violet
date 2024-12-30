@@ -122,7 +122,7 @@ class HitomiImageProvider extends VioletImageProvider {
       return _heightCache![page];
     }
 
-    final info = await ScriptManager.getGalleryInfo(id);
+    final info = await ScriptManager.getGalleryInfoRaw(id);
     if (info == null) {
       _heightCache = List<double>.filled(imageList.smallThumbnails!.length, -1);
       return -1;
