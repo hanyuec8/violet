@@ -15,27 +15,27 @@ void main() {
     });
 
     test('Hitomi Query Auto Complete', () async {
-      final result0 = await HitomiManager.queryAutoComplete('fema');
-      final result1 = await HitomiManager.queryAutoComplete('random:');
+      final result0 = await HentaiIndex.queryAutoComplete('fema');
+      final result1 = await HentaiIndex.queryAutoComplete('random:');
 
       expect(result0[0].$1.toString(), 'female:sole female');
       expect(result1.length, 0);
     });
 
     test('Hitomi Query Auto Complete Korean', () async {
-      final result0 = await HitomiManager.queryAutoComplete('단독여', true);
-      final result1 = await HitomiManager.queryAutoComplete('male:단독', true);
+      final result0 = await HentaiIndex.queryAutoComplete('단독여', true);
+      final result1 = await HentaiIndex.queryAutoComplete('male:단독', true);
 
       expect(result0[0].$1.toString(), 'female:sole female');
       expect(result1[0].$1.toString(), 'male:sole male');
     });
 
     test('Hitomi Query Auto Complete Fuzzy', () async {
-      final result0 = await HitomiManager.queryAutoCompleteFuzzy('michoking');
+      final result0 = await HentaiIndex.queryAutoCompleteFuzzy('michoking');
       final result1 =
-          await HitomiManager.queryAutoCompleteFuzzy('artist:michoking');
+          await HentaiIndex.queryAutoCompleteFuzzy('artist:michoking');
       final result2 =
-          await HitomiManager.queryAutoCompleteFuzzy('female:bigbreakfast');
+          await HentaiIndex.queryAutoCompleteFuzzy('female:bigbreakfast');
 
       expect(result0[0].$1.toString(), 'artist:michiking');
       expect(result1[0].$1.toString(), 'artist:michiking');

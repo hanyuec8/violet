@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:violet/algorithm/distance.dart';
+import 'package:violet/component/hitomi/displayed_tag.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/variables.dart';
@@ -137,6 +138,169 @@ class HentaiIndex {
     }
 
     return tagCount![classification][name];
+  }
+
+  static String normalizeTagPrefix(String pp) {
+    switch (pp) {
+      case 'tags':
+        return 'tag';
+
+      case 'language':
+      case 'languages':
+        return 'lang';
+
+      case 'artists':
+        return 'artist';
+
+      case 'groups':
+        return 'group';
+
+      case 'types':
+        return 'type';
+
+      case 'characters':
+        return 'character';
+
+      case 'classes':
+        return 'class';
+    }
+
+    return pp;
+  }
+
+  static Future<List<(DisplayedTag, int)>> queryAutoComplete(String prefix,
+      [bool useTranslated = false]) async {
+    await loadCountMapIfRequired();
+
+    prefix = prefix.toLowerCase().replaceAll('_', ' ');
+
+    if (prefix.contains(':') && prefix.split(':')[0] != 'random') {
+      return _queryAutoCompleteWithTagmap(prefix, useTranslated);
+    }
+
+    return _queryAutoCompleteFullSearch(prefix, useTranslated);
+  }
+
+  static List<(DisplayedTag, int)> _queryAutoCompleteWithTagmap(
+      String prefix, bool useTranslated) {
+    final groupOrig = prefix.split(':')[0];
+    final group = normalizeTagPrefix(groupOrig);
+    final name = prefix.split(':').last;
+
+    final results = <(DisplayedTag, int)>[];
+    if (!tagCount!.containsKey(group)) return results;
+
+    final nameCountsMap = tagCount![group] as Map<dynamic, dynamic>;
+    if (!useTranslated) {
+      results.addAll(nameCountsMap.entries
+          .where((e) => e.key.toString().toLowerCase().contains(name))
+          .map((e) => (DisplayedTag(group: group, name: e.key), e.value)));
+    } else {
+      results.addAll(TagTranslate.containsTotal(name)
+          .where((e) => e.group! == group && nameCountsMap.containsKey(e.name))
+          .map((e) => (e, nameCountsMap[e.name])));
+    }
+    results.sort((a, b) => b.$2.compareTo(a.$2));
+    return results;
+  }
+
+  static List<(DisplayedTag, int)> _queryAutoCompleteFullSearch(
+      String prefix, bool useTranslated) {
+    if (useTranslated) {
+      final results = TagTranslate.containsTotal(prefix)
+          .where((e) => tagCount![e.group].containsKey(e.name))
+          .map((e) => (e, tagCount![e.group][e.name] as int))
+          .toList();
+      results.sort((a, b) => b.$2.compareTo(a.$2));
+      return results;
+    }
+
+    final results = <(DisplayedTag, int)>[];
+
+    tagCount!['tag'].forEach((group, count) {
+      if (group.contains(':')) {
+        final subGroup = group.split(':');
+        if (subGroup[1].contains(prefix)) {
+          results.add((DisplayedTag(group: subGroup[0], name: group), count));
+        }
+      } else if (group.contains(prefix)) {
+        results.add((DisplayedTag(group: 'tag', name: group), count));
+      }
+    });
+
+    tagCount!.forEach((group, value) {
+      if (group != 'tag') {
+        value.forEach((name, count) {
+          if (name.toLowerCase().contains(prefix)) {
+            results.add((DisplayedTag(group: group, name: name), count));
+          }
+        });
+      }
+    });
+
+    results.sort((a, b) => b.$2.compareTo(a.$2));
+    return results;
+  }
+
+  static Future<List<(DisplayedTag, int)>> queryAutoCompleteFuzzy(String prefix,
+      [bool useTranslated = false]) async {
+    await loadCountMapIfRequired();
+
+    prefix = prefix.toLowerCase().replaceAll('_', ' ');
+
+    if (prefix.contains(':')) {
+      final groupOrig = prefix.split(':')[0];
+      final group = normalizeTagPrefix(groupOrig);
+      final name = prefix.split(':').last;
+
+      // <Tag, Similarity, Count>
+      final results = <(DisplayedTag, int, int)>[];
+      if (!tagCount!.containsKey(group)) {
+        return <(DisplayedTag, int)>[];
+      }
+
+      final nameCountsMap = tagCount![group];
+      if (!useTranslated) {
+        nameCountsMap.forEach((key, value) {
+          results.add((
+            DisplayedTag(group: group, name: key),
+            Distance.levenshteinDistance(
+                name.runes.toList(), key.runes.toList()),
+            value
+          ));
+        });
+      } else {
+        results.addAll(TagTranslate.containsFuzzingTotal(name)
+            .where((e) =>
+                e.$1.group! == group && nameCountsMap.containsKey(e.$1.name))
+            .map((e) => (e.$1, e.$2, nameCountsMap[e.$1.name])));
+      }
+      results.sort((a, b) => a.$2.compareTo(b.$2));
+      return results.map((e) => (e.$1, e.$3)).toList();
+    } else {
+      if (!useTranslated) {
+        final results = <(DisplayedTag, int, int)>[];
+        tagCount!.forEach((group, value) {
+          value.forEach((name, count) {
+            results.add((
+              DisplayedTag(group: group, name: name),
+              Distance.levenshteinDistance(
+                  prefix.runes.toList(), name.runes.toList()),
+              count
+            ));
+          });
+        });
+        results.sort((a, b) => a.$2.compareTo(b.$2));
+        return results.map((e) => (e.$1, e.$3)).toList();
+      } else {
+        final results = TagTranslate.containsFuzzingTotal(prefix)
+            .where((e) => tagCount![e.$1.group].containsKey(e.$1.name))
+            .map((e) => (e.$1, tagCount![e.$1.group][e.$1.name] as int, e.$2))
+            .toList();
+        results.sort((a, b) => a.$3.compareTo(b.$3));
+        return results.map((e) => (e.$1, e.$2)).toList();
+      }
+    }
   }
 
   static List<(String, double)> _calculateSimilars(
