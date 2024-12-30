@@ -95,7 +95,6 @@ class _SearchBarPageState extends State<SearchBarPage>
         'character',
         'type',
         'class',
-        'recent',
         'random',
         'page',
       ];
