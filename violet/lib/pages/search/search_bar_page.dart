@@ -10,7 +10,6 @@ import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:violet/algorithm/distance.dart';
 import 'package:violet/component/hitomi/displayed_tag.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:violet/component/index.dart';
 import 'package:violet/context/modal_bottom_sheet_context.dart';
 import 'package:violet/database/user/search.dart';
@@ -704,14 +703,14 @@ class _SearchBarPageState extends State<SearchBarPage>
     }
 
     if (!Settings.searchUseFuzzy) {
-      final searchResult = (await HitomiManager.queryAutoComplete(
+      final searchResult = (await HentaiIndex.queryAutoComplete(
               token, Settings.searchUseTranslated))
           .take(_searchResultMaximum)
           .toList();
       if (searchResult.isEmpty) _nothing = true;
       result.addAll(searchResult);
     } else {
-      final searchResult = (await HitomiManager.queryAutoCompleteFuzzy(
+      final searchResult = (await HentaiIndex.queryAutoCompleteFuzzy(
               token, Settings.searchUseTranslated))
           .take(_searchResultMaximum)
           .toList();
