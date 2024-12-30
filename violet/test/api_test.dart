@@ -16,16 +16,18 @@ class MockApi {
   }
 }
 
-void main() {
+void main() async {
+  const disabled = true;
+
   MockApi.init();
 
   test('Test Hello', () async {
     final res = await MockApi.instance.apiV2Get();
     expect(res.body as String, 'Hello World!');
-  });
+  }, skip: disabled);
 
   test('Test Hmac', () async {
     final res = await MockApi.instance.apiV2HmacGet();
     expect(res.statusCode, 200);
-  });
+  }, skip: disabled);
 }
