@@ -27,7 +27,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:violet/component/eh/eh_bookmark.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:violet/component/index.dart';
 import 'package:violet/database/database.dart';
 import 'package:violet/database/user/bookmark.dart';
@@ -642,7 +641,6 @@ class _SettingsPageState extends State<SettingsPage>
                 );
 
                 await HentaiIndex.init();
-                HitomiManager.reloadIndex();
 
                 showToast(
                   level: ToastLevel.check,
@@ -1283,7 +1281,7 @@ class _SettingsPageState extends State<SettingsPage>
                   final directory = await getApplicationDocumentsDirectory();
                   final path = File('${directory.path}/data/index.json');
                   final text = path.readAsStringSync();
-                  HitomiManager.tagmap = jsonDecode(text);
+                  HentaiIndex.tagCount = jsonDecode(text);
                   await DataBaseManager.reloadInstance();
 
                   showToast(

@@ -661,7 +661,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
             name: e.$1,
           ),
           title:
-              ' ${e.$1} (${HitomiManager.getArticleCount(widget.type.name, e.$1).toString()})',
+              ' ${e.$1} (${HentaiIndex.getArticleCount(widget.type.name, e.$1).toString()})',
           count:
               '${Translations.instance!.trans('score')}: ${e.$2.toStringAsFixed(1)} ',
           articles: qq,
@@ -839,7 +839,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
             name: e.$1,
           ),
           title:
-              ' ${e.$1} (${HitomiManager.getArticleCount(widget.type.name, e.$1)})',
+              ' ${e.$1} (${HentaiIndex.getArticleCount(widget.type.name, e.$1)})',
           count:
               '${Translations.instance!.trans('score')}: ${e.$2.toStringAsFixed(1)} ',
           articles: qq,
@@ -870,7 +870,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
             name: e.$1,
           ),
           title:
-              ' ${e.$1} (${HitomiManager.getArticleCount(widget.type.name, e.$1)})',
+              ' ${e.$1} (${HentaiIndex.getArticleCount(widget.type.name, e.$1)})',
           count:
               '${Translations.instance!.trans('score')}: ${e.$2.toStringAsFixed(1)} ',
           articles: qq,

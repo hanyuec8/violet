@@ -7,6 +7,7 @@ import 'package:mdi/mdi.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/component/index.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/model/article_list_item.dart';
@@ -225,7 +226,7 @@ class _GroupArtistListState extends State<LabGroupArtistList>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
                     Text(
-                        ' ${e.type().name}:${e.artist()} (${HitomiManager.getArticleCount(e.type().name, e.artist())})',
+                        ' ${e.type().name}:${e.artist()} (${HentaiIndex.getArticleCount(e.type().name, e.artist())})',
                         style: const TextStyle(fontSize: 17)),
                   ],
                 ),

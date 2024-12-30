@@ -4,12 +4,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
+import 'package:violet/component/index.dart';
 import 'package:violet/settings/settings.dart';
 
 void main() {
   group('Query Test', () {
     setUp(() async {
-      await HitomiManager.loadIndexIfRequired();
+      await HentaiIndex.loadCountMapIfRequired();
       await TagTranslate.init();
     });
 

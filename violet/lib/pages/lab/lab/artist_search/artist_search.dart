@@ -5,7 +5,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
-import 'package:violet/component/hitomi/hitomi.dart';
 import 'package:violet/component/index.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
@@ -268,7 +267,7 @@ class _ArtistSearchState extends State<ArtistSearch> {
                 name: e.$1,
               ),
               title:
-                  ' ${e.$1} (${HitomiManager.getArticleCount(selectedType.name, e.$1)})',
+                  ' ${e.$1} (${HentaiIndex.getArticleCount(selectedType.name, e.$1)})',
               count:
                   '${Translations.instance!.trans('score')}: ${e.$2.toStringAsFixed(1)} ',
               articles: snapshot.data!,

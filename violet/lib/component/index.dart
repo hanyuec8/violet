@@ -5,13 +5,17 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:violet/algorithm/distance.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
 import 'package:violet/log/log.dart';
+import 'package:violet/variables.dart';
 
 // This is used for estimation similiar Aritst/Group/Uplaoder with each others.
 class HentaiIndex {
+  // Tag Group, <Tag, Article Count>
+  static Map<String, dynamic>? tagCount;
   // Tag, Index
   // Map<String, int>
   static late Map<String, dynamic> tagIndex;
@@ -39,6 +43,11 @@ class HentaiIndex {
   static late Map<String, dynamic> relatedTag;
 
   static Future<void> init() async {
+    await _loadIndexes();
+    await _loadCountMap();
+  }
+
+  static Future<void> _loadIndexes() async {
     final directory = await getApplicationDocumentsDirectory();
     final subdir = Platform.isAndroid ? '/data' : '';
 
@@ -79,6 +88,55 @@ class HentaiIndex {
       var kv = (element as Map<String, dynamic>).entries.first;
       relatedTag[kv.key] = kv.value;
     }
+  }
+
+  static Future<void> _loadCountMap() async {
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      final file = File(join(Directory.current.path, 'test/db/index.json'));
+      tagCount = jsonDecode(await file.readAsString());
+    } else {
+      final subdir = Platform.isAndroid ? '/data' : '';
+      final directory = await getApplicationDocumentsDirectory();
+      final path = File('${directory.path}$subdir/index.json');
+      final text = path.readAsStringSync();
+      tagCount = jsonDecode(text);
+    }
+
+    // split `tag:female:` and `tag:male:` to `female:` and `male:`
+    if (tagCount!.containsKey('tag')) {
+      final tags = tagCount!['tag'] as Map<String, dynamic>;
+      final femaleTags = tags.entries
+          .where((e) => e.key.startsWith('female:'))
+          .map((e) => MapEntry(e.key.split(':')[1], e.value))
+          .toList();
+      final maleTags = tags.entries
+          .where((e) => e.key.startsWith('male:'))
+          .map((e) => MapEntry(e.key.split(':')[1], e.value))
+          .toList();
+      tagCount!['female'] = Map.fromEntries(femaleTags);
+      tagCount!['male'] = Map.fromEntries(maleTags);
+
+      tags.removeWhere(
+          (tag, _) => tag.startsWith('female:') || tag.startsWith('male:'));
+    }
+  }
+
+  static Future<void> loadCountMapIfRequired() async {
+    if (tagCount == null) {
+      await _loadCountMap();
+    }
+  }
+
+  static int? getArticleCount(String classification, String name) {
+    if (tagCount == null) {
+      final subdir = Platform.isAndroid ? '/data' : '';
+      final path =
+          File('${Variables.applicationDocumentsDirectory}$subdir/index.json');
+      final text = path.readAsStringSync();
+      tagCount = jsonDecode(text);
+    }
+
+    return tagCount![classification][name];
   }
 
   static List<(String, double)> _calculateSimilars(

@@ -1,17 +1,12 @@
 // This source code is a part of Project Violet.
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:path/path.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:violet/algorithm/distance.dart';
 import 'package:violet/component/hitomi/displayed_tag.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
+import 'package:violet/component/index.dart';
 import 'package:violet/script/script_manager.dart';
 import 'package:violet/settings/settings.dart';
-import 'package:violet/variables.dart';
 
 class ImageList {
   final List<String> urls;
@@ -31,26 +26,6 @@ class HitomiManager {
     final result = await ScriptManager.runHitomiGetImageList(int.parse(id));
     if (result != null) return result;
     return const ImageList(urls: [], bigThumbnails: []);
-  }
-
-  static int? getArticleCount(String classification, String name) {
-    if (tagmap == null) {
-      final subdir = Platform.isAndroid ? '/data' : '';
-      final path =
-          File('${Variables.applicationDocumentsDirectory}$subdir/index.json');
-      final text = path.readAsStringSync();
-      tagmap = jsonDecode(text);
-    }
-
-    return tagmap![classification][name];
-  }
-
-  static void reloadIndex() {
-    final subdir = Platform.isAndroid ? '/data' : '';
-    final path =
-        File('${Variables.applicationDocumentsDirectory}$subdir/index.json');
-    final text = path.readAsStringSync();
-    tagmap = jsonDecode(text);
   }
 
   static String normalizeTagPrefix(String pp) {
@@ -81,43 +56,9 @@ class HitomiManager {
     return pp;
   }
 
-  static Future<void> loadIndexIfRequired() async {
-    if (tagmap == null) {
-      if (Platform.environment.containsKey('FLUTTER_TEST')) {
-        final file = File(join(Directory.current.path, 'test/db/index.json'));
-        tagmap = jsonDecode(await file.readAsString());
-      } else {
-        final subdir = Platform.isAndroid ? '/data' : '';
-        final directory = await getApplicationDocumentsDirectory();
-        final path = File('${directory.path}$subdir/index.json');
-        final text = path.readAsStringSync();
-        tagmap = jsonDecode(text);
-      }
-
-      // split `tag:female:` and `tag:male:` to `female:` and `male:`
-      if (tagmap!.containsKey('tag')) {
-        final tags = tagmap!['tag'] as Map<String, dynamic>;
-        final femaleTags = tags.entries
-            .where((e) => e.key.startsWith('female:'))
-            .map((e) => MapEntry(e.key.split(':')[1], e.value))
-            .toList();
-        final maleTags = tags.entries
-            .where((e) => e.key.startsWith('male:'))
-            .map((e) => MapEntry(e.key.split(':')[1], e.value))
-            .toList();
-        tagmap!['female'] = Map.fromEntries(femaleTags);
-        tagmap!['male'] = Map.fromEntries(maleTags);
-
-        tags.removeWhere(
-            (tag, _) => tag.startsWith('female:') || tag.startsWith('male:'));
-      }
-    }
-  }
-
-  static Map<String, dynamic>? tagmap;
   static Future<List<(DisplayedTag, int)>> queryAutoComplete(String prefix,
       [bool useTranslated = false]) async {
-    await loadIndexIfRequired();
+    await HentaiIndex.loadCountMapIfRequired();
 
     prefix = prefix.toLowerCase().replaceAll('_', ' ');
 
@@ -135,9 +76,9 @@ class HitomiManager {
     final name = prefix.split(':').last;
 
     final results = <(DisplayedTag, int)>[];
-    if (!tagmap!.containsKey(group)) return results;
+    if (!HentaiIndex.tagCount!.containsKey(group)) return results;
 
-    final nameCountsMap = tagmap![group] as Map<dynamic, dynamic>;
+    final nameCountsMap = HentaiIndex.tagCount![group] as Map<dynamic, dynamic>;
     if (!useTranslated) {
       results.addAll(nameCountsMap.entries
           .where((e) => e.key.toString().toLowerCase().contains(name))
@@ -155,8 +96,8 @@ class HitomiManager {
       String prefix, bool useTranslated) {
     if (useTranslated) {
       final results = TagTranslate.containsTotal(prefix)
-          .where((e) => tagmap![e.group].containsKey(e.name))
-          .map((e) => (e, tagmap![e.group][e.name] as int))
+          .where((e) => HentaiIndex.tagCount![e.group].containsKey(e.name))
+          .map((e) => (e, HentaiIndex.tagCount![e.group][e.name] as int))
           .toList();
       results.sort((a, b) => b.$2.compareTo(a.$2));
       return results;
@@ -164,7 +105,7 @@ class HitomiManager {
 
     final results = <(DisplayedTag, int)>[];
 
-    tagmap!['tag'].forEach((group, count) {
+    HentaiIndex.tagCount!['tag'].forEach((group, count) {
       if (group.contains(':')) {
         final subGroup = group.split(':');
         if (subGroup[1].contains(prefix)) {
@@ -175,7 +116,7 @@ class HitomiManager {
       }
     });
 
-    tagmap!.forEach((group, value) {
+    HentaiIndex.tagCount!.forEach((group, value) {
       if (group != 'tag') {
         value.forEach((name, count) {
           if (name.toLowerCase().contains(prefix)) {
@@ -191,7 +132,7 @@ class HitomiManager {
 
   static Future<List<(DisplayedTag, int)>> queryAutoCompleteFuzzy(String prefix,
       [bool useTranslated = false]) async {
-    await loadIndexIfRequired();
+    await HentaiIndex.loadCountMapIfRequired();
 
     prefix = prefix.toLowerCase().replaceAll('_', ' ');
 
@@ -202,9 +143,11 @@ class HitomiManager {
 
       // <Tag, Similarity, Count>
       final results = <(DisplayedTag, int, int)>[];
-      if (!tagmap!.containsKey(group)) return <(DisplayedTag, int)>[];
+      if (!HentaiIndex.tagCount!.containsKey(group)) {
+        return <(DisplayedTag, int)>[];
+      }
 
-      final nameCountsMap = tagmap![group];
+      final nameCountsMap = HentaiIndex.tagCount![group];
       if (!useTranslated) {
         nameCountsMap.forEach((key, value) {
           results.add((
@@ -225,7 +168,7 @@ class HitomiManager {
     } else {
       if (!useTranslated) {
         final results = <(DisplayedTag, int, int)>[];
-        tagmap!.forEach((group, value) {
+        HentaiIndex.tagCount!.forEach((group, value) {
           value.forEach((name, count) {
             results.add((
               DisplayedTag(group: group, name: name),
@@ -239,8 +182,13 @@ class HitomiManager {
         return results.map((e) => (e.$1, e.$3)).toList();
       } else {
         final results = TagTranslate.containsFuzzingTotal(prefix)
-            .where((e) => tagmap![e.$1.group].containsKey(e.$1.name))
-            .map((e) => (e.$1, tagmap![e.$1.group][e.$1.name] as int, e.$2))
+            .where(
+                (e) => HentaiIndex.tagCount![e.$1.group].containsKey(e.$1.name))
+            .map((e) => (
+                  e.$1,
+                  HentaiIndex.tagCount![e.$1.group][e.$1.name] as int,
+                  e.$2
+                ))
             .toList();
         results.sort((a, b) => a.$3.compareTo(b.$3));
         return results.map((e) => (e.$1, e.$2)).toList();
