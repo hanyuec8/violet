@@ -3,10 +3,7 @@
 
 // ignore_for_file: unnecessary_string_escapes
 
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_js/flutter_js.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violet/script/script_manager.dart';
 
