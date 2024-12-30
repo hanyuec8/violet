@@ -3,6 +3,7 @@
 
 import 'package:violet/settings/settings.dart';
 
+/// Translate search query to sql query
 String translate2query(String query, {bool filter = true}) {
   query = query.trim();
   final nn = int.tryParse(query.split(' ')[0]);
@@ -18,7 +19,7 @@ String translate2query(String query, {bool filter = true}) {
 
   final tokens =
       _splitTokens(query).map((x) => x.trim()).where((x) => x != '').toList();
-  final where = QueryTranslator(tokens).parseExpression();
+  final where = _QueryTranslator(tokens).parseExpression();
 
   return 'SELECT * FROM HitomiColumnModel WHERE $where ${filterExistsOnHitomi ? ' AND ExistOnHitomi=1' : ''}';
 }
@@ -45,11 +46,11 @@ List<String> _splitTokens(String tokens) {
   return result;
 }
 
-class QueryTranslator {
+class _QueryTranslator {
   final List<String> tokens;
   int index = 0;
 
-  QueryTranslator(this.tokens);
+  _QueryTranslator(this.tokens);
 
   String parseExpression() {
     if (index >= tokens.length) return '';
