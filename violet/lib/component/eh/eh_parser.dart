@@ -58,6 +58,12 @@ class EHParser {
   static final RegExp _thumbnailPattern =
       RegExp(r'https://(s\.)?(exhentai|ehgt).org/.*?(?=\))');
 
+  static bool validHtml(String html) {
+    final removed =
+        html.contains('This gallery has been removed or is unavailable.');
+    return !removed;
+  }
+
   // ex: https://exhentai.org/g/1212168/421ef300a8/
   static List<String> getImagesUrl(String html) {
     var doc = parse(html).querySelector("div[id='gdt']");
@@ -66,6 +72,10 @@ class EHParser {
       var a = element.querySelector('a');
       if (a == null) return;
       var url = element.querySelector('a')!.attributes['href'];
+      if (!result.contains(url)) result.add(url!);
+    });
+    doc.querySelectorAll('a').forEach((element) {
+      var url = element.attributes['href'];
       if (!result.contains(url)) result.add(url!);
     });
     return result;
