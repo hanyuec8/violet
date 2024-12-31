@@ -74,6 +74,10 @@ class EHParser {
       var url = element.querySelector('a')!.attributes['href'];
       if (!result.contains(url)) result.add(url!);
     });
+    doc.querySelectorAll('a').forEach((element) {
+      var url = element.attributes['href'];
+      if (!result.contains(url)) result.add(url!);
+    });
     return result;
   }
 
