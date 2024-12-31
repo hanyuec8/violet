@@ -540,8 +540,7 @@ class __CommentAreaState extends State<_CommentArea> {
           final html = (await http.get(
                   'https://e-hentai.org/g/${widget.queryResult.id()}/${widget.queryResult.ehash()}/?p=0&inline_set=ts_l'))
               .body;
-          if (html
-              .contains('This gallery has been removed or is unavailable.')) {
+          if (!EHParser.validHtml(html)) {
             return;
           }
           final article = EHParser.parseArticleData(html);
