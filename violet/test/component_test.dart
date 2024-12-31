@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violet/component/eh/eh_parser.dart';
 import 'package:violet/component/hentai.dart';
+import 'package:violet/database/query.dart';
 import 'package:violet/settings/settings.dart';
 
 void main() {
@@ -51,5 +52,13 @@ Page 20: 020.jpg" src="https://exhentai.org/t/66/55/6655fb520e13eff74ebf9aa49c21
         ''';
 
     expect(EHParser.getThumbnailImages(body).length, 2);
+  });
+
+  test('EHentai Image Provider', () async {
+    // https://exhentai.org/g/3175025/58a5600a77/
+    Settings.routingRule = ['ExHentai', 'EHentai'];
+    final query = QueryResult(result: {'Id': 3175025, 'EHash': '58a5600a77'});
+    final provider = await HentaiManager.getImageProvider(query);
+    expect(provider.length(), 25);
   });
 }
