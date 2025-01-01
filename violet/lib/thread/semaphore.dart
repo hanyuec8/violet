@@ -4,6 +4,7 @@
 import 'dart:async';
 
 import 'package:collection/collection.dart';
+import 'package:violet/util/call_once.dart';
 
 enum Priority {
   urgent,
@@ -20,15 +21,16 @@ class Semaphore {
     required this.maxCount,
   });
 
-  final PriorityQueue<(Priority, Completer)> _waitQueue =
-      PriorityQueue<(Priority, Completer)>();
+  final PriorityQueue<(Priority, Completer<CallOnce>)> _waitQueue =
+      PriorityQueue<(Priority, Completer<CallOnce>)>(
+          (a, b) => a.$1.index.compareTo(b.$1.index));
 
-  Future acquire([Priority priority = Priority.normal]) {
-    var completer = Completer();
+  Future<CallOnce> acquire([Priority priority = Priority.normal]) {
+    var completer = Completer<CallOnce>();
 
     if (_currentCount + 1 <= maxCount) {
       _currentCount++;
-      completer.complete();
+      completer.complete(CallOnce(release));
     } else {
       _waitQueue.add((priority, completer));
     }
@@ -51,7 +53,7 @@ class Semaphore {
     if (_waitQueue.isNotEmpty) {
       _currentCount++;
       final completer = _waitQueue.removeFirst();
-      completer.$2.complete();
+      completer.$2.complete(CallOnce(() {}));
     }
   }
 }
