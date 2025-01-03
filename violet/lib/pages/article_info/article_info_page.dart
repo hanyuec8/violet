@@ -18,7 +18,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:uuid/uuid.dart';
 import 'package:violet/component/eh/eh_headers.dart';
-import 'package:violet/component/eh/eh_parser.dart';
 import 'package:violet/component/hitomi/related.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
 import 'package:violet/database/query.dart';
@@ -28,7 +27,6 @@ import 'package:violet/database/user/record.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/model/article_info.dart';
 import 'package:violet/model/article_list_item.dart';
-import 'package:violet/network/wrapper.dart' as http;
 import 'package:violet/other/dialogs.dart';
 import 'package:violet/pages/article_info/preview_area.dart';
 import 'package:violet/pages/article_info/simple_info.dart';
@@ -521,34 +519,17 @@ class __CommentAreaState extends State<_CommentArea> {
     super.initState();
 
     Future.delayed(const Duration(milliseconds: 100)).then((value) async {
-      if (widget.queryResult.ehash() != null) {
-        final prefs = await SharedPreferences.getInstance();
-        var cookie = prefs.getString('eh_cookies');
-        if (cookie != null) {
-          try {
-            final html = await EHSession.requestString(
-                'https://exhentai.org/g/${widget.queryResult.id()}/${widget.queryResult.ehash()}/?p=0&inline_set=ts_l');
-            final article = EHParser.parseArticleData(html);
-            setState(() {
-              comments.addAll(article.comment ?? []);
-              comments.sort((x, y) => x.$1.compareTo(y.$1));
-            });
-            return;
-          } catch (_) {}
-        }
-        try {
-          final html = (await http.get(
-                  'https://e-hentai.org/g/${widget.queryResult.id()}/${widget.queryResult.ehash()}/?p=0&inline_set=ts_l'))
-              .body;
-          if (!EHParser.validHtml(html)) {
-            return;
-          }
-          final article = EHParser.parseArticleData(html);
-          setState(() {
-            comments.addAll(article.comment ?? []);
-            comments.sort((x, y) => x.$1.compareTo(y.$1));
-          });
-        } catch (_) {}
+      if (widget.queryResult.ehash() == null) {
+        return;
+      }
+
+      final article = await EHSession.fetchArticle(
+          widget.queryResult.id(), widget.queryResult.ehash());
+      if (article != null) {
+        setState(() {
+          comments.addAll(article.comment ?? []);
+          comments.sort((x, y) => x.$1.compareTo(y.$1));
+        });
       }
     });
   }
