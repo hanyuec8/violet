@@ -2,7 +2,14 @@
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
 import 'dart:async';
-import 'dart:collection';
+
+import 'package:collection/collection.dart';
+import 'package:violet/util/call_once.dart';
+
+enum Priority {
+  urgent,
+  normal,
+}
 
 // https://github.com/mezoni/semaphore/blob/master/lib/src/semaphore/semaphore.dart
 class Semaphore {
@@ -14,16 +21,18 @@ class Semaphore {
     required this.maxCount,
   });
 
-  final Queue<Completer> _waitQueue = Queue<Completer>();
+  final PriorityQueue<(Priority, Completer<CallOnce>)> _waitQueue =
+      PriorityQueue<(Priority, Completer<CallOnce>)>(
+          (a, b) => a.$1.index.compareTo(b.$1.index));
 
-  Future acquire() {
-    var completer = Completer();
+  Future<CallOnce> acquire([Priority priority = Priority.normal]) {
+    var completer = Completer<CallOnce>();
 
     if (_currentCount + 1 <= maxCount) {
       _currentCount++;
-      completer.complete();
+      completer.complete(CallOnce(release));
     } else {
-      _waitQueue.add(completer);
+      _waitQueue.add((priority, completer));
     }
 
     return completer.future;
@@ -33,12 +42,18 @@ class Semaphore {
     _waitQueue.clear();
   }
 
+  void dropUrgents() {
+    while (_waitQueue.first.$1 == Priority.urgent) {
+      _waitQueue.removeFirst();
+    }
+  }
+
   void release() {
     _currentCount--;
     if (_waitQueue.isNotEmpty) {
       _currentCount++;
       final completer = _waitQueue.removeFirst();
-      completer.complete();
+      completer.$2.complete(CallOnce(() {}));
     }
   }
 }

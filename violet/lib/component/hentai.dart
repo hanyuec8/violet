@@ -119,40 +119,7 @@ class HentaiManager {
 
   static Future<SearchResult> idSearchEhentai(String what) async {
     final id = int.parse(what);
-    String? hash;
-    try {
-      final listHtml = await EHSession.requestString(
-          'https://e-hentai.org/?next=${(id + 1)}');
-      final href = parse(listHtml)
-          .querySelector('a[href*="/g/$id/"]')
-          ?.attributes['href'];
-      hash = href?.split('/').where((element) => element.isNotEmpty).lastOrNull;
-    } catch (e, st) {
-      Logger.error('[idSearchEhentai] $e\n'
-          '$st');
-      if (e.toString().contains('Connection reset by peer')) {
-        rethrow;
-      }
-    }
-    if (hash == null) {
-      try {
-        // Expunged
-        final listHtml = await EHSession.requestString(
-            'https://e-hentai.org/?next=${(id + 1)}&f_sh=on');
-        final href = parse(listHtml)
-            .querySelector('a[href*="/g/$id/"]')
-            ?.attributes['href'];
-        hash =
-            href?.split('/').where((element) => element.isNotEmpty).lastOrNull;
-      } catch (e, st) {
-        Logger.error('[idSearchEhentai] $e\n'
-            '$st');
-        if (e.toString().contains('Connection reset by peer')) {
-          rethrow;
-        }
-      }
-    }
-    if (hash == null) throw 'Cannot find hash';
+    final hash = await tryGetEhHash(id, false);
     final html = await EHSession.requestString(
         'https://e-hentai.org/g/$id/$hash/?p=0&inline_set=ts_m');
     final articleEh = EHParser.parseArticleData(html);
@@ -168,41 +135,7 @@ class HentaiManager {
 
   static Future<SearchResult> idSearchExhentai(String what) async {
     final id = int.parse(what);
-    String? hash;
-    try {
-      final listHtml = await EHSession.requestString(
-          'https://exhentai.org/?next=${(id + 1)}');
-      final href = parse(listHtml)
-          .querySelector('a[href*="/g/$id/"]')
-          ?.attributes['href'];
-      hash = href?.split('/').where((element) => element.isNotEmpty).lastOrNull;
-    } catch (e, st) {
-      Logger.error('[idSearchExhentai] $e\n'
-          '$st');
-      if (e.toString().contains('Connection reset by peer')) {
-        rethrow;
-      }
-    }
-    if (hash == null) {
-      try {
-        // Expunged
-        final listHtml = await EHSession.requestString(
-            'https://exhentai.org/?next=${(id + 1)}&f_sh=on');
-        final href = parse(listHtml)
-            .querySelector('a[href*="/g/$id/"]')
-            ?.attributes['href'];
-        hash =
-            href?.split('/').where((element) => element.isNotEmpty).lastOrNull;
-      } catch (e, st) {
-        Logger.error('[idSearchExhentai] $e\n'
-            '$st');
-        if (e.toString().contains('Connection reset by peer')) {
-          rethrow;
-        }
-      }
-    }
-
-    if (hash == null) throw 'Cannot find hash';
+    final hash = await tryGetEhHash(id, true);
     final html = await EHSession.requestString(
         'https://exhentai.org/g/$id/$hash/?p=0&inline_set=ts_m');
     final articleEh = EHParser.parseArticleData(html);
@@ -343,41 +276,7 @@ class HentaiManager {
   }
 
   static Future<QueryResult> idQueryEhentai(String id) async {
-    String? hash;
-    try {
-      final listHtml = await EHSession.requestString(
-          'https://e-hentai.org/?next=${(int.parse(id) + 1)}');
-      final href = parse(listHtml)
-          .querySelector('a[href*="/g/$id/"]')
-          ?.attributes['href'];
-      hash = href?.split('/').where((element) => element.isNotEmpty).lastOrNull;
-    } catch (e, st) {
-      Logger.error('[idQueryEhentai] $e\n'
-          '$st');
-      if (e.toString().contains('Connection reset by peer')) {
-        rethrow;
-      }
-    }
-    if (hash == null) {
-      try {
-        // Expunged
-        final listHtml = await EHSession.requestString(
-            'https://e-hentai.org/?next=${(int.parse(id) + 1)}&f_sh=on');
-        final href = parse(listHtml)
-            .querySelector('a[href*="/g/$id/"]')
-            ?.attributes['href'];
-        hash =
-            href?.split('/').where((element) => element.isNotEmpty).lastOrNull;
-      } catch (e, st) {
-        Logger.error('[idQueryEhentai] $e\n'
-            '$st');
-        if (e.toString().contains('Connection reset by peer')) {
-          rethrow;
-        }
-      }
-    }
-
-    if (hash == null) throw 'Cannot find hash';
+    final hash = await tryGetEhHash(int.parse(id), false);
     final html = await EHSession.requestString(
         'https://e-hentai.org/g/$id/$hash/?p=0&inline_set=ts_m');
     final articleEh = EHParser.parseArticleData(html);
@@ -391,40 +290,7 @@ class HentaiManager {
   }
 
   static Future<QueryResult> idQueryExhentai(String id) async {
-    String? hash;
-    try {
-      final listHtml = await EHSession.requestString(
-          'https://exhentai.org/?next=${(int.parse(id) + 1)}');
-      final href = parse(listHtml)
-          .querySelector('a[href*="/g/$id/"]')
-          ?.attributes['href'];
-      hash = href?.split('/').where((element) => element.isNotEmpty).lastOrNull;
-    } catch (e, st) {
-      Logger.error('[idQueryExhentai] $e\n'
-          '$st');
-      if (e.toString().contains('Connection reset by peer')) {
-        rethrow;
-      }
-    }
-    if (hash == null) {
-      try {
-        // Expunged
-        final listHtml = await EHSession.requestString(
-            'https://exhentai.org/?next=${(int.parse(id) + 1)}&f_sh=on');
-        final href = parse(listHtml)
-            .querySelector('a[href*="/g/$id/"]')
-            ?.attributes['href'];
-        hash =
-            href?.split('/').where((element) => element.isNotEmpty).lastOrNull;
-      } catch (e, st) {
-        Logger.error('[idQueryExhentai] $e\n'
-            '$st');
-        if (e.toString().contains('Connection reset by peer')) {
-          rethrow;
-        }
-      }
-    }
-    if (hash == null) throw 'Cannot find hash';
+    final hash = await tryGetEhHash(int.parse(id), true);
     final html = await EHSession.requestString(
         'https://exhentai.org/g/$id/$hash/?p=0&inline_set=ts_m');
     final articleEh = EHParser.parseArticleData(html);
@@ -445,47 +311,7 @@ class HentaiManager {
         switch (route[i]) {
           case 'EHentai':
             {
-              var ehash = qr.ehash();
-              if (ehash == null) {
-                try {
-                  final listHtml = await EHSession.requestString(
-                      'https://e-hentai.org/?next=${(qr.id() + 1)}');
-                  final href = parse(listHtml)
-                      .querySelector('a[href*="/g/${qr.id()}/"]')
-                      ?.attributes['href'];
-                  ehash = href
-                      ?.split('/')
-                      .where((element) => element.isNotEmpty)
-                      .lastOrNull;
-                } catch (e, st) {
-                  Logger.error('[getImageProvider][EH] $e\n'
-                      '$st');
-                  if (e.toString().contains('Connection reset by peer')) {
-                    rethrow;
-                  }
-                }
-              }
-              if (ehash == null) {
-                try {
-                  // Expunged try
-                  final listHtml = await EHSession.requestString(
-                      'https://e-hentai.org/?next=${(qr.id() + 1)}&f_sh=on');
-                  final href = parse(listHtml)
-                      .querySelector('a[href*="/g/${qr.id()}/"]')
-                      ?.attributes['href'];
-                  ehash = href
-                      ?.split('/')
-                      .where((element) => element.isNotEmpty)
-                      .lastOrNull;
-                } catch (e, st) {
-                  Logger.error('[getImageProvider][EH] $e\n'
-                      '$st');
-                  if (e.toString().contains('Connection reset by peer')) {
-                    rethrow;
-                  }
-                }
-              }
-              if (ehash == null) throw 'Cannot find hash';
+              final ehash = qr.ehash() ?? await tryGetEhHash(qr.id(), false);
               final html = await EHSession.requestString(
                   'https://e-hentai.org/g/${qr.id()}/$ehash/?p=0&inline_set=ts_m');
               final article = EHParser.parseArticleData(html);
@@ -502,47 +328,7 @@ class HentaiManager {
 
           case 'ExHentai':
             {
-              var ehash = qr.ehash();
-              if (ehash == null) {
-                try {
-                  final listHtml = await EHSession.requestString(
-                      'https://exhentai.org/?next=${(qr.id() + 1)}');
-                  final href = parse(listHtml)
-                      .querySelector('a[href*="/g/${qr.id()}/"]')
-                      ?.attributes['href'];
-                  ehash = href
-                      ?.split('/')
-                      .where((element) => element.isNotEmpty)
-                      .lastOrNull;
-                } catch (e, st) {
-                  Logger.error('[getImageProvider][EX] $e\n'
-                      '$st');
-                  if (e.toString().contains('Connection reset by peer')) {
-                    rethrow;
-                  }
-                }
-              }
-              if (ehash == null) {
-                try {
-                  // Expunged try
-                  final listHtml = await EHSession.requestString(
-                      'https://exhentai.org/?next=${(qr.id() + 1)}&f_sh=on');
-                  final href = parse(listHtml)
-                      .querySelector('a[href*="/g/${qr.id()}/"]')
-                      ?.attributes['href'];
-                  ehash = href
-                      ?.split('/')
-                      .where((element) => element.isNotEmpty)
-                      .lastOrNull;
-                } catch (e, st) {
-                  Logger.error('[getImageProvider][EX] $e\n'
-                      '$st');
-                  if (e.toString().contains('Connection reset by peer')) {
-                    rethrow;
-                  }
-                }
-              }
-              if (ehash == null) throw 'Cannot find hash';
+              final ehash = qr.ehash() ?? await tryGetEhHash(qr.id(), true);
               final html = await EHSession.requestString(
                   'https://exhentai.org/g/${qr.id()}/$ehash/?p=0&inline_set=ts_m');
               final article = EHParser.parseArticleData(html);
@@ -636,4 +422,34 @@ class HentaiManager {
       }
     }
   }
+}
+
+Future<String> tryGetEhHash(int id, bool onExh) async {
+  String? ehash;
+
+  final urls = [
+    'https://e${onExh ? 'x' : '-'}hentai.org/?next=${(id + 1)}',
+    // Expunged Search
+    'https://e${onExh ? 'x' : '-'}hentai.org/?next=${(id + 1)}&f_sh=on',
+  ];
+
+  for (String url in urls) {
+    try {
+      final listHtml = await EHSession.requestString(url);
+      final href = parse(listHtml)
+          .querySelector('a[href*="/g/$id/"]')
+          ?.attributes['href'];
+      ehash =
+          href?.split('/').where((element) => element.isNotEmpty).lastOrNull;
+      if (ehash != null) break;
+    } catch (e, st) {
+      Logger.error('[tryGetEhHash] $e\n$st');
+      if (e.toString().contains('Connection reset by peer')) {
+        rethrow;
+      }
+    }
+  }
+
+  if (ehash == null) throw 'Cannot find hash';
+  return ehash;
 }
