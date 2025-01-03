@@ -71,11 +71,11 @@ Future<http.Response> _ehentaiGet(String url,
     return HttpWrapper.cacheResponse[url]!;
   }
 
-  var throttler = url.contains('exhentai.org')
+  final throttler = url.contains('exhentai.org')
       ? HttpWrapper.throttlerExHentai
       : HttpWrapper.throttlerEHentai;
 
-  await throttler.acquire();
+  final release = await throttler.acquire();
 
   if (HttpWrapper.cacheResponse.containsKey(url)) {
     throttler.release();
@@ -111,7 +111,7 @@ Future<http.Response> _ehentaiGet(String url,
       Logger.error('[Http Request] GET: $url\n'
           'E:$e\n'
           '$st');
-      throttler.release();
+      release.call();
       if (!(timeout || e.toString().contains('Connection reset by peer')) ||
           (timeout && retry > 10)) {
         rethrow;
@@ -124,7 +124,7 @@ Future<http.Response> _ehentaiGet(String url,
     retry++;
 
     if (timeout) {
-      if (retry > 3) throttler.release();
+      if (retry > 3) release.call();
       Logger.info('[Http Request] GETS: $url, $retry');
       continue;
     }
@@ -139,7 +139,7 @@ Future<http.Response> _ehentaiGet(String url,
       HttpWrapper.cacheResponse[url] = res;
     }
 
-    throttler.release();
+    release.call();
     return res;
   }
 }
