@@ -91,7 +91,8 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
 
   Future<void> _loadBookmarkAlignType() async {
     final prefs = await SharedPreferences.getInstance();
-    nowType = prefs.getInt('bookmark_${widget.groupId}') ?? 3;
+    nowType = SearchResultType
+        .values[prefs.getInt('bookmark_${widget.groupId}') ?? 3];
   }
 
   Future<void> _refreshAsync() async {
@@ -165,7 +166,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
 
     // TODO: fix bug that all sub widgets are loaded simultaneously
     // so, this occured memory leak and app crash
-    final articleList = nowType >= 2
+    final articleList = nowType.isGridLike
         ? scrollView
         : PrimaryScrollController(
             controller: _scroll,
@@ -337,12 +338,12 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
                   return FadeTransition(opacity: animation, child: wi);
                 },
                 pageBuilder: (_, __, ___) => SearchType2(
-                  nowType: nowType,
+                  nowType: nowType.index,
                 ),
               ))
                   .then((value) async {
                 if (value == null) return;
-                nowType = value;
+                nowType = SearchResultType.values[value];
                 itemKeys.clear();
 
                 final prefs = await SharedPreferences.getInstance();
@@ -410,22 +411,23 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     return filterResult;
   }
 
-  int nowType = 3;
+  SearchResultType nowType = SearchResultType.detail;
 
   Widget buildList() {
-    final columnCount =
-        MediaQuery.of(context).orientation == Orientation.landscape ? 4 : 3;
-    final mm = nowType == 0 ? columnCount : 2;
     final windowWidth = MediaQuery.of(context).size.width;
     switch (nowType) {
-      case 0:
-      case 1:
+      case SearchResultType.threeGrid:
+      case SearchResultType.twoGrid:
+        final columnCount =
+            Settings.searchResultType == SearchResultType.threeGrid ? 3 : 2;
+        final simpleModeColumnCount =
+            Settings.useTabletMode ? columnCount * 2 : columnCount;
         return SliverPadding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
           sliver: SliverGrid(
             key: key,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: mm,
+              crossAxisCount: simpleModeColumnCount,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
               childAspectRatio: 3 / 4,
@@ -445,7 +447,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
                           queryResult: e,
                           showDetail: false,
                           addBottomPadding: false,
-                          width: (windowWidth - 4.0) / mm,
+                          width: (windowWidth - 4.0) / simpleModeColumnCount,
                           thumbnailTag: const Uuid().v4(),
                           bookmarkMode: true,
                           bookmarkCallback: longpress,
@@ -465,9 +467,9 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
           ),
         );
 
-      case 2:
-      case 3:
-      case 4:
+      case SearchResultType.bigLine:
+      case SearchResultType.detail:
+      case SearchResultType.ultra:
         return SliverPadding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
           sliver: SliverList(
@@ -477,12 +479,12 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
               if (!itemKeys.containsKey(keyStr)) itemKeys[keyStr] = GlobalKey();
               return Align(
                 key: itemKeys[keyStr],
-                alignment: Alignment.center,
+                alignment: Alignment.bottomCenter,
                 child: Provider<ArticleListItem>.value(
                   value: ArticleListItem.fromArticleListItem(
                     queryResult: x,
-                    showDetail: nowType >= 3,
-                    showUltra: nowType == 4,
+                    showDetail: nowType.isDetailLike,
+                    showUltra: nowType.isUltra,
                     addBottomPadding: true,
                     width: (windowWidth - 4.0),
                     thumbnailTag: const Uuid().v4(),
