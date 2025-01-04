@@ -14,19 +14,17 @@ import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/log/log.dart';
-import 'package:violet/model/article_list_item.dart';
 import 'package:violet/other/dialogs.dart';
 import 'package:violet/pages/artist_info/search_type2.dart';
 import 'package:violet/pages/bookmark/group/group_artist_article_list.dart';
 import 'package:violet/pages/bookmark/group/group_artist_list.dart';
+import 'package:violet/pages/search/search_page.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/filter_page.dart';
 import 'package:violet/pages/segment/filter_page_controller.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/settings/settings.dart';
 import 'package:violet/style/palette.dart';
-import 'package:violet/widgets/article_item/article_list_item_widget.dart';
-import 'package:violet/widgets/debounce_widget.dart';
 import 'package:violet/widgets/dots_indicator.dart';
 import 'package:violet/widgets/floating_button.dart';
 import 'package:violet/widgets/search_bar.dart';
@@ -139,7 +137,18 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
   @override
   Widget build(BuildContext context) {
     if (_cachedList == null || _shouldRebuild) {
-      final list = buildList();
+      final list = ResultPanelWidget(
+        searchResultType: nowType,
+        resultList: filterResult,
+        sliverKey: key,
+        itemKeys: itemKeys,
+        keyPrefix: 'group',
+        bookmarkMode: true,
+        bookmarkCallback: longpress,
+        bookmarkCheckCallback: check,
+        isCheckMode: checkMode,
+        checkedArticle: checked,
+      );
 
       _shouldRebuild = false;
       _cachedList = list;
@@ -412,103 +421,6 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
   }
 
   SearchResultType nowType = SearchResultType.detail;
-
-  Widget buildList() {
-    final windowWidth = MediaQuery.of(context).size.width;
-    switch (nowType) {
-      case SearchResultType.threeGrid:
-      case SearchResultType.twoGrid:
-        final columnCount =
-            Settings.searchResultType == SearchResultType.threeGrid ? 3 : 2;
-        final simpleModeColumnCount =
-            Settings.useTabletMode ? columnCount * 2 : columnCount;
-        return SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-          sliver: SliverGrid(
-            key: key,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: simpleModeColumnCount,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 3 / 4,
-            ),
-            delegate: SliverChildListDelegate(filterResult.map((e) {
-              var keyStr = 'group/${widget.groupId}/$nowType/${e.id()}';
-              if (!itemKeys.containsKey(keyStr)) itemKeys[keyStr] = GlobalKey();
-              return DebounceWidget(
-                child: Padding(
-                  key: itemKeys[keyStr],
-                  padding: EdgeInsets.zero,
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: SizedBox(
-                      child: Provider<ArticleListItem>.value(
-                        value: ArticleListItem.fromArticleListItem(
-                          queryResult: e,
-                          showDetail: false,
-                          addBottomPadding: false,
-                          width: (windowWidth - 4.0) / simpleModeColumnCount,
-                          thumbnailTag: const Uuid().v4(),
-                          bookmarkMode: true,
-                          bookmarkCallback: longpress,
-                          bookmarkCheckCallback: check,
-                          usableTabList: filterResult,
-                        ),
-                        child: ArticleListItemWidget(
-                          isCheckMode: checkMode,
-                          isChecked: checked.contains(e.id()),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList()),
-          ),
-        );
-
-      case SearchResultType.bigLine:
-      case SearchResultType.detail:
-      case SearchResultType.ultra:
-        return SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-          sliver: SliverList(
-            key: key,
-            delegate: SliverChildListDelegate(filterResult.map((x) {
-              var keyStr = 'group/${widget.groupId}/$nowType/${x.id()}';
-              if (!itemKeys.containsKey(keyStr)) itemKeys[keyStr] = GlobalKey();
-              return Align(
-                key: itemKeys[keyStr],
-                alignment: Alignment.bottomCenter,
-                child: Provider<ArticleListItem>.value(
-                  value: ArticleListItem.fromArticleListItem(
-                    queryResult: x,
-                    showDetail: nowType.isDetailLike,
-                    showUltra: nowType.isUltra,
-                    addBottomPadding: true,
-                    width: (windowWidth - 4.0),
-                    thumbnailTag: const Uuid().v4(),
-                    bookmarkMode: true,
-                    bookmarkCallback: longpress,
-                    bookmarkCheckCallback: check,
-                    usableTabList: filterResult,
-                  ),
-                  child: ArticleListItemWidget(
-                    isCheckMode: checkMode,
-                    isChecked: checked.contains(x.id()),
-                  ),
-                ),
-              );
-            }).toList()),
-          ),
-        );
-
-      default:
-        return const Center(
-          child: Text('Error :('),
-        );
-    }
-  }
 
   bool checkMode = false;
   bool checkModePre = false;
