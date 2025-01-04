@@ -15,10 +15,10 @@ import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/other/dialogs.dart';
-import 'package:violet/pages/artist_info/search_type2.dart';
 import 'package:violet/pages/bookmark/group/group_artist_article_list.dart';
 import 'package:violet/pages/bookmark/group/group_artist_list.dart';
 import 'package:violet/pages/search/search_page.dart';
+import 'package:violet/pages/search/search_type.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/filter_page.dart';
 import 'package:violet/pages/segment/filter_page_controller.dart';
@@ -55,6 +55,23 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
 
   Map<String, GlobalKey> itemKeys = <String, GlobalKey>{};
 
+  bool _shouldRebuild = false;
+  Widget? _cachedList;
+  ObjectKey sliverKey = ObjectKey(const Uuid().v4());
+  SearchResultType alignType = SearchResultType.detail;
+
+  final FilterController _filterController =
+      FilterController(heroKey: 'searchtype2');
+
+  bool isFilterUsed = false;
+
+  List<QueryResult> queryResult = <QueryResult>[];
+  List<QueryResult> filterResult = <QueryResult>[];
+
+  bool checkMode = false;
+  bool checkModePre = false;
+  List<int> checked = [];
+
   @override
   void initState() {
     super.initState();
@@ -89,7 +106,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
 
   Future<void> _loadBookmarkAlignType() async {
     final prefs = await SharedPreferences.getInstance();
-    nowType = SearchResultType
+    alignType = SearchResultType
         .values[prefs.getInt('bookmark_${widget.groupId}') ?? 3];
   }
 
@@ -131,14 +148,11 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     _refreshAsync();
   }
 
-  bool _shouldRebuild = false;
-  Widget? _cachedList;
-
   @override
   Widget build(BuildContext context) {
     if (_cachedList == null || _shouldRebuild) {
       final list = ResultPanelWidget(
-        searchResultType: nowType,
+        searchResultType: alignType,
         resultList: filterResult,
         sliverKey: sliverKey,
         itemKeys: itemKeys,
@@ -175,7 +189,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
 
     // TODO: fix bug that all sub widgets are loaded simultaneously
     // so, this occured memory leak and app crash
-    final articleList = nowType.isGridLike
+    final articleList = alignType.isGridLike
         ? scrollView
         : PrimaryScrollController(
             controller: _scroll,
@@ -310,7 +324,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     return Align(
       alignment: Alignment.centerRight,
       child: Hero(
-        tag: 'searchtype2',
+        tag: 'searchtype\$bookmark',
         child: Card(
           color: Palette.themeColor,
           shape: const RoundedRectangleBorder(
@@ -321,6 +335,8 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
           elevation: !Settings.themeFlat ? 100 : 0,
           clipBehavior: Clip.antiAliasWithSaveLayer,
           child: InkWell(
+            onTap: alignOnTap,
+            onLongPress: filterOnTap,
             child: const SizedBox(
               height: 48,
               width: 48,
@@ -334,62 +350,64 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
                 ],
               ),
             ),
-            onTap: () async {
-              if (checkMode) return;
-              Navigator.of(context)
-                  .push(PageRouteBuilder(
-                opaque: false,
-                transitionDuration: const Duration(milliseconds: 500),
-                transitionsBuilder: (BuildContext context,
-                    Animation<double> animation,
-                    Animation<double> secondaryAnimation,
-                    Widget wi) {
-                  return FadeTransition(opacity: animation, child: wi);
-                },
-                pageBuilder: (_, __, ___) => SearchType2(
-                  nowType: nowType.index,
-                ),
-              ))
-                  .then((value) async {
-                if (value == null) return;
-                nowType = SearchResultType.values[value];
-                itemKeys.clear();
-
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setInt('bookmark_${widget.groupId}', value);
-                await Future.delayed(const Duration(milliseconds: 50), () {
-                  _shouldRebuild = true;
-                  setState(() {
-                    _shouldRebuild = true;
-                  });
-                });
-              });
-            },
-            onLongPress: () {
-              if (checkMode) return;
-              isFilterUsed = true;
-
-              PlatformNavigator.navigateFade(
-                context,
-                Provider<FilterController>.value(
-                  value: _filterController,
-                  child: FilterPage(
-                    queryResult: queryResult,
-                  ),
-                ),
-              ).then((value) async {
-                _applyFilter();
-                _shouldRebuild = true;
-                setState(() {
-                  _shouldRebuild = true;
-                  sliverKey = ObjectKey(const Uuid().v4());
-                });
-              });
-            },
           ),
         ),
       ),
     );
+  }
+
+  alignOnTap() async {
+    if (checkMode) return;
+
+    final newAlignType = await Navigator.of(context).push(PageRouteBuilder(
+      opaque: false,
+      transitionDuration: const Duration(milliseconds: 500),
+      transitionsBuilder: (BuildContext context, Animation<double> animation,
+          Animation<double> secondaryAnimation, Widget wi) {
+        return FadeTransition(opacity: animation, child: wi);
+      },
+      pageBuilder: (_, __, ___) => SearchType(
+        heroTag: 'searchtype\$bookmark',
+        previousType: alignType,
+      ),
+      barrierColor: Colors.black12,
+      barrierDismissible: true,
+    ));
+
+    if (newAlignType == null || alignType == newAlignType) return;
+    alignType = newAlignType;
+    itemKeys.clear();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('bookmark_${widget.groupId}', alignType.index);
+    await Future.delayed(const Duration(milliseconds: 50), () {
+      _shouldRebuild = true;
+      setState(() {
+        _shouldRebuild = true;
+      });
+    });
+  }
+
+  filterOnTap() async {
+    if (checkMode) return;
+    isFilterUsed = true;
+
+    await PlatformNavigator.navigateFade(
+      context,
+      Provider<FilterController>.value(
+        value: _filterController,
+        child: FilterPage(
+          queryResult: queryResult,
+        ),
+      ),
+    );
+
+    _applyFilter();
+    _shouldRebuild = true;
+    setState(() {
+      _shouldRebuild = true;
+      sliverKey = ObjectKey(const Uuid().v4());
+    });
   }
 
   Widget _title() {
@@ -400,16 +418,6 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     );
   }
 
-  ObjectKey sliverKey = ObjectKey(const Uuid().v4());
-
-  final FilterController _filterController =
-      FilterController(heroKey: 'searchtype2');
-
-  bool isFilterUsed = false;
-
-  List<QueryResult> queryResult = <QueryResult>[];
-  List<QueryResult> filterResult = <QueryResult>[];
-
   void _applyFilter() {
     filterResult = _filterController.applyFilter(queryResult);
     isFilterUsed = true;
@@ -419,12 +427,6 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     if (!isFilterUsed) return queryResult;
     return filterResult;
   }
-
-  SearchResultType nowType = SearchResultType.detail;
-
-  bool checkMode = false;
-  bool checkModePre = false;
-  List<int> checked = [];
 
   void longpress(int article) {
     print(article);
