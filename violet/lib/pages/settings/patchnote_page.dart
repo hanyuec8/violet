@@ -22,6 +22,15 @@ class PatchModel {
 
 final patches = [
   PatchModel(
+    dateTime: DateTime(2025, 1, 4),
+    version: '1.32.2 Patch',
+    contents: [
+      'auto reload hitomi script',
+      'enhance ui for desktop, tablet',
+      'remove lite-mode'
+    ],
+  ),
+  PatchModel(
     dateTime: DateTime(2024, 9, 14),
     version: '1.32.1 Patch',
     contents: [
