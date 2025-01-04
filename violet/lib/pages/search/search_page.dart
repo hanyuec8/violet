@@ -594,13 +594,13 @@ class ResultPanelWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final columnCount =
-        Settings.searchResultType == SearchResultType.threeGrid ? 3 : 2;
     final windowWidth = MediaQuery.of(context).size.width;
 
     switch (Settings.searchResultType) {
       case SearchResultType.threeGrid:
       case SearchResultType.twoGrid:
+        final columnCount =
+            Settings.searchResultType == SearchResultType.threeGrid ? 3 : 2;
         final simpleModeColumnCount =
             Settings.useTabletMode ? columnCount * 2 : columnCount;
         return SliverPadding(
