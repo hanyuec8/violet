@@ -36,6 +36,7 @@ import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/settings/settings.dart';
 import 'package:violet/style/palette.dart';
 import 'package:violet/widgets/article_item/article_list_item_widget.dart';
+import 'package:violet/widgets/debounce_widget.dart';
 import 'package:violet/widgets/search_bar.dart';
 import 'package:violet/widgets/theme_switchable_state.dart';
 
@@ -61,8 +62,6 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
 
   late final String getxId;
   late final SearchPageController c;
-
-  final DateTime datetime = DateTime.now();
 
   @override
   void initState() {
@@ -118,14 +117,14 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
 
   bool _shouldReload = false;
   ResultPanelWidget? _cachedPannel;
-  ObjectKey key = ObjectKey(const Uuid().v4());
+  ObjectKey sliverKey = ObjectKey(const Uuid().v4());
   Timer? _holdTimer;
 
   reloadForce() {
     setState(() {
       _cachedPannel = null;
       _shouldReload = true;
-      key = ObjectKey(const Uuid().v4());
+      sliverKey = ObjectKey(const Uuid().v4());
     });
   }
 
@@ -142,10 +141,11 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
       c.itemKeys.clear();
 
       final panel = ResultPanelWidget(
-        dateTime: datetime,
+        searchResultType: Settings.searchResultType,
         resultList: c.getSearchList(),
         itemKeys: c.itemKeys,
-        sliverKey: key,
+        sliverKey: sliverKey,
+        keyPrefix: 'search',
       );
 
       _cachedPannel = panel;
@@ -535,21 +535,24 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
 
   alignOnTap() async {
     final previousAlignType = Settings.searchResultType;
-
-    await Navigator.of(context).push(PageRouteBuilder(
+    final newAlignType = await Navigator.of(context).push(PageRouteBuilder(
       opaque: false,
       transitionDuration: const Duration(milliseconds: 500),
       transitionsBuilder: (BuildContext context, Animation<double> animation,
           Animation<double> secondaryAnimation, Widget wi) {
         return FadeTransition(opacity: animation, child: wi);
       },
-      pageBuilder: (_, __, ___) => const SearchType(),
+      pageBuilder: (_, __, ___) => SearchType(
+        heroTag: 'searchtype${ModalBottomSheetContext.getCount()}',
+        previousType: previousAlignType,
+      ),
       barrierColor: Colors.black12,
       barrierDismissible: true,
     ));
 
-    if (previousAlignType == Settings.searchResultType) return;
+    if (newAlignType == null || previousAlignType == newAlignType) return;
 
+    await Settings.setSearchResultType(newAlignType);
     await Future.delayed(const Duration(milliseconds: 50), () {
       _shouldReload = true;
       c.resetItemHeight();
@@ -579,32 +582,47 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
 }
 
 class ResultPanelWidget extends StatelessWidget {
+  final SearchResultType searchResultType;
   final List<QueryResult> resultList;
-  final DateTime dateTime;
   final ObjectKey sliverKey;
   final Map<String, GlobalKey> itemKeys;
+  final bool bookmarkMode;
+  final String keyPrefix;
+  final BookmarkCallback? bookmarkCallback;
+  final BookmarkCheckCallback? bookmarkCheckCallback;
+  final bool isCheckMode;
+  final List<int>? checkedArticle;
 
   const ResultPanelWidget({
     super.key,
+    required this.searchResultType,
     required this.resultList,
-    required this.dateTime,
     required this.sliverKey,
     required this.itemKeys,
+    required this.keyPrefix,
+    this.bookmarkMode = false,
+    this.bookmarkCallback,
+    this.bookmarkCheckCallback,
+    this.isCheckMode = false,
+    this.checkedArticle,
   });
 
   @override
   Widget build(BuildContext context) {
-    final columnCount =
-        Settings.searchResultType == SearchResultType.threeGrid ? 3 : 2;
     final windowWidth = MediaQuery.of(context).size.width;
+    final padding = bookmarkMode
+        ? const EdgeInsets.fromLTRB(12, 0, 12, 16)
+        : const EdgeInsets.fromLTRB(8, 0, 8, 16);
 
-    switch (Settings.searchResultType) {
+    switch (searchResultType) {
       case SearchResultType.threeGrid:
       case SearchResultType.twoGrid:
+        final columnCount =
+            searchResultType == SearchResultType.threeGrid ? 3 : 2;
         final simpleModeColumnCount =
             Settings.useTabletMode ? columnCount * 2 : columnCount;
         return SliverPadding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+            padding: padding,
             sliver: SliverGrid(
               key: sliverKey,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -620,6 +638,7 @@ class ResultPanelWidget extends StatelessWidget {
                     windowWidth,
                     (windowWidth - 4.0) / simpleModeColumnCount,
                     alignment: Alignment.bottomCenter,
+                    debouncing: bookmarkMode,
                   );
                 },
                 childCount: resultList.length,
@@ -633,12 +652,10 @@ class ResultPanelWidget extends StatelessWidget {
             MediaQuery.of(context).orientation == Orientation.landscape) {
           const kDetailModeColumnCount = 2;
           final aspectRatioHeight =
-              Settings.useTabletMode && Settings.searchResultType.isUltra
-                  ? 220
-                  : 130;
+              Settings.useTabletMode && searchResultType.isUltra ? 220 : 130;
 
           return SliverPadding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+            padding: padding,
             sliver: LiveSliverGrid(
               key: sliverKey,
               controller: ScrollController(),
@@ -658,8 +675,8 @@ class ResultPanelWidget extends StatelessWidget {
                   index,
                   windowWidth,
                   (windowWidth - 4.0) / kDetailModeColumnCount,
-                  showDetail: Settings.searchResultType.isDetailLike,
-                  showUltra: Settings.searchResultType.isUltra,
+                  showDetail: searchResultType.isDetailLike,
+                  showUltra: searchResultType.isUltra,
                   addBottomPadding: true,
                 );
               },
@@ -674,8 +691,8 @@ class ResultPanelWidget extends StatelessWidget {
                   index,
                   windowWidth,
                   windowWidth - 4.0,
-                  showDetail: Settings.searchResultType.isDetailLike,
-                  showUltra: Settings.searchResultType.isUltra,
+                  showDetail: searchResultType.isDetailLike,
+                  showUltra: searchResultType.isUltra,
                   addBottomPadding: true,
                 );
               },
@@ -698,8 +715,9 @@ class ResultPanelWidget extends StatelessWidget {
     bool showUltra = false,
     bool addBottomPadding = false,
     Alignment alignment = Alignment.center,
+    bool debouncing = false,
   }) {
-    final keyStr = 'search/${resultList[index].id()}/$index';
+    final keyStr = '$keyPrefix/${resultList[index].id()}/$index';
 
     if (!itemKeys.containsKey(keyStr)) {
       itemKeys[keyStr] = GlobalKey();
@@ -712,13 +730,21 @@ class ResultPanelWidget extends StatelessWidget {
         showUltra: showUltra,
         addBottomPadding: addBottomPadding,
         width: width,
-        thumbnailTag: 'thumbnail${resultList[index].id()}$dateTime',
+        thumbnailTag: const Uuid().v4(),
+        bookmarkMode: bookmarkMode,
+        bookmarkCallback: bookmarkCallback,
+        bookmarkCheckCallback: bookmarkCheckCallback,
         usableTabList: resultList,
       ),
-      child: const ArticleListItemWidget(),
+      child: !isCheckMode
+          ? const ArticleListItemWidget()
+          : ArticleListItemWidget(
+              isCheckMode: true,
+              isChecked: checkedArticle!.contains(resultList[index].id()),
+            ),
     );
 
-    return Padding(
+    final aligned = Padding(
       key: itemKeys[keyStr],
       padding: EdgeInsets.zero,
       child: Align(
@@ -728,5 +754,11 @@ class ResultPanelWidget extends StatelessWidget {
         ),
       ),
     );
+
+    if (debouncing) {
+      return DebounceWidget(child: aligned);
+    } else {
+      return aligned;
+    }
   }
 }
