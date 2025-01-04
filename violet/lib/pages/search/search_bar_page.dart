@@ -1,6 +1,7 @@
 // This source code is a part of Project Violet.
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flare_flutter/asset_provider.dart';
@@ -286,17 +287,7 @@ class _SearchBarPageState extends State<SearchBarPage>
               ? Translations.instance!.trans('nosearchresult')
               : Translations.instance!.trans('inputsearchtoken')));
     }
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        Wrap(
-          spacing: 4.0,
-          runSpacing: -10.0,
-          children: _searchLists.map((item) => chip(item)).toList(),
-        ),
-      ],
-    );
+    return _chipListView(_searchLists.map((item) => chip(item)).toList());
   }
 
   _searchRelatedPanel() {
@@ -304,14 +295,22 @@ class _SearchBarPageState extends State<SearchBarPage>
       return Center(
           child: Text(Translations.instance!.trans('nosearchresult')));
     }
+    return _chipListView(
+        _relatedLists.map((item) => chip(item, true)).toList());
+  }
+
+  _chipListView(List<Widget> chips) {
+    final spacing = Platform.isWindows ? 2.0 : 4.0;
+    final runSpacing = Platform.isWindows ? 4.0 : -10.0;
+
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       physics: const BouncingScrollPhysics(),
       children: [
         Wrap(
-          spacing: 4.0,
-          runSpacing: -10.0,
-          children: _relatedLists.map((item) => chip(item, true)).toList(),
+          spacing: spacing,
+          runSpacing: runSpacing,
+          children: chips,
         ),
       ],
     );

@@ -14,19 +14,17 @@ import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/log/log.dart';
-import 'package:violet/model/article_list_item.dart';
 import 'package:violet/other/dialogs.dart';
-import 'package:violet/pages/artist_info/search_type2.dart';
 import 'package:violet/pages/bookmark/group/group_artist_article_list.dart';
 import 'package:violet/pages/bookmark/group/group_artist_list.dart';
+import 'package:violet/pages/search/search_page.dart';
+import 'package:violet/pages/search/search_type.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/filter_page.dart';
 import 'package:violet/pages/segment/filter_page_controller.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/settings/settings.dart';
 import 'package:violet/style/palette.dart';
-import 'package:violet/widgets/article_item/article_list_item_widget.dart';
-import 'package:violet/widgets/debounce_widget.dart';
 import 'package:violet/widgets/dots_indicator.dart';
 import 'package:violet/widgets/floating_button.dart';
 import 'package:violet/widgets/search_bar.dart';
@@ -57,6 +55,23 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
 
   Map<String, GlobalKey> itemKeys = <String, GlobalKey>{};
 
+  bool _shouldRebuild = false;
+  Widget? _cachedList;
+  ObjectKey sliverKey = ObjectKey(const Uuid().v4());
+  SearchResultType alignType = SearchResultType.detail;
+
+  final FilterController _filterController =
+      FilterController(heroKey: 'searchtype2');
+
+  bool isFilterUsed = false;
+
+  List<QueryResult> queryResult = <QueryResult>[];
+  List<QueryResult> filterResult = <QueryResult>[];
+
+  bool checkMode = false;
+  bool checkModePre = false;
+  List<int> checked = [];
+
   @override
   void initState() {
     super.initState();
@@ -85,13 +100,14 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     }
     setState(() {
       _shouldRebuild = true;
-      key = ObjectKey(const Uuid().v4());
+      sliverKey = ObjectKey(const Uuid().v4());
     });
   }
 
   Future<void> _loadBookmarkAlignType() async {
     final prefs = await SharedPreferences.getInstance();
-    nowType = prefs.getInt('bookmark_${widget.groupId}') ?? 3;
+    alignType = SearchResultType
+        .values[prefs.getInt('bookmark_${widget.groupId}') ?? 3];
   }
 
   Future<void> _refreshAsync() async {
@@ -132,13 +148,21 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     _refreshAsync();
   }
 
-  bool _shouldRebuild = false;
-  Widget? _cachedList;
-
   @override
   Widget build(BuildContext context) {
     if (_cachedList == null || _shouldRebuild) {
-      final list = buildList();
+      final list = ResultPanelWidget(
+        searchResultType: alignType,
+        resultList: filterResult,
+        sliverKey: sliverKey,
+        itemKeys: itemKeys,
+        keyPrefix: 'group',
+        bookmarkMode: true,
+        bookmarkCallback: longpress,
+        bookmarkCheckCallback: check,
+        isCheckMode: checkMode,
+        checkedArticle: checked,
+      );
 
       _shouldRebuild = false;
       _cachedList = list;
@@ -165,7 +189,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
 
     // TODO: fix bug that all sub widgets are loaded simultaneously
     // so, this occured memory leak and app crash
-    final articleList = nowType >= 2
+    final articleList = alignType.isGridLike
         ? scrollView
         : PrimaryScrollController(
             controller: _scroll,
@@ -300,7 +324,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     return Align(
       alignment: Alignment.centerRight,
       child: Hero(
-        tag: 'searchtype2',
+        tag: 'searchtype\$bookmark',
         child: Card(
           color: Palette.themeColor,
           shape: const RoundedRectangleBorder(
@@ -311,6 +335,8 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
           elevation: !Settings.themeFlat ? 100 : 0,
           clipBehavior: Clip.antiAliasWithSaveLayer,
           child: InkWell(
+            onTap: alignOnTap,
+            onLongPress: filterOnTap,
             child: const SizedBox(
               height: 48,
               width: 48,
@@ -324,62 +350,64 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
                 ],
               ),
             ),
-            onTap: () async {
-              if (checkMode) return;
-              Navigator.of(context)
-                  .push(PageRouteBuilder(
-                opaque: false,
-                transitionDuration: const Duration(milliseconds: 500),
-                transitionsBuilder: (BuildContext context,
-                    Animation<double> animation,
-                    Animation<double> secondaryAnimation,
-                    Widget wi) {
-                  return FadeTransition(opacity: animation, child: wi);
-                },
-                pageBuilder: (_, __, ___) => SearchType2(
-                  nowType: nowType,
-                ),
-              ))
-                  .then((value) async {
-                if (value == null) return;
-                nowType = value;
-                itemKeys.clear();
-
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setInt('bookmark_${widget.groupId}', value);
-                await Future.delayed(const Duration(milliseconds: 50), () {
-                  _shouldRebuild = true;
-                  setState(() {
-                    _shouldRebuild = true;
-                  });
-                });
-              });
-            },
-            onLongPress: () {
-              if (checkMode) return;
-              isFilterUsed = true;
-
-              PlatformNavigator.navigateFade(
-                context,
-                Provider<FilterController>.value(
-                  value: _filterController,
-                  child: FilterPage(
-                    queryResult: queryResult,
-                  ),
-                ),
-              ).then((value) async {
-                _applyFilter();
-                _shouldRebuild = true;
-                setState(() {
-                  _shouldRebuild = true;
-                  key = ObjectKey(const Uuid().v4());
-                });
-              });
-            },
           ),
         ),
       ),
     );
+  }
+
+  alignOnTap() async {
+    if (checkMode) return;
+
+    final newAlignType = await Navigator.of(context).push(PageRouteBuilder(
+      opaque: false,
+      transitionDuration: const Duration(milliseconds: 500),
+      transitionsBuilder: (BuildContext context, Animation<double> animation,
+          Animation<double> secondaryAnimation, Widget wi) {
+        return FadeTransition(opacity: animation, child: wi);
+      },
+      pageBuilder: (_, __, ___) => SearchType(
+        heroTag: 'searchtype\$bookmark',
+        previousType: alignType,
+      ),
+      barrierColor: Colors.black12,
+      barrierDismissible: true,
+    ));
+
+    if (newAlignType == null || alignType == newAlignType) return;
+    alignType = newAlignType;
+    itemKeys.clear();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('bookmark_${widget.groupId}', alignType.index);
+    await Future.delayed(const Duration(milliseconds: 50), () {
+      _shouldRebuild = true;
+      setState(() {
+        _shouldRebuild = true;
+      });
+    });
+  }
+
+  filterOnTap() async {
+    if (checkMode) return;
+    isFilterUsed = true;
+
+    await PlatformNavigator.navigateFade(
+      context,
+      Provider<FilterController>.value(
+        value: _filterController,
+        child: FilterPage(
+          queryResult: queryResult,
+        ),
+      ),
+    );
+
+    _applyFilter();
+    _shouldRebuild = true;
+    setState(() {
+      _shouldRebuild = true;
+      sliverKey = ObjectKey(const Uuid().v4());
+    });
   }
 
   Widget _title() {
@@ -390,16 +418,6 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     );
   }
 
-  ObjectKey key = ObjectKey(const Uuid().v4());
-
-  final FilterController _filterController =
-      FilterController(heroKey: 'searchtype2');
-
-  bool isFilterUsed = false;
-
-  List<QueryResult> queryResult = <QueryResult>[];
-  List<QueryResult> filterResult = <QueryResult>[];
-
   void _applyFilter() {
     filterResult = _filterController.applyFilter(queryResult);
     isFilterUsed = true;
@@ -409,108 +427,6 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     if (!isFilterUsed) return queryResult;
     return filterResult;
   }
-
-  int nowType = 3;
-
-  Widget buildList() {
-    final columnCount =
-        MediaQuery.of(context).orientation == Orientation.landscape ? 4 : 3;
-    final mm = nowType == 0 ? columnCount : 2;
-    final windowWidth = MediaQuery.of(context).size.width;
-    switch (nowType) {
-      case 0:
-      case 1:
-        return SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-          sliver: SliverGrid(
-            key: key,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: mm,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 3 / 4,
-            ),
-            delegate: SliverChildListDelegate(filterResult.map((e) {
-              var keyStr = 'group/${widget.groupId}/$nowType/${e.id()}';
-              if (!itemKeys.containsKey(keyStr)) itemKeys[keyStr] = GlobalKey();
-              return DebounceWidget(
-                child: Padding(
-                  key: itemKeys[keyStr],
-                  padding: EdgeInsets.zero,
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: SizedBox(
-                      child: Provider<ArticleListItem>.value(
-                        value: ArticleListItem.fromArticleListItem(
-                          queryResult: e,
-                          showDetail: false,
-                          addBottomPadding: false,
-                          width: (windowWidth - 4.0) / mm,
-                          thumbnailTag: const Uuid().v4(),
-                          bookmarkMode: true,
-                          bookmarkCallback: longpress,
-                          bookmarkCheckCallback: check,
-                          usableTabList: filterResult,
-                        ),
-                        child: ArticleListItemWidget(
-                          isCheckMode: checkMode,
-                          isChecked: checked.contains(e.id()),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList()),
-          ),
-        );
-
-      case 2:
-      case 3:
-      case 4:
-        return SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-          sliver: SliverList(
-            key: key,
-            delegate: SliverChildListDelegate(filterResult.map((x) {
-              var keyStr = 'group/${widget.groupId}/$nowType/${x.id()}';
-              if (!itemKeys.containsKey(keyStr)) itemKeys[keyStr] = GlobalKey();
-              return Align(
-                key: itemKeys[keyStr],
-                alignment: Alignment.center,
-                child: Provider<ArticleListItem>.value(
-                  value: ArticleListItem.fromArticleListItem(
-                    queryResult: x,
-                    showDetail: nowType >= 3,
-                    showUltra: nowType == 4,
-                    addBottomPadding: true,
-                    width: (windowWidth - 4.0),
-                    thumbnailTag: const Uuid().v4(),
-                    bookmarkMode: true,
-                    bookmarkCallback: longpress,
-                    bookmarkCheckCallback: check,
-                    usableTabList: filterResult,
-                  ),
-                  child: ArticleListItemWidget(
-                    isCheckMode: checkMode,
-                    isChecked: checked.contains(x.id()),
-                  ),
-                ),
-              );
-            }).toList()),
-          ),
-        );
-
-      default:
-        return const Center(
-          child: Text('Error :('),
-        );
-    }
-  }
-
-  bool checkMode = false;
-  bool checkModePre = false;
-  List<int> checked = [];
 
   void longpress(int article) {
     print(article);
@@ -553,97 +469,96 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     var currentGroup = widget.groupId;
     groups =
         groups.where((e) => e.id() != currentGroup && e.id() != 1).toList();
-    int choose = -9999;
+
     if (!mounted) return;
-    if (await showDialog(
-            context: context,
-            builder: (BuildContext context) => AlertDialog(
-                  title: Text(Translations.instance!.trans('wheretomove')),
-                  actions: <Widget>[
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Settings.majorColor,
-                      ),
-                      child: Text(Translations.instance!.trans('cancel')),
-                      onPressed: () {
-                        Navigator.pop(context, 0);
-                      },
-                    ),
-                  ],
-                  content: SizedBox(
-                    width: 200,
-                    height: 300,
-                    child: ListView.builder(
-                      itemCount: groups.length,
-                      itemBuilder: (context, index) {
-                        return ListTile(
-                          title: Text(groups[index].name()),
-                          subtitle: Text(groups[index].description()),
-                          onTap: () {
-                            choose = index;
-                            Navigator.pop(context, 1);
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                )) ==
-        1) {
-      if (!mounted) return;
-      if (await showYesNoDialog(
-          context,
-          Translations.instance!
-              .trans('movetoto')
-              .replaceAll('%1', groups[choose].name())
-              .replaceAll('%2', checked.length.toString()),
-          Translations.instance!.trans('movebookmark'))) {
-        // There is a way to change only the group, but there is also re-register a new bookmark.
-        // I chose the latter to suit the user's intentions.
+    final whereToMove = await showDialog<int>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: Text(Translations.instance!.trans('wheretomove')),
+        actions: <Widget>[
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Settings.majorColor,
+            ),
+            child: Text(Translations.instance!.trans('cancel')),
+            onPressed: () {
+              Navigator.pop(context, 0);
+            },
+          ),
+        ],
+        content: SizedBox(
+          width: 200,
+          height: 300,
+          child: ListView.builder(
+            itemCount: groups.length,
+            itemBuilder: (context, index) {
+              return ListTile(
+                title: Text(groups[index].name()),
+                subtitle: Text(groups[index].description()),
+                onTap: () {
+                  Navigator.pop(context, index);
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
 
-        // Atomic!!
-        // 0. Sort Checked
-        var invIdIndex = <int, int>{};
-        for (int i = 0; i < queryResult.length; i++) {
-          invIdIndex[queryResult[i].id()] = i;
-        }
-        checked.sort((x, y) => invIdIndex[x]!.compareTo(invIdIndex[y]!));
+    if (whereToMove == null || !mounted) return;
+    if (await showYesNoDialog(
+        context,
+        Translations.instance!
+            .trans('movetoto')
+            .replaceAll('%1', groups[whereToMove].name())
+            .replaceAll('%2', checked.length.toString()),
+        Translations.instance!.trans('movebookmark'))) {
+      // There is a way to change only the group, but there is also re-register a new bookmark.
+      // I chose the latter to suit the user's intentions.
 
-        // 1. Get bookmark articles on source groupid
-        var bm = await Bookmark.getInstance();
-        // var article = await bm.getArticle();
-        // var src = article
-        //     .where((element) => element.group() == currentGroup)
-        //     .toList();
+      // Atomic!!
+      // 0. Sort Checked
+      var invIdIndex = <int, int>{};
+      for (int i = 0; i < queryResult.length; i++) {
+        invIdIndex[queryResult[i].id()] = i;
+      }
+      checked.sort((x, y) => invIdIndex[x]!.compareTo(invIdIndex[y]!));
 
-        // 2. Save source bookmark for fault torlerance!
-        // final cacheDir = await getTemporaryDirectory();
-        // final path = File('${cacheDir.path}/bookmark_cache+${Uuid().v4()}');
-        // path.writeAsString(jsonEncode(checked));
+      // 1. Get bookmark articles on source groupid
+      var bm = await Bookmark.getInstance();
+      // var article = await bm.getArticle();
+      // var src = article
+      //     .where((element) => element.group() == currentGroup)
+      //     .toList();
 
-        for (var e in checked.reversed) {
-          // 3. Delete source bookmarks
-          await bm.unbookmark(e);
-          // 4. Add src bookmarks with new groupid
-          await bm.insertArticle(
-              e.toString(), DateTime.now(), groups[choose].id());
-        }
+      // 2. Save source bookmark for fault torlerance!
+      // final cacheDir = await getTemporaryDirectory();
+      // final path = File('${cacheDir.path}/bookmark_cache+${Uuid().v4()}');
+      // path.writeAsString(jsonEncode(checked));
 
-        // 5. Update UI
+      for (var e in checked.reversed) {
+        // 3. Delete source bookmarks
+        await bm.unbookmark(e);
+        // 4. Add src bookmarks with new groupid
+        await bm.insertArticle(
+            e.toString(), DateTime.now(), groups[whereToMove].id());
+      }
+
+      // 5. Update UI
+      _shouldRebuild = true;
+      setState(() {
         _shouldRebuild = true;
+        checkModePre = false;
+        checked.clear();
+      });
+      _shouldRebuild = true;
+      Future.delayed(const Duration(milliseconds: 500)).then((value) {
         setState(() {
           _shouldRebuild = true;
-          checkModePre = false;
-          checked.clear();
+          checkMode = false;
         });
-        _shouldRebuild = true;
-        Future.delayed(const Duration(milliseconds: 500)).then((value) {
-          setState(() {
-            _shouldRebuild = true;
-            checkMode = false;
-          });
-        });
-        refresh();
-      }
-    } else {}
+      });
+      refresh();
+    }
   }
 }

@@ -925,6 +925,17 @@ extension SearchResultTypeExtension on SearchResultType {
         return false;
     }
   }
+
+  bool get isGridLike {
+    switch (this) {
+      case SearchResultType.threeGrid:
+      case SearchResultType.twoGrid:
+        return true;
+
+      default:
+        return false;
+    }
+  }
 }
 
 enum DownloadResultType {
