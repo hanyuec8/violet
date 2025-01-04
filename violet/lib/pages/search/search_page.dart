@@ -117,14 +117,14 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
 
   bool _shouldReload = false;
   ResultPanelWidget? _cachedPannel;
-  ObjectKey key = ObjectKey(const Uuid().v4());
+  ObjectKey sliverKey = ObjectKey(const Uuid().v4());
   Timer? _holdTimer;
 
   reloadForce() {
     setState(() {
       _cachedPannel = null;
       _shouldReload = true;
-      key = ObjectKey(const Uuid().v4());
+      sliverKey = ObjectKey(const Uuid().v4());
     });
   }
 
@@ -144,7 +144,7 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
         searchResultType: Settings.searchResultType,
         resultList: c.getSearchList(),
         itemKeys: c.itemKeys,
-        sliverKey: key,
+        sliverKey: sliverKey,
         keyPrefix: 'search',
       );
 
