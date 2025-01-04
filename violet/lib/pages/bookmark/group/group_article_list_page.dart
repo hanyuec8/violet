@@ -83,7 +83,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     }
     setState(() {
       _shouldRebuild = true;
-      key = ObjectKey(const Uuid().v4());
+      sliverKey = ObjectKey(const Uuid().v4());
     });
   }
 
@@ -140,7 +140,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
       final list = ResultPanelWidget(
         searchResultType: nowType,
         resultList: filterResult,
-        sliverKey: key,
+        sliverKey: sliverKey,
         itemKeys: itemKeys,
         keyPrefix: 'group',
         bookmarkMode: true,
@@ -382,7 +382,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
                 _shouldRebuild = true;
                 setState(() {
                   _shouldRebuild = true;
-                  key = ObjectKey(const Uuid().v4());
+                  sliverKey = ObjectKey(const Uuid().v4());
                 });
               });
             },
@@ -400,7 +400,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     );
   }
 
-  ObjectKey key = ObjectKey(const Uuid().v4());
+  ObjectKey sliverKey = ObjectKey(const Uuid().v4());
 
   final FilterController _filterController =
       FilterController(heroKey: 'searchtype2');
