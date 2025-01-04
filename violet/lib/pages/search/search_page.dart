@@ -535,21 +535,24 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
 
   alignOnTap() async {
     final previousAlignType = Settings.searchResultType;
-
-    await Navigator.of(context).push(PageRouteBuilder(
+    final newAlignType = await Navigator.of(context).push(PageRouteBuilder(
       opaque: false,
       transitionDuration: const Duration(milliseconds: 500),
       transitionsBuilder: (BuildContext context, Animation<double> animation,
           Animation<double> secondaryAnimation, Widget wi) {
         return FadeTransition(opacity: animation, child: wi);
       },
-      pageBuilder: (_, __, ___) => const SearchType(),
+      pageBuilder: (_, __, ___) => SearchType(
+        heroTag: 'searchtype${ModalBottomSheetContext.getCount()}',
+        previousType: previousAlignType,
+      ),
       barrierColor: Colors.black12,
       barrierDismissible: true,
     ));
 
-    if (previousAlignType == Settings.searchResultType) return;
+    if (newAlignType == null || previousAlignType == newAlignType) return;
 
+    await Settings.setSearchResultType(newAlignType);
     await Future.delayed(const Duration(milliseconds: 50), () {
       _shouldReload = true;
       c.resetItemHeight();
