@@ -469,97 +469,96 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     var currentGroup = widget.groupId;
     groups =
         groups.where((e) => e.id() != currentGroup && e.id() != 1).toList();
-    int choose = -9999;
+
     if (!mounted) return;
-    if (await showDialog(
-            context: context,
-            builder: (BuildContext context) => AlertDialog(
-                  title: Text(Translations.instance!.trans('wheretomove')),
-                  actions: <Widget>[
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Settings.majorColor,
-                      ),
-                      child: Text(Translations.instance!.trans('cancel')),
-                      onPressed: () {
-                        Navigator.pop(context, 0);
-                      },
-                    ),
-                  ],
-                  content: SizedBox(
-                    width: 200,
-                    height: 300,
-                    child: ListView.builder(
-                      itemCount: groups.length,
-                      itemBuilder: (context, index) {
-                        return ListTile(
-                          title: Text(groups[index].name()),
-                          subtitle: Text(groups[index].description()),
-                          onTap: () {
-                            choose = index;
-                            Navigator.pop(context, 1);
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                )) ==
-        1) {
-      if (!mounted) return;
-      if (await showYesNoDialog(
-          context,
-          Translations.instance!
-              .trans('movetoto')
-              .replaceAll('%1', groups[choose].name())
-              .replaceAll('%2', checked.length.toString()),
-          Translations.instance!.trans('movebookmark'))) {
-        // There is a way to change only the group, but there is also re-register a new bookmark.
-        // I chose the latter to suit the user's intentions.
+    final whereToMove = await showDialog<int>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: Text(Translations.instance!.trans('wheretomove')),
+        actions: <Widget>[
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Settings.majorColor,
+            ),
+            child: Text(Translations.instance!.trans('cancel')),
+            onPressed: () {
+              Navigator.pop(context, 0);
+            },
+          ),
+        ],
+        content: SizedBox(
+          width: 200,
+          height: 300,
+          child: ListView.builder(
+            itemCount: groups.length,
+            itemBuilder: (context, index) {
+              return ListTile(
+                title: Text(groups[index].name()),
+                subtitle: Text(groups[index].description()),
+                onTap: () {
+                  Navigator.pop(context, index);
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
 
-        // Atomic!!
-        // 0. Sort Checked
-        var invIdIndex = <int, int>{};
-        for (int i = 0; i < queryResult.length; i++) {
-          invIdIndex[queryResult[i].id()] = i;
-        }
-        checked.sort((x, y) => invIdIndex[x]!.compareTo(invIdIndex[y]!));
+    if (whereToMove == null || !mounted) return;
+    if (await showYesNoDialog(
+        context,
+        Translations.instance!
+            .trans('movetoto')
+            .replaceAll('%1', groups[whereToMove].name())
+            .replaceAll('%2', checked.length.toString()),
+        Translations.instance!.trans('movebookmark'))) {
+      // There is a way to change only the group, but there is also re-register a new bookmark.
+      // I chose the latter to suit the user's intentions.
 
-        // 1. Get bookmark articles on source groupid
-        var bm = await Bookmark.getInstance();
-        // var article = await bm.getArticle();
-        // var src = article
-        //     .where((element) => element.group() == currentGroup)
-        //     .toList();
+      // Atomic!!
+      // 0. Sort Checked
+      var invIdIndex = <int, int>{};
+      for (int i = 0; i < queryResult.length; i++) {
+        invIdIndex[queryResult[i].id()] = i;
+      }
+      checked.sort((x, y) => invIdIndex[x]!.compareTo(invIdIndex[y]!));
 
-        // 2. Save source bookmark for fault torlerance!
-        // final cacheDir = await getTemporaryDirectory();
-        // final path = File('${cacheDir.path}/bookmark_cache+${Uuid().v4()}');
-        // path.writeAsString(jsonEncode(checked));
+      // 1. Get bookmark articles on source groupid
+      var bm = await Bookmark.getInstance();
+      // var article = await bm.getArticle();
+      // var src = article
+      //     .where((element) => element.group() == currentGroup)
+      //     .toList();
 
-        for (var e in checked.reversed) {
-          // 3. Delete source bookmarks
-          await bm.unbookmark(e);
-          // 4. Add src bookmarks with new groupid
-          await bm.insertArticle(
-              e.toString(), DateTime.now(), groups[choose].id());
-        }
+      // 2. Save source bookmark for fault torlerance!
+      // final cacheDir = await getTemporaryDirectory();
+      // final path = File('${cacheDir.path}/bookmark_cache+${Uuid().v4()}');
+      // path.writeAsString(jsonEncode(checked));
 
-        // 5. Update UI
+      for (var e in checked.reversed) {
+        // 3. Delete source bookmarks
+        await bm.unbookmark(e);
+        // 4. Add src bookmarks with new groupid
+        await bm.insertArticle(
+            e.toString(), DateTime.now(), groups[whereToMove].id());
+      }
+
+      // 5. Update UI
+      _shouldRebuild = true;
+      setState(() {
         _shouldRebuild = true;
+        checkModePre = false;
+        checked.clear();
+      });
+      _shouldRebuild = true;
+      Future.delayed(const Duration(milliseconds: 500)).then((value) {
         setState(() {
           _shouldRebuild = true;
-          checkModePre = false;
-          checked.clear();
+          checkMode = false;
         });
-        _shouldRebuild = true;
-        Future.delayed(const Duration(milliseconds: 500)).then((value) {
-          setState(() {
-            _shouldRebuild = true;
-            checkMode = false;
-          });
-        });
-        refresh();
-      }
-    } else {}
+      });
+      refresh();
+    }
   }
 }
