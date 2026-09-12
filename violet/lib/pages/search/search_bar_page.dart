@@ -5,7 +5,6 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flare_flutter/asset_provider.dart';
-import 'package:flare_flutter/flare_actor.dart';
 import 'package:flare_flutter/flare_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
@@ -15,6 +14,7 @@ import 'package:violet/component/index.dart';
 import 'package:violet/context/modal_bottom_sheet_context.dart';
 import 'package:violet/database/user/search.dart';
 import 'package:violet/locale/locale.dart';
+import 'package:violet/pages/common/toast.dart';
 import 'package:violet/settings/settings.dart';
 import 'package:violet/style/palette.dart';
 import 'package:violet/widgets/dots_indicator.dart';
@@ -206,12 +206,10 @@ class _SearchBarPageState extends State<SearchBarPage>
                 Navigator.pop(context);
               },
               shape: const CircleBorder(),
-              child: Transform.scale(
-                scale: 0.65,
-                child: FlareActor.asset(
-                  widget.assetProvider,
-                  controller: widget.heroController,
-                ),
+              child: Icon(
+                Icons.arrow_back,
+                size: 24,
+                color: Settings.majorColor.value,
               ),
             ),
           ),
@@ -328,7 +326,7 @@ class _SearchBarPageState extends State<SearchBarPage>
       children: [
         PageView(
           controller: _bottomController,
-          children: [_searchOptionPage(), _searchHistory()],
+          children: [_searchFavoriteTags(), _searchHistory(), _searchOptionPage()],
         ),
         FutureBuilder(
           future: Future.value(1),
@@ -344,7 +342,7 @@ class _SearchBarPageState extends State<SearchBarPage>
                 child: Center(
                   child: DotsIndicator(
                     controller: _bottomController,
-                    itemCount: 2,
+                    itemCount: 3,
                     onPageSelected: (int page) {
                       _bottomController.animateToPage(
                         page,
@@ -357,6 +355,107 @@ class _SearchBarPageState extends State<SearchBarPage>
               ),
             );
           },
+        ),
+      ],
+    );
+  }
+
+  _searchFavoriteTags() {
+    final favs = Settings.favoriteTags.value.where((e) => e.trim().isNotEmpty).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Row(
+            children: [
+              Icon(Icons.star, size: 20, color: Settings.majorColor.value),
+              const SizedBox(width: 8),
+              const Text(
+                '즐겨찾기 태그',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              if (_searchController.text.trim().isNotEmpty)
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  icon: const Icon(Icons.star_border, size: 16),
+                  label: const Text('현재 태그 추가', style: TextStyle(fontSize: 12)),
+                  onPressed: () async {
+                    final current = _searchController.text.trim();
+                    if (current.isNotEmpty) {
+                      final added = await Settings.toggleFavoriteTag(current);
+                      showToast(
+                        level: ToastLevel.check,
+                        message: added
+                            ? '$current 즐겨찾기에 추가되었습니다.'
+                            : '$current 즐겨찾기에서 제거되었습니다.',
+                      );
+                      setState(() {});
+                    }
+                  },
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: favs.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.star_outline, size: 40, color: Colors.grey.shade400),
+                        const SizedBox(height: 8),
+                        Text(
+                          '등록된 즐겨찾기 태그가 없습니다.\n추천 태그를 길게 누르면 즐겨찾기에 등록됩니다.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 36),
+                  physics: const BouncingScrollPhysics(),
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: favs.map((tag) {
+                        return InputChip(
+                          avatar: Icon(Icons.star, size: 16, color: Settings.majorColor.value),
+                          label: Text(tag),
+                          deleteIcon: const Icon(Icons.close, size: 16),
+                          onDeleted: () async {
+                            await Settings.removeFavoriteTag(tag);
+                            setState(() {});
+                          },
+                          onPressed: () async {
+                            final current = _searchController.text.trim();
+                            if (current.isEmpty) {
+                              _searchController.text = '$tag ';
+                            } else if (!current.contains(tag)) {
+                              _searchController.text = '$current $tag ';
+                            }
+                            _searchController.selection = TextSelection.fromPosition(
+                              TextPosition(offset: _searchController.text.length),
+                            );
+                            await searchProcess(
+                              _searchController.text,
+                              _searchController.selection,
+                            );
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
         ),
       ],
     );
@@ -834,7 +933,7 @@ class _SearchBarPageState extends State<SearchBarPage>
       color = Colors.blue;
     } else if (info.$1.group == 'prefix') {
       color = Colors.orange;
-    } else if (info.$1.group == 'language') {
+    } else if (info.$1.group == 'language' || info.$1.group == 'lang') {
       color = Colors.teal;
     } else if (info.$1.group == 'series') {
       color = Colors.cyan;
@@ -930,12 +1029,28 @@ class _SearchBarPageState extends State<SearchBarPage>
       );
     }
 
-    var fc = RawChip(
-      labelPadding: const EdgeInsets.all(0.0),
-      avatar: CircleAvatar(
-        backgroundColor: Colors.grey.shade600,
-        child: Text(info.$1.group![0].toUpperCase()),
-      ),
+    final tagStr = info.$1.getTag().replaceAll(' ', '_');
+    final isFav = Settings.isFavoriteTag(tagStr);
+
+    var fc = GestureDetector(
+      onLongPress: () async {
+        final added = await Settings.toggleFavoriteTag(tagStr);
+        showToast(
+          level: ToastLevel.check,
+          message: added
+              ? '$tagStr 즐겨찾기에 추가되었습니다.'
+              : '$tagStr 즐겨찾기에서 제거되었습니다.',
+        );
+        setState(() {});
+      },
+      child: RawChip(
+        labelPadding: const EdgeInsets.all(0.0),
+        avatar: CircleAvatar(
+          backgroundColor: isFav ? Colors.amber.shade700 : Colors.grey.shade600,
+          child: isFav
+              ? const Icon(Icons.star, size: 14, color: Colors.white)
+              : Text(info.$1.group![0].toUpperCase()),
+        ),
       label: RichText(
         text: TextSpan(
           style: const TextStyle(color: Colors.white),
@@ -1050,7 +1165,8 @@ class _SearchBarPageState extends State<SearchBarPage>
           );
         }
       },
-    );
-    return fc;
-  }
+    ),
+  );
+  return fc;
+}
 }

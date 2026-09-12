@@ -68,8 +68,42 @@ class Settings {
   }());
   static final excludeTags = SettingItem<List<String>>('excludetags', []);
   static final blurredTags = SettingItem<List<String>>('blurredtags', []);
+  static final favoriteTags = SettingItem<List<String>>('favoritetags', []);
   static final language = SettingItem<String>('language', '');
   static final translateTags = SettingItem<bool>('translatetags', false);
+
+  static Future<bool> toggleFavoriteTag(String tag) async {
+    final clean = tag.trim();
+    final list = List<String>.from(favoriteTags.value);
+    // 빈 문자열 청소
+    list.removeWhere((e) => e.trim().isEmpty);
+
+    if (clean.isEmpty) {
+      await favoriteTags.setValue(list);
+      return false;
+    }
+    final exists = list.contains(clean);
+    if (exists) {
+      list.remove(clean);
+    } else {
+      list.insert(0, clean);
+    }
+    await favoriteTags.setValue(list);
+    return !exists;
+  }
+
+  static Future<void> removeFavoriteTag(String tag) async {
+    final clean = tag.trim();
+    final list = List<String>.from(favoriteTags.value);
+    list.removeWhere((e) => e.trim().isEmpty || e == tag || (clean.isNotEmpty && e.trim() == clean));
+    await favoriteTags.setValue(list);
+  }
+
+  static bool isFavoriteTag(String tag) {
+    final clean = tag.trim();
+    if (clean.isEmpty) return false;
+    return favoriteTags.value.any((e) => e.trim() == clean);
+  }
 
   static String get serializedExcludeTags => Settings.excludeTags.value
       .where((e) => e.trim() != '')
@@ -78,8 +112,8 @@ class Settings {
       .trim();
 
   // Like this Hitomi.la => e-hentai => exhentai => nhentai
-  static late List<String> routingRule; // image routing rule
-  static late List<String> searchRule;
+  static List<String> routingRule = <String>[]; // image routing rule
+  static List<String> searchRule = <String>[];
   static final searchNetwork = SettingItem<bool>('searchNetwork', false);
   static final fetchWorkInfoNetwork = SettingItem<bool>(
     'fetchWorkInfoNetwork',

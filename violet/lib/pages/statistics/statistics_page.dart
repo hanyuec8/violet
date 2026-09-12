@@ -26,6 +26,8 @@ class Statistics extends StatefulWidget {
   State<Statistics> createState() => _StatisticsState();
 }
 
+typedef StatisticsPage = Statistics;
+
 class _StatisticsState extends State<Statistics> {
   final ScrollController _controller = ScrollController();
   bool _allowOverlap = false;

@@ -11,78 +11,104 @@ import 'package:violet/database/query.dart';
 import 'package:violet/database/user/download.dart';
 
 class Population {
-  static late Map<int, int> population;
+  static Map<int, int>? _population;
+  static bool _isLoading = false;
+
+  static bool get isLoaded => _population != null;
+  static Map<int, int> get population => _population ?? const {};
 
   static Future<void> init() async {
-    String data;
+    await ensureLoaded();
+  }
 
-    if (Platform.environment.containsKey('FLUTTER_TEST')) {
-      final file = File(
-        join(Directory.current.path, 'assets/rank/population.json'),
-      );
-      data = await file.readAsString();
-    } else {
-      data = await rootBundle.loadString('assets/rank/population.json');
-    }
+  static Future<void> ensureLoaded() async {
+    if (_population != null || _isLoading) return;
+    _isLoading = true;
 
-    Future<Map<int, int>> decodeJsonData() async {
-      final population = <int, int>{};
+    try {
+      String data;
+      if (Platform.environment.containsKey('FLUTTER_TEST')) {
+        final file = File(
+          join(Directory.current.path, 'assets/rank/population.json'),
+        );
+        data = await file.readAsString();
+      } else {
+        data = await rootBundle.loadString('assets/rank/population.json');
+      }
 
-      json.decode(
-        data,
-        reviver: (keyObject, valueObject) {
-          if (keyObject == null) {
+      Future<Map<int, int>> decodeJsonData() async {
+        final population = <int, int>{};
+
+        json.decode(
+          data,
+          reviver: (keyObject, valueObject) {
+            if (keyObject == null) {
+              return null;
+            }
+
+            int key = keyObject as int;
+            int value = (valueObject as num).toInt();
+
+            population[value] = key;
+
             return null;
-          }
+          },
+        );
 
-          int key = keyObject as int;
-          int value = (valueObject as num).toInt();
+        return population;
+      }
 
-          population[value] = key;
-
-          return null;
-        },
-      );
-
-      return population;
+      _population = await Isolate.run(decodeJsonData);
+    } catch (_) {
+      _population = {};
+    } finally {
+      _isLoading = false;
     }
-
-    population = await Isolate.run(decodeJsonData);
   }
 
   static void sortByPopulation(List<QueryResult> qr) {
+    if (_population == null) {
+      ensureLoaded();
+      return;
+    }
     qr.sort((x, y) => compare(x, y));
   }
 
   static void sortByPopulationDownloadItem(List<DownloadItemModel> qr) {
+    if (_population == null) {
+      ensureLoaded();
+      return;
+    }
     qr.sort((x, y) => compareDownloadItem(x, y));
   }
 
   static int compare(QueryResult a, QueryResult b) {
+    if (_population == null) return 0;
     // newest article always displayed on the bottom
-    if (!population.containsKey(a.id())) {
+    if (!_population!.containsKey(a.id())) {
       // a == b
-      if (!population.containsKey(b.id())) return 0;
+      if (!_population!.containsKey(b.id())) return 0;
       // a > b
       return 1;
     }
     // a < b
-    if (!population.containsKey(b.id())) return -1;
+    if (!_population!.containsKey(b.id())) return -1;
 
-    return population[a.id()]!.compareTo(population[b.id()]!);
+    return _population![a.id()]!.compareTo(_population![b.id()]!);
   }
 
   static int compareDownloadItem(DownloadItemModel a, DownloadItemModel b) {
+    if (_population == null) return 0;
     // newest article always displayed on the bottom
-    if (!population.containsKey(a.id())) {
+    if (!_population!.containsKey(a.id())) {
       // a == b
-      if (!population.containsKey(b.id())) return 0;
+      if (!_population!.containsKey(b.id())) return 0;
       // a > b
       return 1;
     }
     // a < b
-    if (!population.containsKey(b.id())) return -1;
+    if (!_population!.containsKey(b.id())) return -1;
 
-    return population[a.id()]!.compareTo(population[b.id()]!);
+    return _population![a.id()]!.compareTo(_population![b.id()]!);
   }
 }

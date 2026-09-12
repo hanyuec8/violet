@@ -9,9 +9,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_inappwebview_windows
   flutter_js
   fullscreen_window
-  local_auth_windows
   permission_handler_windows
-  sqlite3_flutter_libs
   url_launcher_windows
 )
 

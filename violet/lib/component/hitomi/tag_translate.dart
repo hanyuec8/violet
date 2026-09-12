@@ -14,9 +14,9 @@ import 'package:violet/component/hitomi/tag_translated_regacy.dart';
 class TagTranslate {
   static const defaultLanguage = 'korean';
   // <Origin, Translated>
-  static late Map<String, String> _translateMap;
+  static Map<String, String> _translateMap = <String, String>{};
   // <Translated-Andro, Origin>
-  static late Map<String, String> _reverseAndroMap;
+  static Map<String, String> _reverseAndroMap = <String, String>{};
 
   static Future<void> init({String? dir}) async {
     String data;

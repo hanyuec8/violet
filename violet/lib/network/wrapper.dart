@@ -48,7 +48,7 @@ Future<http.Response> get(
 
   Logger.info('[Http Request] GET: $url');
   final res = await http.get(Uri.parse(url), headers: headers);
-  if (res.statusCode != 200) {
+  if (res.statusCode != 200 && res.statusCode != 206) {
     Logger.warning('[Http Response] CODE: ${res.statusCode}, GET: $url');
   }
 
@@ -142,7 +142,7 @@ Future<http.Response> _ehentaiGet(
       continue;
     }
 
-    if (res.statusCode != 200) {
+    if (res.statusCode != 200 && res.statusCode != 206) {
       Logger.warning('[Http Response] CODE: ${res.statusCode}, GET: $url');
     }
 
@@ -199,7 +199,7 @@ Future<http.Response> _scriptGet(
     } while (isTimeout && retry < 10);
   }
 
-  if (res.statusCode != 200) {
+  if (res.statusCode != 200 && res.statusCode != 206) {
     Logger.warning('[Http Response] CODE: ${res.statusCode}, GET: $url');
   }
 

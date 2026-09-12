@@ -3,7 +3,6 @@
 
 import 'dart:math';
 
-import 'package:auto_animated/auto_animated.dart';
 import 'package:community_charts_flutter/community_charts_flutter.dart'
     as charts;
 import 'package:expandable/expandable.dart';
@@ -12,14 +11,17 @@ import 'package:flare_flutter/flare_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:html_unescape/html_unescape_small.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/component/index.dart';
 import 'package:violet/component/hitomi/title_cluster.dart';
 import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
+import 'package:violet/log/log.dart';
 import 'package:violet/model/article_list_item.dart';
 import 'package:violet/other/dialogs.dart';
 import 'package:violet/pages/artist_info/article_list_page.dart';
@@ -46,6 +48,8 @@ class ArtistInfoPage extends StatefulWidget {
 
 class _ArtistInfoPageState extends State<ArtistInfoPage> {
   bool qureyLoaded = false;
+  bool isWebMode = true;
+  bool isWebLoading = false;
   // This is used for top color bar
   int femaleTags = 0;
   int maleTags = 0;
@@ -78,121 +82,155 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
   void initState() {
     super.initState();
 
+    cc = <QueryResult>[];
+    lffOrigin = <(String, int)>[];
+    similars = <(String, double)>[];
+    similarsAll = <(String, double)>[];
+    relatedCOSSingle = <(String, double)>[];
+    relatedCharacterOrSeries = <(String, double)>[];
+    relatedCOSSingleAll = <(String, double)>[];
+    relatedCharacterOrSeriesAll = <(String, double)>[];
+    series = <List<int>>[];
+
     Future.delayed(const Duration(milliseconds: 100)).then((value) async {
-      //
-      // Check bookmark
-      //
-      isBookmarked = await (await Bookmark.getInstance()).isBookmarkArtist(
-        widget.name,
-        widget.type,
-      );
+      try {
+        isBookmarked = await (await Bookmark.getInstance()).isBookmarkArtist(
+          widget.name,
+          widget.type,
+        );
+      } catch (_) {}
 
       //
       //  Get query
       //
-      cc = await query();
+      try {
+        cc = await query();
+      } catch (e, st) {
+        Logger.error('[ArtistInfoPage-query] E: $e\n$st');
+        cc = <QueryResult>[];
+      }
 
       //
       //  Title based article clustering
       //
-      series = HitomiTitleCluster.doClustering(
-        cc.map((e) => e.title() as String).toList(),
-      ).toList();
+      try {
+        series = HitomiTitleCluster.doClustering(
+          cc.map((e) => e.title() as String).toList(),
+        ).toList();
+      } catch (_) {
+        series = <List<int>>[];
+      }
 
       //
       //  Statistics
       //
-      var ffstat = <String, int>{};
+      try {
+        var ffstat = <String, int>{};
 
-      for (var element in cc) {
-        if (element.tags() == null) continue;
-        (element.tags() as String)
-            .split('|')
-            .where((element) => element != '')
-            .forEach((element) {
-              if (element.startsWith('female:')) {
-                femaleTags += 1;
-              } else if (element.startsWith('male:')) {
-                maleTags += 1;
-              } else {
-                tags += 1;
-              }
+        for (var element in cc) {
+          if (element.tags() == null) continue;
+          (element.tags() as String)
+              .split('|')
+              .where((element) => element != '')
+              .forEach((element) {
+                if (element.startsWith('female:')) {
+                  femaleTags += 1;
+                } else if (element.startsWith('male:')) {
+                  maleTags += 1;
+                } else {
+                  tags += 1;
+                }
 
-              if (!ffstat.containsKey(element)) ffstat[element] = 0;
-              ffstat[element] = ffstat[element]! + 1;
-            });
-      }
+                if (!ffstat.containsKey(element)) ffstat[element] = 0;
+                ffstat[element] = ffstat[element]! + 1;
+              });
+        }
 
-      ffstat.forEach((key, value) {
-        lff.add((key, value));
-      });
-      lff.sort((x, y) => y.$2.compareTo(x.$2));
+        ffstat.forEach((key, value) {
+          lff.add((key, value));
+        });
+        lff.sort((x, y) => y.$2.compareTo(x.$2));
 
-      lffOrigin = lff;
-      lff = lff.take(5).toList();
+        lffOrigin = lff;
+        lff = lff.take(5).toList();
 
-      if (femaleTags + maleTags + tags == 0) tags = 0;
+        if (femaleTags + maleTags + tags == 0) tags = 0;
+      } catch (_) {}
 
       //
       //  Similar Artists (or group, uploader)
       //
-      switch (widget.type) {
-        case ArtistType.artist:
-          similars = HentaiIndex.calculateSimilarArtists(widget.name);
-          break;
-        case ArtistType.group:
-          similars = HentaiIndex.calculateSimilarGroups(widget.name);
-          break;
-        case ArtistType.uploader:
-          similars = HentaiIndex.calculateSimilarUploaders(widget.name);
-          break;
-        case ArtistType.series:
-          similars = HentaiIndex.calculateSimilarSeries(widget.name);
-          break;
-        case ArtistType.character:
-          similars = HentaiIndex.calculateSimilarCharacter(widget.name);
-          break;
+      try {
+        switch (widget.type) {
+          case ArtistType.artist:
+            similars = HentaiIndex.calculateSimilarArtists(widget.name);
+            break;
+          case ArtistType.group:
+            similars = HentaiIndex.calculateSimilarGroups(widget.name);
+            break;
+          case ArtistType.uploader:
+            similars = HentaiIndex.calculateSimilarUploaders(widget.name);
+            break;
+          case ArtistType.series:
+            similars = HentaiIndex.calculateSimilarSeries(widget.name);
+            break;
+          case ArtistType.character:
+            similars = HentaiIndex.calculateSimilarCharacter(widget.name);
+            break;
+        }
+
+        similarsAll = similars;
+        similars = similars.take(6).toList();
+
+        await querySimilars(similars, widget.type, qrs);
+      } catch (e, st) {
+        Logger.error('[ArtistInfoPage-Similars] E: $e\n$st');
       }
-
-      similarsAll = similars;
-      similars = similars.take(6).toList();
-
-      await querySimilars(similars, widget.type, qrs);
 
       if (widget.type.isCharacter || widget.type.isSeries) {
-        if (widget.type.isCharacter) {
-          relatedCharacterOrSeriesAll =
-              HentaiIndex.calculateRelatedSeriesCharacter(widget.name);
-          relatedCOSSingleAll = HentaiIndex.getRelatedSeries(widget.name);
-        } else {
-          relatedCharacterOrSeriesAll =
-              HentaiIndex.calculateRelatedCharacterSeries(widget.name);
-          relatedCOSSingleAll = HentaiIndex.getRelatedCharacters(widget.name);
+        try {
+          if (widget.type.isCharacter) {
+            relatedCharacterOrSeriesAll =
+                HentaiIndex.calculateRelatedSeriesCharacter(widget.name);
+            relatedCOSSingleAll = HentaiIndex.getRelatedSeries(widget.name);
+          } else {
+            relatedCharacterOrSeriesAll =
+                HentaiIndex.calculateRelatedCharacterSeries(widget.name);
+            relatedCOSSingleAll = HentaiIndex.getRelatedCharacters(widget.name);
+          }
+          relatedCharacterOrSeries =
+              relatedCharacterOrSeriesAll.take(6).toList();
+          relatedCOSSingle = relatedCOSSingleAll.take(6).toList();
+
+          await querySimilars(
+            relatedCharacterOrSeries,
+            widget.type,
+            qrsCharacterOrSeries,
+          );
+
+          await querySimilars(relatedCOSSingle, widget.type, qrsCOSSingle);
+        } catch (e, st) {
+          Logger.error('[ArtistInfoPage-Related] E: $e\n$st');
         }
-        relatedCharacterOrSeries = relatedCharacterOrSeriesAll.take(6).toList();
-        relatedCOSSingle = relatedCOSSingleAll.take(6).toList();
-
-        await querySimilars(
-          relatedCharacterOrSeries,
-          widget.type,
-          qrsCharacterOrSeries,
-        );
-
-        await querySimilars(relatedCOSSingle, widget.type, qrsCOSSingle);
       }
 
-      setState(() {
-        qureyLoaded = true;
-      });
+      if (mounted) {
+        setState(() {
+          qureyLoaded = true;
+        });
+      }
 
       Future.delayed(const Duration(milliseconds: 300)).then((value) {
+        if (!mounted) return;
         ec.expanded = true;
         commentAreaEC.expanded = true;
       });
 
       Future.delayed(
         const Duration(microseconds: 100),
-      ).then((value) async => await readComments());
+      ).then((value) async {
+        if (mounted) await readComments();
+      });
     });
   }
 
@@ -228,13 +266,101 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
     }
   }
 
-  Future<List<QueryResult>> query() async {
-    final token = '${widget.type.name}:${widget.name.replaceAll(' ', '_')}';
-    final query = translate2query(
-      '$token ${Settings.includeTags.value} ${Settings.serializedExcludeTags}',
+  Future<List<QueryResult>> query([bool? forceWeb]) async {
+    final useWeb = forceWeb ?? isWebMode;
+    if (useWeb) {
+      try {
+        final hybridResults = await HybridLoader.fetchArtistArticlesHybrid(
+          name: widget.name,
+          type: widget.type.name,
+        );
+        if (hybridResults.isNotEmpty) {
+          return hybridResults;
+        }
+      } catch (e, st) {
+        Logger.error('[ArtistInfoPage-HybridQuery] E: $e\n$st');
+      }
+    }
+    try {
+      final token = '${widget.type.name}:${widget.name.replaceAll(' ', '_')}';
+      final query = translate2query(
+        '$token ${Settings.includeTags.value} ${Settings.serializedExcludeTags}',
+      );
+      final qm = await QueryManager.query('$query ORDER BY Id DESC');
+      return qm.results ?? <QueryResult>[];
+    } catch (e, st) {
+      Logger.error('[ArtistInfoPage-DbQuery] E: $e\n$st');
+      return <QueryResult>[];
+    }
+  }
+
+  Future<void> toggleMode(bool webMode) async {
+    if (isWebMode == webMode && qureyLoaded && !isWebLoading) return;
+    if (!mounted) return;
+    setState(() {
+      isWebMode = webMode;
+      isWebLoading = true;
+    });
+    try {
+      final newCc = await query(webMode);
+      if (mounted) {
+        setState(() {
+          cc = newCc;
+          isWebLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          isWebLoading = false;
+        });
+      }
+    }
+  }
+
+  Widget modeSelector() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
+      child: CupertinoSlidingSegmentedControl<bool>(
+        groupValue: isWebMode,
+        children: {
+          false: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 4.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.storage, size: 15),
+                SizedBox(width: 4),
+                Text('DB (과거)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ],
+            ),
+          ),
+          true: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 4.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.public, size: 15),
+                const SizedBox(width: 4),
+                Text(
+                  'Web (최신)',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: isWebMode ? Settings.majorColor.value : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        },
+        onValueChanged: (val) {
+          if (val != null) {
+            toggleMode(val);
+          }
+        },
+      ),
     );
-    final qm = await QueryManager.query('$query ORDER BY Id DESC');
-    return qm.results!;
   }
 
   @override
@@ -271,7 +397,20 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
                             children: <Widget>[
                               Container(height: 16),
                               nameArea(),
-                              queryResult(),
+                              modeSelector(),
+                              if (isWebLoading)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 40.0),
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 36,
+                                      height: 36,
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  ),
+                                )
+                              else
+                                queryResult(),
                             ],
                           ),
                         )
@@ -279,6 +418,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
                           children: <Widget>[
                             Container(height: 16),
                             nameArea(),
+                            modeSelector(),
                             const Expanded(
                               child: Align(
                                 alignment: Alignment.center,
@@ -372,108 +512,94 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
       ),
     );
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(64, 16, 64, 0),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8.0),
-            child: Row(
-              children: <Widget>[
-                Expanded(
-                  flex: femaleTags,
-                  child: Container(height: 8, color: Colors.pink),
-                ),
-                Expanded(
-                  flex: maleTags,
-                  child: Container(height: 8, color: Colors.blue),
-                ),
-                Expanded(
-                  flex: tags,
-                  child: Container(height: 8, color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Container(padding: const EdgeInsets.all(4)),
-        InkWell(
-          child: SizedBox(
-            width: width - 16 - 32,
-            height: isExpanded
-                ? lff.length * 14.0 + 10
-                : lff.length * 22.0 + 10,
-            child: charts.BarChart(
-              [
-                charts.Series<(String, int), String>(
-                  id: 'Sales',
-                  data: lff,
-                  domainFn: ((String, int) sales, f) => sales.$1.contains(':')
-                      ? sales.$1.split(':')[1]
-                      : sales.$1,
-                  measureFn: ((String, int) sales, _) => sales.$2,
-                  colorFn: ((String, int) sales, _) {
-                    if (sales.$1.startsWith('female:')) {
-                      return charts.MaterialPalette.pink.shadeDefault;
-                    } else if (sales.$1.startsWith('male:')) {
-                      return charts.MaterialPalette.blue.shadeDefault;
-                    } else {
-                      return charts.MaterialPalette.gray.shadeDefault;
-                    }
-                  },
-                ),
-              ],
-              primaryMeasureAxis: Settings.themeWhat.value ? axis2 : null,
-              domainAxis: Settings.themeWhat.value ? axis1 : null,
-              animate: true,
-              vertical: false,
-            ),
-          ),
-          onTap: () {},
-          onTapCancel: () {
-            isExpanded = !isExpanded;
-            if (isExpanded) {
-              lff = lffOrigin;
-            } else {
-              lff = lffOrigin.take(5).toList();
-            }
-            setState(() {});
-          },
-        ),
-        ExpandableNotifier(
-          controller: ec,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4.0),
-            child: ScrollOnExpand(
-              child: ExpandablePanel(
-                theme: ExpandableThemeData(
-                  iconColor: Settings.themeWhat.value
-                      ? Colors.white
-                      : Colors.grey,
-                  animationDuration: const Duration(milliseconds: 500),
-                ),
-                header: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 0, 0),
-                  child: Text(
-                    '${Translations.instance!.trans('articles')} (${cc.length})',
+        if (femaleTags + maleTags + tags > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(64, 16, 64, 0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8.0),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    flex: femaleTags,
+                    child: Container(height: 8, color: Colors.pink),
                   ),
-                ),
-                expanded: Column(
-                  children: <Widget>[
-                    articleArea(),
-                    Visibility(
-                      visible: cc.length > maxItemCount,
-                      child: more(
-                        () => ArticleListPage(
-                          cc: cc,
-                          name:
-                              '${widget.type.name.titlecase()}: ${widget.name}',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                collapsed: Container(),
+                  Expanded(
+                    flex: maleTags,
+                    child: Container(height: 8, color: Colors.blue),
+                  ),
+                  Expanded(
+                    flex: tags,
+                    child: Container(height: 8, color: Colors.grey),
+                  ),
+                ],
               ),
+            ),
+          ),
+        if (lff.isNotEmpty) ...[
+          Container(padding: const EdgeInsets.all(4)),
+          InkWell(
+            child: SizedBox(
+              width: width - 16 - 32,
+              height: isExpanded
+                  ? lff.length * 14.0 + 10
+                  : lff.length * 22.0 + 10,
+              child: charts.BarChart(
+                [
+                  charts.Series<(String, int), String>(
+                    id: 'Sales',
+                    data: lff,
+                    domainFn: ((String, int) sales, f) => sales.$1.contains(':')
+                        ? sales.$1.split(':')[1]
+                        : sales.$1,
+                    measureFn: ((String, int) sales, _) => sales.$2,
+                    colorFn: ((String, int) sales, _) {
+                      if (sales.$1.startsWith('female:')) {
+                        return charts.MaterialPalette.pink.shadeDefault;
+                      } else if (sales.$1.startsWith('male:')) {
+                        return charts.MaterialPalette.blue.shadeDefault;
+                      } else {
+                        return charts.MaterialPalette.gray.shadeDefault;
+                      }
+                    },
+                  ),
+                ],
+                primaryMeasureAxis: Settings.themeWhat.value ? axis2 : null,
+                domainAxis: Settings.themeWhat.value ? axis1 : null,
+                animate: true,
+                vertical: false,
+              ),
+            ),
+            onTap: () {},
+            onTapCancel: () {
+              isExpanded = !isExpanded;
+              if (isExpanded) {
+                lff = lffOrigin;
+              } else {
+                lff = lffOrigin.take(5).toList();
+              }
+              setState(() {});
+            },
+          ),
+        ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text(
+            '${Translations.instance!.trans('articles')} (${cc.length})',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        articleArea(),
+        Visibility(
+          visible: cc.length > maxItemCount,
+          child: more(
+            () => ArticleListPage(
+              cc: cc,
+              name: '${widget.type.name.titlecase()}: ${widget.name}',
             ),
           ),
         ),
@@ -633,46 +759,33 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
         MediaQuery.of(context).orientation == Orientation.landscape ? 4 : 3;
     final maxItemCount =
         MediaQuery.of(context).orientation == Orientation.landscape ? 8 : 6;
-    return LiveGrid(
+    final displayCount = min(cc.length, maxItemCount);
+
+    return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      showItemInterval: const Duration(milliseconds: 50),
-      showItemDuration: const Duration(milliseconds: 150),
-      visibleFraction: 0.001,
-      itemCount: min(cc.length, maxItemCount),
+      itemCount: displayCount,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columnCount,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
         childAspectRatio: 3 / 4,
       ),
-      itemBuilder: (context, index, animation) {
-        return FadeTransition(
-          opacity: Tween<double>(begin: 0, end: 1).animate(animation),
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, -0.1),
-              end: Offset.zero,
-            ).animate(animation),
-            child: Padding(
-              padding: EdgeInsets.zero,
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: SizedBox(
-                  child: Provider<ArticleListItem>.value(
-                    value: ArticleListItem.fromArticleListItem(
-                      queryResult: cc[index],
-                      showDetail: false,
-                      addBottomPadding: false,
-                      width: (windowWidth - 4.0) / columnCount,
-                      thumbnailTag: const Uuid().v4(),
-                      usableTabList: cc,
-                    ),
-                    child: const ArticleListItemWidget(),
-                  ),
-                ),
+      itemBuilder: (context, index) {
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(
+            child: Provider<ArticleListItem>.value(
+              value: ArticleListItem.fromArticleListItem(
+                queryResult: cc[index],
+                showDetail: false,
+                addBottomPadding: false,
+                width: (windowWidth - 4.0) / columnCount,
+                thumbnailTag: const Uuid().v4(),
+                usableTabList: cc,
               ),
+              child: const ArticleListItemWidget(),
             ),
           ),
         );

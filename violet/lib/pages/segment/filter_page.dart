@@ -239,14 +239,19 @@ class _FilterPageState extends State<FilterPage> {
         .toList();
 
     if (c.isSearch) {
+      final q = _searchController.text.trim().toLowerCase().replaceAll('_', ' ');
       tags += _tags
-          .where(
-            (element) =>
-                ('${element.$1}:${element.$2}').contains(
-                  _searchController.text,
-                ) &&
-                !c.tagStates['${element.$1}|${element.$2}']!,
-          )
+          .where((element) {
+            if (c.tagStates['${element.$1}|${element.$2}']!) return false;
+            if (q.isEmpty) return true;
+
+            final fullName = '${element.$1}:${element.$2}'.toLowerCase().replaceAll('_', ' ');
+            final rawName = element.$2.toLowerCase().replaceAll('_', ' ');
+            if (fullName.contains(q) || rawName.contains(q)) return true;
+
+            final translated = TagTranslate.ofAny(element.$2).toLowerCase().replaceAll('_', ' ');
+            return translated.contains(q);
+          })
           .toList();
     } else {
       tags += _tags

@@ -181,7 +181,7 @@ class SimpleInfoWidget extends StatelessWidget {
 
   Widget simpleInfoTextArtist(ArticleInfo data) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.start,
       children: <Widget>[
         Text(

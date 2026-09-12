@@ -2,16 +2,14 @@
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
 import 'dart:io';
-import 'dart:isolate';
-import 'dart:ui';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter_downloader/flutter_downloader.dart';
+import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violet/locale/locale.dart';
+import 'package:violet/network/wrapper.dart' as http;
 import 'package:violet/other/dialogs.dart';
 import 'package:violet/platform/android_external_storage_directory.dart';
 import 'package:violet/settings/settings.dart';
@@ -29,16 +27,6 @@ class UpdateManager {
       if (!context.mounted) return;
       updateCheckAndDownload(context);
     }
-  }
-
-  static final ReceivePort _port = ReceivePort();
-
-  @pragma('vm:entry-point')
-  static void downloadCallback(String id, int status, int progress) {
-    final SendPort send = IsolateNameServer.lookupPortByName(
-      'downloader_send_port',
-    )!;
-    send.send([id, status, progress]);
   }
 
   static void updateCheckAndDownload(BuildContext context) {
@@ -71,37 +59,18 @@ class UpdateManager {
           final ext = await AndroidExternalStorageDirectory.instance
               .getExternalStorageDownloadsDirectory();
 
-          bool once = false;
-          IsolateNameServer.registerPortWithName(
-            _port.sendPort,
-            'downloader_send_port',
-          );
-          _port.listen((dynamic data) {
-            int progress = data[2];
-            if (progress == 100 && !once) {
-              OpenFile.open(
-                '$ext/${UpdateSyncManager.updateUrl.split('/').last}',
-              );
-              once = true;
-            }
-          });
+          final fileName = UpdateSyncManager.updateUrl.split('/').last;
+          final targetFile = File('$ext/$fileName');
 
-          if (await File(
-            '$ext/${UpdateSyncManager.updateUrl.split('/').last}',
-          ).exists()) {
-            await File(
-              '$ext/${UpdateSyncManager.updateUrl.split('/').last}',
-            ).delete();
+          if (await targetFile.exists()) {
+            await targetFile.delete();
           }
 
-          FlutterDownloader.registerCallback(downloadCallback);
-          await FlutterDownloader.enqueue(
-            url: UpdateSyncManager.updateUrl,
-            savedDir: ext,
-            fileName: UpdateSyncManager.updateUrl.split('/').last,
-            showNotification: true,
-            openFileFromNotification: true,
-          );
+          final response = await http.get(UpdateSyncManager.updateUrl);
+          if (response.statusCode == 200) {
+            await targetFile.writeAsBytes(response.bodyBytes);
+            await OpenFile.open(targetFile.path);
+          }
         })
         .then((value) async {
           if (updateContinued) return;

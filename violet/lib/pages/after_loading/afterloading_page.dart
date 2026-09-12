@@ -20,8 +20,6 @@ import 'package:violet/other/named_color.dart';
 import 'package:violet/pages/bookmark/bookmark_page.dart';
 import 'package:violet/pages/common/toast.dart';
 import 'package:violet/pages/common/utils.dart';
-import 'package:violet/pages/download/download_page.dart';
-import 'package:violet/pages/hot/hot_page.dart';
 import 'package:violet/pages/lock/lock_screen.dart';
 import 'package:violet/pages/search/search_page.dart';
 import 'package:violet/pages/segment/double_tap_to_top.dart';
@@ -341,7 +339,7 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
   bool _isDoubleTap = false;
 
   late final List<GlobalKey<State>> _widgetKeys = List.generate(
-    5,
+    3,
     (index) => GlobalKey(),
   );
 
@@ -403,9 +401,7 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
         },
         items: <BottomNavigationBarItem>[
           buildItem(Icons.search, 'search'),
-          buildItem(MdiIcons.fire, 'hot'),
           buildItem(Icons.bookmark, 'bookmark'),
-          buildItem(Icons.file_download, 'download'),
           buildItem(Icons.settings, 'settings'),
         ],
       ),
@@ -515,10 +511,8 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
               ),
             ),
             buildButton(Icons.search, 0, 'search'),
-            buildButton(MdiIcons.fire, 1, 'hot'),
-            buildButton(MdiIcons.bookmark, 2, 'bookmark'),
-            buildButton(MdiIcons.download, 3, 'download'),
-            buildButton(Icons.settings, 4, 'settings'),
+            buildButton(MdiIcons.bookmark, 1, 'bookmark'),
+            buildButton(Icons.settings, 2, 'settings'),
             const Spacer(),
             Text(
               'Copyright (C) 2020-2024\nby project-violet',
@@ -621,10 +615,8 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
                   },
                   children: <Widget>[
                     SearchPage(key: _widgetKeys[0], focusNode: nestedFocusNode),
-                    HotPage(key: _widgetKeys[1]),
-                    BookmarkPage(key: _widgetKeys[2]),
-                    DownloadPage(key: _widgetKeys[3]),
-                    SettingsPage(key: _widgetKeys[4]),
+                    BookmarkPage(key: _widgetKeys[1]),
+                    SettingsPage(key: _widgetKeys[2]),
                   ],
                 ),
               ],

@@ -47,7 +47,12 @@ class Logger {
   static late File logFile;
   static List<LogEvent> events = <LogEvent>[];
 
+  static int sessionStartByteOffset = 0;
+  static DateTime sessionStartTime = DateTime.now().toUtc();
+
   static Future<void> init() async {
+    sessionStartTime = DateTime.now().toUtc();
+
     if (Platform.environment.containsKey('FLUTTER_TEST')) {
       logFile = File('log.txt');
     } else {
@@ -57,6 +62,24 @@ class Logger {
 
     if (!await logFile.exists()) {
       await logFile.create();
+      sessionStartByteOffset = 0;
+    } else {
+      final len = await logFile.length();
+      // 기존 로그 파일이 5MB를 초과하여 비대해진 경우 최근 1MB만 남기고 안전하게 정리
+      if (len > 5 * 1024 * 1024) {
+        try {
+          final raf = await logFile.open(mode: FileMode.read);
+          await raf.setPosition(len - 1024 * 1024);
+          final tailBytes = await raf.read(1024 * 1024);
+          await raf.close();
+          await logFile.writeAsBytes(tailBytes, mode: FileMode.write);
+          sessionStartByteOffset = await logFile.length();
+        } catch (_) {
+          sessionStartByteOffset = len;
+        }
+      } else {
+        sessionStartByteOffset = len;
+      }
     }
   }
 
@@ -116,13 +139,58 @@ class Logger {
     }
   }
 
+  static Future<File> getExportLogFile() async {
+    final Directory exportDir;
+    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      exportDir = await getTemporaryDirectory();
+    } else {
+      exportDir = Directory.current;
+    }
+
+    final exportFile = File(join(exportDir.path, 'session_export_log.txt'));
+    if (await exportFile.exists()) {
+      await exportFile.delete();
+    }
+    await exportFile.create(recursive: true);
+
+    // 1) logFile에서 sessionStartByteOffset 이후의 이번 세션 신규 로그 바이트만 추출
+    List<int> newBytes = [];
+    if (await logFile.exists()) {
+      final curLen = await logFile.length();
+      if (curLen > sessionStartByteOffset) {
+        final raf = await logFile.open(mode: FileMode.read);
+        await raf.setPosition(sessionStartByteOffset);
+        newBytes = await raf.read(curLen - sessionStartByteOffset);
+        await raf.close();
+      }
+    }
+
+    // 2) 추출된 신규 세션 로그를 내보내기 파일에 저장
+    if (newBytes.isNotEmpty) {
+      await exportFile.writeAsBytes(newBytes);
+    } else {
+      // 신규 로그가 비어있는 경우 메모리 내 이번 세션 events 기반으로 생성
+      final buffer = StringBuffer();
+      buffer.writeln('=== Violet Session Log (${sessionStartTime.toIso8601String()}) ===');
+      for (final e in events) {
+        final dt = e.dateTime?.toIso8601String() ?? DateTime.now().toIso8601String();
+        buffer.writeln('[$dt] ${e.title} ${e.message}');
+        if (e.detail != null) {
+          buffer.writeln('Detail: ${e.detail}');
+        }
+      }
+      await exportFile.writeAsString(buffer.toString());
+    }
+
+    return exportFile;
+  }
+
   static Future<void> exportLog() async {
     final ext = Platform.isIOS
         ? await getApplicationSupportDirectory()
         : await getExternalStorageDirectory();
-    // final dateFormat = DateFormat("yyyy-MM-dd HH:mm:ss");
-    // final extpath = '${ext.path}/log-${dateFormat.format(DateTime.now())}.log';
     final extpath = '${ext!.path}/log.txt';
-    await logFile.copy(extpath);
+    final file = await getExportLogFile();
+    await file.copy(extpath);
   }
 }
