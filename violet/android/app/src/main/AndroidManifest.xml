@@ -30,7 +30,7 @@
         </intent>
     </queries>
 
-    <application android:label="Violet" android:name="${applicationName}"
+    <application android:label="Violet Lite" android:name="${applicationName}"
         android:requestLegacyExternalStorage="true" android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
         <activity android:name=".MainActivity" android:exported="true"
