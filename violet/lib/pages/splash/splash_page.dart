@@ -22,7 +22,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:violet/component/index.dart';
 import 'package:violet/component/hitomi/population.dart';
-import 'package:violet/component/hitomi/related.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/database/user/record.dart';
@@ -129,10 +128,9 @@ class _SplashPageState extends State<SplashPage> {
       await HentaiIndex.init();
       _changeMessage('loading translate...');
       await TagTranslate.init();
-      _changeMessage('init population...');
-      await Population.init();
-      _changeMessage('init related...');
-      await Related.init();
+      // Population은 백그라운드에서 비동기 로딩하여 스플래시 지연을 없앰
+      unawaited(Population.ensureLoaded());
+      // Related(20MB JSON)는 작품 상세페이지에서 필요할 때 온디맨드로 로드됨
       _changeMessage('init downloader...');
       await IsolateDownloader.getInstance();
       _changeMessage('init api...');

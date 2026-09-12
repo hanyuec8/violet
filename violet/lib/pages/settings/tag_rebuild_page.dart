@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:violet/component/index.dart';
 import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/locale/locale.dart';
@@ -226,6 +227,10 @@ class _TagRebuildPageState extends State<TagRebuildPage> {
       }
 
       if (ll.isEmpty) {
+        for (final item in HentaiIndex.supportedLanguages) {
+          languages.putIfAbsent(item.$1, () => 0);
+        }
+
         var index = {
           'tag': tags,
           'artist': artists,

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:violet/pages/settings/faq_page.dart';
-import 'package:violet/pages/lab/lab_page.dart';
+import 'package:violet/pages/statistics/statistics_page.dart';
 import 'package:violet/pages/settings/user_manual_page.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
@@ -89,10 +89,10 @@ class _InfoPageState extends State<InfoPage> {
                 },
               ),
               _buildItem(
-                const Icon(MdiIcons.flask, size: 40, color: Color(0xFF73BE1E)),
-                '실험실',
-                '새로운 기능들을 체험해보세요!',
-                const LaboratoryPage(),
+                const Icon(MdiIcons.chartBar, size: 40, color: Colors.lime),
+                '통계',
+                '열람 기록 및 태그 통계를 살펴보세요!',
+                const StatisticsPage(),
               ),
               _buildItem(
                 const Icon(MdiIcons.gmail, size: 40, color: Colors.redAccent),

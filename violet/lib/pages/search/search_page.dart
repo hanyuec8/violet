@@ -7,7 +7,6 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:auto_animated/auto_animated.dart';
-import 'package:flare_flutter/flare_actor.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +16,7 @@ import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:violet/component/hentai.dart';
+import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/component/hitomi/population.dart';
 import 'package:violet/context/modal_bottom_sheet_context.dart';
 import 'package:violet/database/query.dart';
@@ -24,7 +24,6 @@ import 'package:violet/database/user/search.dart';
 import 'package:violet/locale/locale.dart' as trans;
 import 'package:violet/log/log.dart';
 import 'package:violet/model/article_list_item.dart';
-import 'package:violet/pages/lab/lab/search_message.dart';
 import 'package:violet/pages/search/search_bar_page.dart';
 import 'package:violet/pages/search/search_page_controller.dart';
 import 'package:violet/pages/search/search_page_modify.dart';
@@ -83,33 +82,29 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
     final generation = _searchGeneration;
 
     try {
-      final search = HentaiManager.search(widget.searchKeyWord ?? '');
-      if (!Settings.ignoreTimeout.value) {
-        search.timeout(const Duration(seconds: 5));
-      }
-      final result = await search;
+      final query = widget.searchKeyWord ?? '';
+      c.latestQuery = (null, query);
+      c.mainHybridPage = 1;
+      final hybridList = await HybridLoader.fetchMainHybridArticles(
+        query: query,
+        page: 1,
+        pageSize: 25,
+      );
 
       if (generation != _searchGeneration) {
         return;
       }
 
-      c.latestQuery = (result, widget.searchKeyWord ?? '');
-      c.queryResult = c.latestQuery!.$1!.results;
+      c.mainHybridPage = 2;
+      c.queryResult = hybridList;
       if (c.filterController.isPopulationSort) {
         Population.sortByPopulation(c.queryResult);
       }
-      reloadForce();
-
-      if (c.searchTotalResultCount.value == 0) {
-        Future.delayed(const Duration(milliseconds: 100)).then((value) async {
-          if (generation != _searchGeneration) {
-            return;
-          }
-          c.searchTotalResultCount.value = await HentaiManager.countSearch(
-            widget.searchKeyWord ?? '',
-          );
-        });
+      c.searchTotalResultCount.value = hybridList.length;
+      if (c.scrollController?.hasClients ?? false) {
+        c.scrollController?.jumpTo(0.0);
       }
+      reloadForce();
     } catch (e, st) {
       Logger.error(
         '[Initial-Search] E: $e\n'
@@ -192,7 +187,7 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
           floating: true,
           delegate: AnimatedOpacitySliver(
             searchBar: Stack(
-              children: <Widget>[searchBar(), msgsearch(), align()],
+              children: <Widget>[searchBar(), pupilFilter(), align()],
             ),
           ),
         )
@@ -380,7 +375,11 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
             leading: SizedBox(
               width: 25,
               height: 25,
-              child: FlareActor.asset(c.asset, controller: c.heroFlareControls),
+              child: Icon(
+                Icons.search,
+                size: 24,
+                color: Settings.majorColor.value,
+              ),
             ),
           ),
         ),
@@ -391,7 +390,7 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
       left: 0.0,
       top: 0.0,
       bottom: 0.0,
-      right: 0.0,
+      right: 48.0,
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
@@ -401,6 +400,28 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
             c.latestQuery = (null, 'random:${Random().nextDouble() + 1}');
             c.doSearch();
           },
+        ),
+      ),
+    );
+
+    final favoriteButton = Positioned(
+      right: 4.0,
+      top: 0.0,
+      bottom: 0.0,
+      width: 44.0,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: _showFavoriteTagsSheet,
+          child: Tooltip(
+            message: '태그 즐겨찾기',
+            child: Icon(
+              MdiIcons.starOutline,
+              color: Settings.majorColor.value,
+              size: 24,
+            ),
+          ),
         ),
       ),
     );
@@ -415,9 +436,102 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
           ),
           elevation: !Settings.themeFlat.value ? 100 : 0,
           clipBehavior: Clip.antiAliasWithSaveLayer,
-          child: Stack(children: <Widget>[searchBar, searchBarOverlay]),
+          child: Stack(children: <Widget>[searchBar, searchBarOverlay, favoriteButton]),
         ),
       ),
+    );
+  }
+
+  void _showFavoriteTagsSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final favs = Settings.favoriteTags.value.where((e) => e.trim().isNotEmpty).toList();
+            return Container(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.star, color: Settings.majorColor.value, size: 22),
+                      const SizedBox(width: 8),
+                      const Text(
+                        '태그 즐겨찾기',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (favs.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      alignment: Alignment.center,
+                      child: Column(
+                        children: [
+                          Icon(Icons.star_outline, size: 40, color: Colors.grey.shade400),
+                          const SizedBox(height: 8),
+                          Text(
+                            '등록된 즐겨찾기 태그가 없습니다.\n검색창에서 태그를 길게 누르면 즐겨찾기에 등록됩니다.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    )
+                  else ...[
+                    Text(
+                      '태그를 터치하면 즉시 검색되고 맨 위로 이동합니다.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(height: 12),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.45,
+                      ),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: favs.map((tag) {
+                            return InputChip(
+                              avatar: Icon(Icons.star, size: 16, color: Settings.majorColor.value),
+                              label: Text(tag),
+                              deleteIcon: const Icon(Icons.close, size: 16),
+                              onDeleted: () async {
+                                await Settings.removeFavoriteTag(tag);
+                                setModalState(() {});
+                                setState(() {});
+                              },
+                              onPressed: () {
+                                Navigator.pop(context);
+                                c.latestQuery = (null, tag);
+                                c.doSearch();
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -460,31 +574,56 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
     }
   }
 
-  msgsearch() {
+  pupilFilter() {
     final width = MediaQuery.of(context).size.width;
 
-    final msgsearchOverlay = InkWell(
-      onTap: () {
-        PlatformNavigator.navigateSlide(context, const LabSearchMessage());
+    final filterOverlay = InkWell(
+      onTap: () async {
+        await c.togglePupilFilter(context);
       },
-      child: const SizedBox(
+      child: SizedBox(
         height: 64,
         width: 64,
         child: Stack(
           alignment: Alignment.center,
-          children: <Widget>[Icon(MdiIcons.commentSearch, color: Colors.grey)],
+          children: <Widget>[
+            Obx(() {
+              if (c.isPupilFilterLoading.value) {
+                return SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Settings.majorColor.value,
+                    ),
+                  ),
+                );
+              }
+              if (c.isPupilFilterUsed.value) {
+                return Icon(
+                  MdiIcons.eyeCheckOutline,
+                  color: Settings.majorColor.value,
+                );
+              }
+              return const Icon(
+                MdiIcons.eyeOutline,
+                color: Colors.grey,
+              );
+            }),
+          ],
         ),
       ),
     );
 
-    final msgsearchBody = Card(
+    final filterBody = Card(
       color: Palette.themeColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(4.0)),
       ),
       elevation: !Settings.themeFlat.value ? 100 : 0,
       clipBehavior: Clip.antiAliasWithSaveLayer,
-      child: msgsearchOverlay,
+      child: filterOverlay,
     );
 
     return Container(
@@ -492,8 +631,11 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
       child: SizedBox(
         height: 64,
         child: Hero(
-          tag: 'msgsearch${ModalBottomSheetContext.getCount()}',
-          child: msgsearchBody,
+          tag: 'pupilfilter${ModalBottomSheetContext.getCount()}',
+          child: Tooltip(
+            message: 'Pupil 전용 필터 (Violet DB 미포함 최신작)',
+            child: filterBody,
+          ),
         ),
       ),
     );
@@ -575,11 +717,13 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
     final navigator = widget.searchKeyWord == null
         ? PlatformNavigator.navigateFade
         : PlatformNavigator.navigateSlide;
+    final currentList =
+        c.isPupilFilterUsed.value ? c.pupilFilterResult : c.queryResult;
     navigator(
       context,
       Provider<FilterController>.value(
         value: c.filterController,
-        child: FilterPage(queryResult: c.queryResult),
+        child: FilterPage(queryResult: currentList),
       ),
     ).then((value) {
       c.applyFilter();

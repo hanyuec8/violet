@@ -19,14 +19,14 @@ class HentaiIndex {
   static Map<String, dynamic>? tagCount;
   // Tag, Index
   // Map<String, int>
-  static late Map<String, dynamic> tagIndex;
+  static Map<String, dynamic> tagIndex = <String, dynamic>{};
   // Artist, <Tag Index, Count>
   // Map<String, Map<String, int>>
-  static late Map<String, dynamic> tagArtist;
-  static late Map<String, dynamic> tagGroup;
-  static late Map<String, dynamic> tagUploader;
-  static late Map<String, dynamic> tagSeries;
-  static late Map<String, dynamic> tagCharacter;
+  static Map<String, dynamic> tagArtist = <String, dynamic>{};
+  static Map<String, dynamic> tagGroup = <String, dynamic>{};
+  static Map<String, dynamic> tagUploader = <String, dynamic>{};
+  static Map<String, dynamic> tagSeries = <String, dynamic>{};
+  static Map<String, dynamic> tagCharacter = <String, dynamic>{};
   // Series, <Character, Count>
   // Map<String, Map<String, int>>
   static Map<String, dynamic>? characterSeries;
@@ -41,7 +41,19 @@ class HentaiIndex {
   // Map<String, Map<String, int>>
   static Map<String, dynamic>? characterCharacter;
   // Tag, [<Tag, Similarity>]
-  static late Map<String, dynamic> relatedTag;
+  static Map<String, dynamic> relatedTag = <String, dynamic>{};
+
+  /// 지원되는 표준 언어 목록 (영문 식별자, 한글 표기)
+  static const supportedLanguages = <(String, String)>[
+    ('korean', '한국어'),
+    ('japanese', '일본어'),
+    ('english', '영어'),
+    ('chinese', '중국어'),
+    ('spanish', '스페인어'),
+    ('french', '프랑스어'),
+    ('german', '독일어'),
+    ('russian', '러시아어'),
+  ];
 
   static Future<void> init() async {
     await _loadIndexes();
@@ -173,24 +185,79 @@ class HentaiIndex {
     final name = prefix.split(':').last;
 
     final results = <(DisplayedTag, int)>[];
-    if (!tagCount!.containsKey(group)) return results;
 
-    final nameCountsMap = tagCount![group] as Map<dynamic, dynamic>;
-    if (!useTranslated) {
-      results.addAll(
-        nameCountsMap.entries
-            .where((e) => e.key.toString().toLowerCase().contains(name))
-            .map((e) => (DisplayedTag(group: group, name: e.key), e.value)),
-      );
-    } else {
-      results.addAll(
-        TagTranslate.containsTotal(name)
-            .where(
-              (e) => e.group! == group && nameCountsMap.containsKey(e.name),
-            )
-            .map((e) => (e, nameCountsMap[e.name])),
-      );
+    // 언어(lang / language) 태그 자동완성 특화:
+    // 로컬 DB 인덱싱이 특정 언어로만 제한되어 있더라도
+    // 언제든 다른 언어를 검색하고 선택할 수 있도록 표준 지원 언어 전체를 매칭/추천
+    if (group == 'lang') {
+      final nameCountsMap = (tagCount != null && tagCount!.containsKey('lang'))
+          ? (tagCount!['lang'] as Map<dynamic, dynamic>)
+          : <dynamic, dynamic>{};
+
+      final cleanName = name.trim().toLowerCase();
+
+      for (final item in supportedLanguages) {
+        final langCode = item.$1;
+        final langKor = item.$2;
+        final count = (nameCountsMap[langCode] ?? 0) as int;
+
+        if (cleanName.isEmpty ||
+            langCode.contains(cleanName) ||
+            langKor.contains(cleanName)) {
+          results.add((
+            DisplayedTag(
+              group: 'lang',
+              name: langCode,
+              translated: langKor,
+            ),
+            count,
+          ));
+        }
+      }
+
+      nameCountsMap.forEach((key, value) {
+        final kStr = key.toString();
+        if (!supportedLanguages.any((e) => e.$1 == kStr)) {
+          if (cleanName.isEmpty || kStr.toLowerCase().contains(cleanName)) {
+            results.add((
+              DisplayedTag(group: 'lang', name: kStr),
+              (value as num).toInt(),
+            ));
+          }
+        }
+      });
+
+      results.sort((a, b) => b.$2.compareTo(a.$2));
+      return results;
     }
+
+    if (tagCount != null && tagCount!.containsKey(group)) {
+      final nameCountsMap = tagCount![group] as Map<dynamic, dynamic>;
+      if (!useTranslated) {
+        results.addAll(
+          nameCountsMap.entries
+              .where((e) => e.key.toString().toLowerCase().contains(name))
+              .map((e) => (DisplayedTag(group: group, name: e.key), (e.value as num).toInt())),
+        );
+      } else {
+        results.addAll(
+          TagTranslate.containsTotal(name)
+              .where(
+                (e) => e.group! == group && nameCountsMap.containsKey(e.name),
+              )
+              .map((e) => (e, (nameCountsMap[e.name] ?? 0) as int)),
+        );
+      }
+    }
+
+    // tagCount가 없거나 매칭 결과가 적을 때 TagTranslate에서 직접 보충
+    if (results.isEmpty) {
+      final matches = TagTranslate.containsTotal(name)
+          .where((e) => e.group == group || (group == 'tag' && (e.group == 'female' || e.group == 'male')))
+          .map((e) => (e, 0));
+      results.addAll(matches);
+    }
+
     results.sort((a, b) => b.$2.compareTo(a.$2));
     return results;
   }
@@ -199,37 +266,89 @@ class HentaiIndex {
     String prefix,
     bool useTranslated,
   ) {
-    if (useTranslated) {
-      final results = TagTranslate.containsTotal(prefix)
-          .where((e) => tagCount![e.group].containsKey(e.name))
-          .map((e) => (e, tagCount![e.group][e.name] as int))
-          .toList();
-      results.sort((a, b) => b.$2.compareTo(a.$2));
-      return results;
+    final results = <(DisplayedTag, int)>[];
+    final seen = <String>{};
+
+    // 언어 관련 검색어인 경우 lang: 태그 추천도 추가 (예: '일본어', 'korean' 등)
+    final cleanPrefix = prefix.trim().toLowerCase();
+    if (cleanPrefix.isNotEmpty) {
+      for (final item in supportedLanguages) {
+        if (item.$1.contains(cleanPrefix) || item.$2.contains(cleanPrefix)) {
+          final key = 'lang:${item.$1}';
+          if (!seen.contains(key)) {
+            seen.add(key);
+            int count = 0;
+            if (tagCount != null &&
+                tagCount!.containsKey('lang') &&
+                tagCount!['lang'].containsKey(item.$1)) {
+              count = (tagCount!['lang'][item.$1] as num).toInt();
+            }
+            results.add((
+              DisplayedTag(
+                group: 'lang',
+                name: item.$1,
+                translated: item.$2,
+              ),
+              count,
+            ));
+          }
+        }
+      }
     }
 
-    final results = <(DisplayedTag, int)>[];
+    // 1. TagTranslate를 활용한 한글/영문 매칭 (초성, 자모 분해, 완성형 모두 지원)
+    final transList = TagTranslate.containsTotal(prefix);
+    for (final tag in transList) {
+      final key = '${tag.group}:${tag.name}';
+      if (seen.contains(key)) continue;
+      seen.add(key);
 
-    tagCount!['tag'].forEach((group, count) {
-      if (group.contains(':')) {
-        final subGroup = group.split(':');
-        if (subGroup[1].contains(prefix)) {
-          results.add((DisplayedTag(group: subGroup[0], name: group), count));
-        }
-      } else if (group.contains(prefix)) {
-        results.add((DisplayedTag(group: 'tag', name: group), count));
+      int count = 0;
+      if (tagCount != null &&
+          tagCount!.containsKey(tag.group) &&
+          tagCount![tag.group].containsKey(tag.name)) {
+        count = (tagCount![tag.group][tag.name] as num).toInt();
       }
-    });
+      results.add((tag, count));
+    }
 
-    tagCount!.forEach((group, value) {
-      if (group != 'tag') {
-        value.forEach((name, count) {
-          if (name.toLowerCase().contains(prefix)) {
-            results.add((DisplayedTag(group: group, name: name), count));
+    // 2. tagCount가 있는 경우 영문 이름으로도 추가 매칭
+    if (tagCount != null) {
+      if (tagCount!.containsKey('tag')) {
+        tagCount!['tag'].forEach((group, count) {
+          if (group.contains(':')) {
+            final subGroup = group.split(':');
+            if (subGroup[1].contains(prefix)) {
+              final key = '${subGroup[0]}:$group';
+              if (!seen.contains(key)) {
+                seen.add(key);
+                results.add((DisplayedTag(group: subGroup[0], name: group), (count as num).toInt()));
+              }
+            }
+          } else if (group.contains(prefix)) {
+            final key = 'tag:$group';
+            if (!seen.contains(key)) {
+              seen.add(key);
+              results.add((DisplayedTag(group: 'tag', name: group), (count as num).toInt()));
+            }
           }
         });
       }
-    });
+
+      tagCount!.forEach((group, value) {
+        if (group != 'tag' && value is Map) {
+          value.forEach((name, count) {
+            if (name.toString().toLowerCase().contains(prefix)) {
+              final key = '$group:$name';
+              if (!seen.contains(key)) {
+                seen.add(key);
+                results.add((DisplayedTag(group: group, name: name.toString()), (count as num).toInt()));
+              }
+            }
+          });
+        }
+      });
+    }
 
     results.sort((a, b) => b.$2.compareTo(a.$2));
     return results;
@@ -248,59 +367,78 @@ class HentaiIndex {
       final group = _normalizeTagPrefix(groupOrig);
       final name = prefix.split(':').last;
 
-      // <Tag, Similarity, Count>
-      final results = <(DisplayedTag, int, int)>[];
-      if (!tagCount!.containsKey(group)) {
-        return <(DisplayedTag, int)>[];
+      if (group == 'lang') {
+        return _queryAutoCompleteWithTagmap(prefix, useTranslated);
       }
 
-      final nameCountsMap = tagCount![group];
-      if (!useTranslated) {
-        nameCountsMap.forEach((key, value) {
-          results.add((
-            DisplayedTag(group: group, name: key),
-            Distance.levenshteinDistance(
-              name.runes.toList(),
-              key.runes.toList(),
-            ),
-            value,
-          ));
-        });
-      } else {
-        results.addAll(
-          TagTranslate.containsFuzzingTotal(name)
-              .where(
-                (e) =>
-                    e.$1.group! == group &&
-                    nameCountsMap.containsKey(e.$1.name),
-              )
-              .map((e) => (e.$1, e.$2, nameCountsMap[e.$1.name])),
-        );
+      // <Tag, Similarity, Count>
+      final results = <(DisplayedTag, int, int)>[];
+      if (tagCount != null && tagCount!.containsKey(group)) {
+        final nameCountsMap = tagCount![group];
+        if (!useTranslated) {
+          nameCountsMap.forEach((key, value) {
+            results.add((
+              DisplayedTag(group: group, name: key),
+              Distance.levenshteinDistance(
+                name.runes.toList(),
+                key.runes.toList(),
+              ),
+              (value as num).toInt(),
+            ));
+          });
+        } else {
+          results.addAll(
+            TagTranslate.containsFuzzingTotal(name)
+                .where(
+                  (e) =>
+                      e.$1.group! == group &&
+                      nameCountsMap.containsKey(e.$1.name),
+                )
+                .map((e) => (e.$1, e.$2, (nameCountsMap[e.$1.name] as num).toInt())),
+          );
+        }
       }
+
+      if (results.isEmpty) {
+        final fuzzed = TagTranslate.containsFuzzingTotal(name)
+            .where((e) => e.$1.group == group)
+            .map((e) => (e.$1, e.$2, 0));
+        results.addAll(fuzzed);
+      }
+
       results.sort((a, b) => a.$2.compareTo(b.$2));
       return results.map((e) => (e.$1, e.$3)).toList();
     } else {
-      if (!useTranslated) {
+      if (tagCount != null && !useTranslated) {
         final results = <(DisplayedTag, int, int)>[];
         tagCount!.forEach((group, value) {
-          value.forEach((name, count) {
-            results.add((
-              DisplayedTag(group: group, name: name),
-              Distance.levenshteinDistance(
-                prefix.runes.toList(),
-                name.runes.toList(),
-              ),
-              count,
-            ));
-          });
+          if (value is Map) {
+            value.forEach((name, count) {
+              results.add((
+                DisplayedTag(group: group, name: name.toString()),
+                Distance.levenshteinDistance(
+                  prefix.runes.toList(),
+                  name.toString().runes.toList(),
+                ),
+                (count as num).toInt(),
+              ));
+            });
+          }
         });
         results.sort((a, b) => a.$2.compareTo(b.$2));
         return results.map((e) => (e.$1, e.$3)).toList();
       } else {
-        final results = TagTranslate.containsFuzzingTotal(prefix)
-            .where((e) => tagCount![e.$1.group].containsKey(e.$1.name))
-            .map((e) => (e.$1, tagCount![e.$1.group][e.$1.name] as int, e.$2))
-            .toList();
+        final fuzzed = TagTranslate.containsFuzzingTotal(prefix);
+        final results = <(DisplayedTag, int, int)>[];
+        for (final item in fuzzed) {
+          int count = 0;
+          if (tagCount != null &&
+              tagCount!.containsKey(item.$1.group) &&
+              tagCount![item.$1.group].containsKey(item.$1.name)) {
+            count = (tagCount![item.$1.group][item.$1.name] as num).toInt();
+          }
+          results.add((item.$1, count, item.$2));
+        }
         results.sort((a, b) => a.$3.compareTo(b.$3));
         return results.map((e) => (e.$1, e.$2)).toList();
       }

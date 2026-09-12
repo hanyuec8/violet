@@ -236,7 +236,7 @@ class _ArticleListItemWidgetState extends State<ArticleListItemWidget>
 
     showArticleInfoRaw(
       context: context,
-      queryResult: data.queryResult,
+      queryResult: c.currentQueryResult.value,
       usableTabList: data.usableTabList,
     );
   }
@@ -491,13 +491,17 @@ class _DetailWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Text(
-              c.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            Obx(
+              () => Text(
+                c.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
             ),
-            Text(c.artist, maxLines: 2, overflow: TextOverflow.ellipsis),
+            Obx(
+              () => Text(c.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
             if (c.articleListItem.showUltra) tagArea(),
             const Spacer(),
             Row(

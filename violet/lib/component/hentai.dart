@@ -213,7 +213,7 @@ class HentaiManager {
     // if (offset == 0 && seed < 0) _latestSeed = new Random().nextDouble() + 1;
     await Logger.info('[Database Query]\nSQL: $queryString');
 
-    const int itemsPerPage = 500;
+    const int itemsPerPage = 60;
     final queryResult = (await (await DataBaseManager.getInstance()).query(
       '$queryString ORDER BY '
       'Id * $seed - ROUND(Id * $seed - 0.5, 0) DESC'
@@ -233,7 +233,7 @@ class HentaiManager {
 
     await Logger.info('[Database Query]\nSQL: $queryString');
 
-    const int itemsPerPage = 500;
+    const int itemsPerPage = 60;
     final queryResult = (await (await DataBaseManager.getInstance()).query(
       '$queryString ORDER BY Id DESC LIMIT $itemsPerPage OFFSET $offset',
     )).map((e) => QueryResult(result: e)).toList();
@@ -437,9 +437,48 @@ class HentaiManager {
     bool exh = false,
   ]) async {
     try {
-      final search = Uri.encodeComponent(
-        '${Settings.includeTagNetwork.value ? '${Settings.includeTags.value} ' : ''}$what${Settings.excludeTagNetwork.value ? ' ${Settings.serializedExcludeTags}' : ''}',
-      );
+      // E-Hentai 쿼리 규격 정규화:
+      // 1. lang: -> language: 치환
+      // 2. E-Hentai 검색창이 지원하지 않는 boolean or 및 괄호 () 구문 안전하게 정규화
+      String formatForEH(String raw) {
+        var s = raw.trim();
+        if (s.isEmpty) return '';
+        if (s.contains(' or ') || s.contains(' OR ') || (s.startsWith('(') && s.endsWith(')'))) {
+          final langs = <String>[];
+          final lower = s.toLowerCase();
+          if (lower.contains('korean')) langs.add('korean');
+          if (lower.contains('japanese')) langs.add('japanese');
+          if (lower.contains('english')) langs.add('english');
+          if (lower.contains('chinese')) langs.add('chinese');
+          if (langs.length == 1) {
+            return 'language:${langs.first}';
+          } else {
+            return '';
+          }
+        }
+        s = s.replaceAll(RegExp(r'\blang:', caseSensitive: false), 'language:');
+        return s.replaceAll('_', ' ').trim();
+      }
+
+      final networkInclude = Settings.includeTagNetwork.value
+          ? formatForEH(Settings.includeTags.value)
+          : '';
+      final cleanWhat = formatForEH(what);
+
+      final searchTokens = <String>[];
+      if (cleanWhat.contains('language:')) {
+        searchTokens.add(cleanWhat);
+      } else {
+        if (networkInclude.isNotEmpty) searchTokens.add(networkInclude);
+        if (cleanWhat.isNotEmpty) searchTokens.add(cleanWhat);
+      }
+
+      if (Settings.excludeTagNetwork.value) {
+        final exclude = Settings.serializedExcludeTags.trim();
+        if (exclude.isNotEmpty) searchTokens.add(exclude);
+      }
+
+      final search = Uri.encodeComponent(searchTokens.join(' ').trim());
       final url =
           'https://e${exh ? 'x' : '-'}hentai.org/?${next == 0 ? '' : 'next=$next&'}f_cats=${Settings.searchCategory.value}&f_search=$search&advsearch=1&f_sname=on&f_stags=on${Settings.searchExpunged.value ? '&f_sh=on' : ''}&f_spf=&f_spt=&inline_set=dm_e';
 

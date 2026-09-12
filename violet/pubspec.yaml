@@ -32,7 +32,6 @@ dependencies:
   # I know there are too many packages.
   android_intent_plus: ^5.3.0
   animated_widgets: ^1.1.0
-  animations:
   app_links: ^6.4.0
   apple_pencil_double_tap: ^0.1.0
   archive: ^4.0.2
@@ -41,12 +40,8 @@ dependencies:
   azlistview:
     git: https://github.com/violet-dev/azlistview
   badges: ^3.1.2
-  bloc: ^9.0.0
-  brotli: ^0.6.0
-  bubble_tab_indicator: ^0.1.6
   # cached_network_image: ^3.0.0
   cached_network_image: ^3.2.1
-  carousel_slider: ^5.0.0
   chopper: ^8.0.0
   charset: ^2.0.1
   # charts_flutter: ^0.11.0
@@ -56,7 +51,6 @@ dependencies:
   #     path: charts_flutter
   # charts_flutter: ^0.12.0
   community_charts_flutter: ^1.0.1
-  convert:
   country_pickers:
     git:
       url: https://github.com/DavidOrakpo/country_pickers
@@ -65,16 +59,12 @@ dependencies:
   # device_info: ^2.0.0
   device_info_plus: ^11.3.0
   dio: ^5.0.0
-  dio_cache_interceptor: ^4.0.3
-  draggable_scrollbar:
   # dynamic_theme: ^1.0.1
   dynamic_theme:
     git: https://github.com/Norbert515/dynamic_theme
-  encrypt: ^5.0.0
   expandable: ^5.0.1
   extended_image: ^10.0.1
   extended_wrap: ^0.1.5
-  ffi: ^2.0.2
   file_picker: ^10.2.0
   firebase_core: ^4.1.1
   firebase_analytics: ^12.0.2
@@ -90,14 +80,9 @@ dependencies:
     git:
       url: https://github.com/mchome/flutter_colorpicker
       ref: 786d04363f587b818ce585d25b9c2bb62de95aba
-  flutter_downloader: ^1.11.3
   flutter_heatmap_calendar: ^1.0.5
-  flutter_image_compress: ^2.0.4
   flutter_inappwebview: ^6.1.5
   flutter_markdown:
-  flutter_mobx:
-  flutter_reorderable_list:
-  flutter_keyboard_visibility: ^6.0.0
   flutter_speed_dial: ^7.0.0
   flutter_staggered_animations:
     git: https://github.com/mfrischbutter/flutter_staggered_animations
@@ -109,16 +94,12 @@ dependencies:
   freezed_annotation: ^3.1.0
   fullscreen_window: ^1.1.0
   get: ^4.6.6
-  gradient_widgets: ^0.6.0
   html: ^0.15.0
   html_unescape: ^2.0.0
   http: ^1.1.0
-  image: ^4.1.4
   image_size_getter: ^2.1.2
   intl: ^0.19.0
   kdtree: ^0.2.0
-  local_auth: ^2.1.6
-  lottie:
   material_design_icons_flutter: 5.0.6595
   mdi: ^5.0.0-nullsafety.0
   modal_bottom_sheet: ^3.0.0-pre
@@ -127,7 +108,6 @@ dependencies:
   path_provider: ^2.1.4
   permission_handler: ^12.0.1
   photo_view: ^0.15.0
-  platform: ^3.1.0
   pimp_my_button:
     git: https://github.com/MichaelMarner/pimp_my_button
   pull_down_button: ^0.10.2
@@ -151,11 +131,6 @@ dependencies:
   flutter_rust_bridge: 2.11.1
   json_annotation: ^4.9.0
   connectivity_plus: ^6.1.3
-  sqlite3_flutter_libs: ^0.5.30
-  pointer_interceptor_ios: ^0.10.1
-  pointer_interceptor_platform_interface: ^0.10.0+1
-  pointer_interceptor_web: ^0.10.2+1
-  vector_math: ^2.1.4
   rhttp: ^0.15.1
   flutter_file_dialog: ^3.0.3
 
@@ -197,25 +172,12 @@ flutter:
 
     - assets/images/
 
-    - assets/flare/Cosmos.flr
     - assets/flare/search_close.flr
-
-    - assets/flare/Loading.flr
     - assets/flare/Loading2.flr
-    - assets/flare/Trim.flr
-    - assets/flare/SlidinSquaresLoader.flr
     - assets/flare/switch_daytime.flr
     - assets/flare/likeUtsua.flr
 
-    - assets/lottie/3227-error-404-facebook-style.json
-    - assets/lottie/5040-shooting-star.json
-    - assets/lottie/26438-drone-flight.json
-    - assets/lottie/24208-menhera-chan-at-cocopry-sticker-10.json
-    - assets/lottie/28395-hajj-mabroor-infographic-animation.json
-    - assets/lottie/28446-floward-gift-box.json
-
     - assets/icons/pixiv.ico
-    - assets/icons/llm-search.svg
 
     - shorebird.yaml
 
@@ -246,18 +208,6 @@ flutter:
   # see https://flutter.dev/custom-fonts/#from-packages
 
   fonts:
-    - family: SF-Pro-Text-Regular
-      fonts:
-        - asset: assets/SF-Pro-Text-Regular.otf
-
-    - family: SF-Pro-Text-Bold
-      fonts:
-        - asset: assets/SF-Pro-Text-Bold.otf
-
     - family: Calibre-Semibold
       fonts:
         - asset: assets/Calibre-Semibold.otf
-
-    - family: CustomIcons
-      fonts:
-        - asset: assets/custom_icons.ttf

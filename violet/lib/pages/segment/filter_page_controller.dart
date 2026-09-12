@@ -18,40 +18,56 @@ class FilterController {
   List<QueryResult> applyFilter(List<QueryResult> queryResult) {
     final result = <QueryResult>[];
 
+    final activeFilters = tagStates.entries.where((e) => e.value).toList();
+    if (activeFilters.isEmpty) {
+      final res = List<QueryResult>.from(queryResult);
+      if (isPopulationSort) {
+        Population.sortByPopulation(res);
+      }
+      return res;
+    }
+
     for (var element in queryResult) {
-      // key := <group>:<name>
       var succ = !isOr;
-      tagStates.forEach((key, value) {
-        if (!value) return;
+      for (final entry in activeFilters) {
+        if (succ == isOr) break;
 
-        // Check match just only one
-        if (succ == isOr) return;
+        final split = entry.key.split('|');
+        final group = split[0];
+        final targetName = split[1].trim().toLowerCase().replaceAll(' ', '_');
+        final dbColumn = prefix2Tag(group);
 
-        // Get db column name from group
-        final split = key.split('|');
-        final dbColumn = prefix2Tag(split[0]);
-
-        // There is no matched db column name
-        if (element.result[dbColumn] == null && !isOr) {
-          succ = false;
-          return;
+        final rawCol = element.result[dbColumn];
+        if (rawCol == null) {
+          if (!isOr) succ = false;
+          continue;
         }
 
-        // If Single Tag
-        if (!isSingleTag(split[0])) {
-          var tag = split[1];
-          if (['female', 'male'].contains(split[0])) {
-            tag = '${split[0]}:${split[1]}';
+        final colStr = rawCol.toString().trim().toLowerCase();
+        bool matched = false;
+
+        if (isSingleTag(group)) {
+          final normalizedCol = colStr.replaceAll(' ', '_');
+          matched = (normalizedCol == targetName);
+        } else {
+          final tokens = colStr
+              .split('|')
+              .map((t) => t.trim().replaceAll(' ', '_'))
+              .where((t) => t.isNotEmpty)
+              .toSet();
+
+          String fullTag = targetName;
+          if (group == 'female' || group == 'male') {
+            fullTag = '$group:$targetName';
           }
-          if ((element.result[dbColumn] as String).contains('|$tag|') == isOr) {
-            succ = isOr;
-          }
+
+          matched = tokens.contains(fullTag) || tokens.contains(targetName);
         }
-        // If Multitag
-        else if ((element.result[dbColumn] as String == split[1]) == isOr) {
+
+        if (matched == isOr) {
           succ = isOr;
         }
-      });
+      }
       if (succ) result.add(element);
     }
 

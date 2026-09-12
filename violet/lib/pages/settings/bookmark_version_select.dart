@@ -7,9 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:violet/locale/locale.dart';
 import 'package:violet/other/dialogs.dart';
-import 'package:violet/pages/lab/lab/bookmark/bookmarks.dart';
 import 'package:violet/pages/segment/card_panel.dart';
-import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/settings/settings.dart';
 
 bool alreadyInit = false;
@@ -115,15 +113,6 @@ class _BookmarkVersionSelectPageState extends State<BookmarkVersionSelectPage> {
             ),
             subtitle: Text(formatBytes(data['size'] as int, 2)),
             onTap: () async {
-              await PlatformNavigator.navigateSlide(
-                context,
-                LabBookmarkPage(
-                  userAppId: widget.userAppId,
-                  version: data['vid'] as String,
-                ),
-              );
-
-              if (!mounted) return;
               if (await showYesNoDialog(context, '이 북마크 버전을 선택할까요?')) {
                 if (!mounted) return;
                 Navigator.pop(context, data['vid']);

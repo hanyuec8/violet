@@ -119,6 +119,7 @@ class _QueryTranslator {
         break;
 
       case 'lang':
+      case 'language':
       case 'type':
       case 'class':
         name = ss[1].replaceAll('_', ' ');
@@ -172,6 +173,7 @@ class _QueryTranslator {
         return 'Tags';
 
       case 'lang':
+      case 'language':
         return 'Language';
 
       case 'series':

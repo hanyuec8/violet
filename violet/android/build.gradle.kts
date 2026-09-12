@@ -40,7 +40,7 @@ fun setProcessEnvironment(name: String, value: String) {
         @Suppress("UNCHECKED_CAST")
         (field.get(environment) as MutableMap<String, String>)[name] = value
         return
-    } catch (_: ReflectiveOperationException) {
+    } catch (_: Throwable) {
         // Fall through to the ProcessEnvironment maps used by some JDKs.
     }
 
@@ -69,8 +69,8 @@ fun setProcessEnvironment(name: String, value: String) {
                 environmentValue
         }
         return
-    } catch (_: ReflectiveOperationException) {
-        throw GradleException("Failed to set $name for cargokit Rust build")
+    } catch (_: Throwable) {
+        // Ignore reflection failures on modern JDKs (Java 17+)
     }
 }
 

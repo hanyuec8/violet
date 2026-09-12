@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:html_unescape/html_unescape.dart';
 import 'package:intl/intl.dart';
+import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/database/user/record.dart';
 import 'package:violet/model/article_list_item.dart';
@@ -16,6 +17,7 @@ import 'package:violet/settings/settings.dart';
 
 class ArticleListItemWidgetController extends GetxController {
   final ArticleListItem articleListItem;
+  late final Rx<QueryResult> currentQueryResult;
 
   var disposed = false;
 
@@ -24,9 +26,14 @@ class ArticleListItemWidgetController extends GetxController {
   var isLatestRead = false.obs;
   var latestReadPage = 0.obs;
 
-  late String artist;
-  late String title;
-  late String dateTime;
+  final RxString artistRx = ''.obs;
+  final RxString titleRx = ''.obs;
+  final RxString dateTimeRx = ''.obs;
+
+  String get artist => artistRx.value;
+  String get title => titleRx.value;
+  String get dateTime => dateTimeRx.value;
+
   RxString thumbnail = ''.obs;
   RxInt imageCount = 0.obs;
   RxMap<String, String> headers = RxMap();
@@ -43,6 +50,8 @@ class ArticleListItemWidgetController extends GetxController {
   GlobalKey bodyKey = GlobalKey();
 
   ArticleListItemWidgetController(this.articleListItem) {
+    currentQueryResult = Rx<QueryResult>(articleListItem.queryResult);
+
     if (!Settings.simpleItemWidgetLoadingIcon.value) {
       flareController = FlareControls();
     }
@@ -53,6 +62,7 @@ class ArticleListItemWidgetController extends GetxController {
     initTexts();
     setProvider();
   }
+
 
   setSize() {
     if (articleListItem.showDetail) {
@@ -113,26 +123,28 @@ class ArticleListItemWidgetController extends GetxController {
   }
 
   initTexts() {
-    artist = (articleListItem.queryResult.artists() as String)
+    final qr = currentQueryResult.value;
+    var a = (qr.artists() as String)
         .split('|')
         .where((x) => x.isNotEmpty)
         .join(',');
 
-    if (artist == 'N/A') {
-      var group = _firstPipeValue(articleListItem.queryResult.groups());
-      if (group != '') artist = group;
+    if (a == 'N/A') {
+      var group = _firstPipeValue(qr.groups());
+      if (group != '') a = group;
     }
+    artistRx.value = a;
 
-    title = HtmlUnescape().convert(articleListItem.queryResult.title());
-    dateTime = articleListItem.queryResult.getDateTime() != null
+    titleRx.value = HtmlUnescape().convert(qr.title());
+    dateTimeRx.value = qr.getDateTime() != null
         ? DateFormat(
             'yyyy/MM/dd HH:mm',
-          ).format(articleListItem.queryResult.getDateTime()!.toLocal())
+          ).format(qr.getDateTime()!.toLocal())
         : '';
   }
 
   setProvider() async {
-    final provider = await getImageProvider(articleListItem.queryResult);
+    final provider = await getImageProvider(currentQueryResult.value);
 
     thumbnail.value = await provider.getThumbnailUrl();
     headers.value = await provider.getHeader(0);
