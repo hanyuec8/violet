@@ -47,6 +47,31 @@ Future showArticleInfoRaw({
 
   if (hasNoValidQuery) {
     queryResult = await HentaiManager.idQueryWeb('$id');
+  } else if (queryResult.result['source'] == 'pupil' ||
+      queryResult.result['source'] == 'pupil_only' ||
+      queryResult.result['ExistOnHitomi'] == 1 ||
+      queryResult.groups() == null ||
+      queryResult.groups() == 'N/A') {
+    try {
+      final gallery = await HentaiManager.tryFetchHitomiGalleryInfo(id);
+      if (gallery.isNotEmpty) {
+        if (gallery['Groups'] != null && (gallery['Groups'] as List).isNotEmpty) {
+          queryResult.result['Groups'] = '|${(gallery['Groups'] as List).join('|')}|';
+        }
+        if (gallery['Characters'] != null && (gallery['Characters'] as List).isNotEmpty) {
+          queryResult.result['Characters'] = '|${(gallery['Characters'] as List).join('|')}|';
+        }
+        if (gallery['Files'] != null) {
+          queryResult.result['Files'] = gallery['Files'];
+        }
+        if (gallery['Artists'] != null && (gallery['Artists'] as List).isNotEmpty) {
+          final currentArtists = queryResult.artists();
+          if (currentArtists == null || currentArtists == 'N/A' || currentArtists == '') {
+            queryResult.result['Artists'] = '|${(gallery['Artists'] as List).join('|')}|';
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   final provider = await getImageProvider(queryResult);

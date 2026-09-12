@@ -629,6 +629,8 @@ class HybridLoader {
               ? article['Artists'] as List<String>
               : null,
         ),
+        'Groups': null,
+        'Characters': null,
         'Series': encodePipeValues(
           article['Series'] is List<String>
               ? article['Series'] as List<String>
@@ -639,6 +641,7 @@ class HybridLoader {
               ? article['Tags'] as List<String>
               : null,
         ),
+        'Files': null,
         'Type': article['Type'] ?? 'N/A',
         'Language': article['Language'] ?? 'N/A',
         'Published': article['Published'],
