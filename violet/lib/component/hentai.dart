@@ -129,7 +129,7 @@ class HentaiManager {
       headers: headers,
     );
     final article = await HitomiParser.parseGalleryBlock(hh.body);
-    final gallery = await _tryFetchHitomiGalleryInfo(id);
+    final gallery = await tryFetchHitomiGalleryInfo(id);
     final meta = {
       'Id': id,
       'Title': article['Title'],
@@ -313,7 +313,7 @@ class HentaiManager {
     );
 
     final article = await HitomiParser.parseGalleryBlock(res.body);
-    final gallery = await _tryFetchHitomiGalleryInfo(int.parse(id));
+    final gallery = await tryFetchHitomiGalleryInfo(int.parse(id));
     final meta = {
       'Id': int.parse(id),
       'Title': article['Title'],
@@ -580,7 +580,7 @@ class HentaiManager {
     return '|${list.join('|')}|';
   }
 
-  static Future<Map<String, dynamic>> _tryFetchHitomiGalleryInfo(int id) async {
+  static Future<Map<String, dynamic>> tryFetchHitomiGalleryInfo(int id) async {
     try {
       final raw = await ScriptManager.getGalleryInfoRaw(id.toString());
       if (raw == null) return {};
