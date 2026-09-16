@@ -8,6 +8,7 @@ import 'package:html_unescape/html_unescape_small.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
+import 'package:violet/component/index.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/locale/locale.dart' as trans;
 import 'package:violet/pages/segment/card_panel.dart';
@@ -106,7 +107,7 @@ class _FilterPageState extends State<FilterPage> {
     super.didChangeDependencies();
     if (!_initOnce) {
       _initOnce = true;
-      c = Provider.of<FilterController>(context);
+      c = Provider.of<FilterController>(context, listen: false);
       _initTagPad();
     }
   }
@@ -115,7 +116,7 @@ class _FilterPageState extends State<FilterPage> {
   Widget build(BuildContext context) {
     return CardPanel.build(
       context,
-      heroTag: c.heroKey,
+      heroTag: null,
       enableBackgroundColor: true,
       child: Padding(
         padding: const EdgeInsets.all(4),
@@ -235,14 +236,14 @@ class _FilterPageState extends State<FilterPage> {
 
   _buildTagsPanel() {
     var tags = _tags
-        .where((element) => c.tagStates['${element.$1}|${element.$2}']!)
+        .where((element) => c.tagStates['${element.$1}|${element.$2}'] ?? false)
         .toList();
 
     if (c.isSearch) {
       final q = _searchController.text.trim().toLowerCase().replaceAll('_', ' ');
-      tags += _tags
+      final matchedInFolder = _tags
           .where((element) {
-            if (c.tagStates['${element.$1}|${element.$2}']!) return false;
+            if (c.tagStates['${element.$1}|${element.$2}'] ?? false) return false;
             if (q.isEmpty) return true;
 
             final fullName = '${element.$1}:${element.$2}'.toLowerCase().replaceAll('_', ' ');
@@ -253,12 +254,50 @@ class _FilterPageState extends State<FilterPage> {
             return translated.contains(q);
           })
           .toList();
+      tags += matchedInFolder;
+
+      // 폴더 내 태그가 없거나 부족할 때도 글로벌 태그 사전 및 인덱스에서 일치하는 태그/작가/그룹을 찾아 검색 결과 칩으로 제공
+      if (q.isNotEmpty) {
+        final existingKeys = tags.map((e) => '${e.$1}|${e.$2}').toSet();
+        final globalMatches = TagTranslate.contains(q);
+        for (final tag in globalMatches) {
+          if (tags.length >= 100) break;
+          final group = tag.group ?? 'tag';
+          final name = tag.name ?? '';
+          if (name.isEmpty) continue;
+          final key = '$group|$name';
+          if (!existingKeys.contains(key)) {
+            existingKeys.add(key);
+            if (!c.tagStates.containsKey(key)) {
+              c.tagStates[key] = false;
+            }
+            tags.add((group, name, 0));
+          }
+        }
+
+        final indexMatches = HentaiIndex.searchTagsSync(q);
+        for (final item in indexMatches) {
+          if (tags.length >= 100) break;
+          final tag = item.$1;
+          final group = tag.group ?? 'tag';
+          final name = tag.name ?? '';
+          if (name.isEmpty) continue;
+          final key = '$group|$name';
+          if (!existingKeys.contains(key)) {
+            existingKeys.add(key);
+            if (!c.tagStates.containsKey(key)) {
+              c.tagStates[key] = false;
+            }
+            tags.add((group, name, item.$2));
+          }
+        }
+      }
     } else {
       tags += _tags
           .where(
             (element) =>
-                c.groupStates[element.$1]! &&
-                !c.tagStates['${element.$1}|${element.$2}']!,
+                (c.groupStates[element.$1] ?? false) &&
+                !(c.tagStates['${element.$1}|${element.$2}'] ?? false),
           )
           .toList();
     }
@@ -277,7 +316,7 @@ class _FilterPageState extends State<FilterPage> {
       runSpacing: runSpacing,
       children: tags.take(100).map((element) {
         return _Chip(
-          selected: c.tagStates['${element.$1}|${element.$2}']!,
+          selected: c.tagStates['${element.$1}|${element.$2}'] ?? false,
           group: element.$1,
           name: element.$2,
           count: element.$3,
@@ -476,7 +515,9 @@ class __ChipState extends State<_Chip> {
           child: avatar,
         ),
         label: Text(
-          ' ${HtmlUnescape().convert(tagDisplayed)} (${widget.count})',
+          widget.count > 0
+              ? ' ${HtmlUnescape().convert(tagDisplayed)} (${widget.count})'
+              : ' ${HtmlUnescape().convert(tagDisplayed)}',
           style: const TextStyle(color: Colors.white),
         ),
         backgroundColor: color,

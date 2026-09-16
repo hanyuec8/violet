@@ -8,8 +8,10 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:violet/algorithm/distance.dart';
+import 'package:violet/component/hitomi/artists.dart';
 import 'package:violet/component/hitomi/displayed_tag.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
+import 'package:violet/database/database.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/variables.dart';
 
@@ -55,6 +57,34 @@ class HentaiIndex {
     ('russian', '러시아어'),
   ];
 
+  static Set<String>? _builtinArtists;
+  static Set<String> get builtinArtists {
+    if (_builtinArtists != null) return _builtinArtists!;
+    final set = <String>{};
+    try {
+      for (final list in Artists.collection.values) {
+        if (list is List) {
+          for (final item in list) {
+            if (item is String && item.trim().isNotEmpty) {
+              set.add(item.trim());
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    _builtinArtists = set;
+    return set;
+  }
+
+  static File _resolveFile(String basePath, String filename) {
+    final sub = Platform.isAndroid ? '/data' : '';
+    final f1 = File('$basePath$sub/$filename');
+    if (f1.existsSync()) return f1;
+    final f2 = File('$basePath/$filename');
+    if (f2.existsSync()) return f2;
+    return f1;
+  }
+
   static Future<void> init() async {
     await _loadIndexes();
     await _loadCountMap();
@@ -62,31 +92,30 @@ class HentaiIndex {
 
   static Future<void> _loadIndexes() async {
     final directory = await getApplicationDocumentsDirectory();
-    final subdir = Platform.isAndroid ? '/data' : '';
 
     // No data on first run.
-    final path2 = File('${directory.path}$subdir/tag-artist.json');
+    final path2 = _resolveFile(directory.path, 'tag-artist.json');
     if (!await path2.exists()) return;
     tagArtist = jsonDecode(await path2.readAsString());
-    final path3 = File('${directory.path}$subdir/tag-group.json');
+    final path3 = _resolveFile(directory.path, 'tag-group.json');
     tagGroup = jsonDecode(await path3.readAsString());
-    final path4 = File('${directory.path}$subdir/tag-index.json');
+    final path4 = _resolveFile(directory.path, 'tag-index.json');
     tagIndex = jsonDecode(await path4.readAsString());
-    final path5 = File('${directory.path}$subdir/tag-uploader.json');
+    final path5 = _resolveFile(directory.path, 'tag-uploader.json');
     tagUploader = jsonDecode(await path5.readAsString());
     try {
-      final path6 = File('${directory.path}$subdir/tag-series.json');
+      final path6 = _resolveFile(directory.path, 'tag-series.json');
       tagSeries = jsonDecode(await path6.readAsString());
-      final path7 = File('${directory.path}$subdir/tag-character.json');
+      final path7 = _resolveFile(directory.path, 'tag-character.json');
       tagCharacter = jsonDecode(await path7.readAsString());
-      final path8 = File('${directory.path}$subdir/character-series.json');
+      final path8 = _resolveFile(directory.path, 'character-series.json');
       characterSeries = jsonDecode(await path8.readAsString());
-      final path9 = File('${directory.path}$subdir/series-character.json');
+      final path9 = _resolveFile(directory.path, 'series-character.json');
       seriesCharacter = jsonDecode(await path9.readAsString());
 
-      final path10 = File('${directory.path}$subdir/character-character.json');
+      final path10 = _resolveFile(directory.path, 'character-character.json');
       characterCharacter = jsonDecode(await path10.readAsString());
-      final path11 = File('${directory.path}$subdir/series-series.json');
+      final path11 = _resolveFile(directory.path, 'series-series.json');
       seriesSeries = jsonDecode(await path11.readAsString());
     } catch (e, st) {
       Logger.error(
@@ -114,16 +143,15 @@ class HentaiIndex {
       final file = File(join(Directory.current.path, 'test/db/index.json'));
       tagCount = jsonDecode(await file.readAsString());
     } else {
-      final subdir = Platform.isAndroid ? '/data' : '';
       final directory = await getApplicationDocumentsDirectory();
-      final path = File('${directory.path}$subdir/index.json');
+      final path = _resolveFile(directory.path, 'index.json');
       if (!await path.exists()) return;
       final text = path.readAsStringSync();
       tagCount = jsonDecode(text);
     }
 
     // split `tag:female:` and `tag:male:` to `female:` and `male:`
-    if (tagCount!.containsKey('tag')) {
+    if (tagCount != null && tagCount!.containsKey('tag')) {
       final tags = tagCount!['tag'] as Map<String, dynamic>;
       final femaleTags = tags.entries
           .where((e) => e.key.startsWith('female:'))
@@ -150,15 +178,16 @@ class HentaiIndex {
 
   static int? getArticleCount(String classification, String name) {
     if (tagCount == null) {
-      final subdir = Platform.isAndroid ? '/data' : '';
-      final path = File(
-        '${Variables.applicationDocumentsDirectory}$subdir/index.json',
-      );
+      final path = _resolveFile(Variables.applicationDocumentsDirectory, 'index.json');
+      if (!path.existsSync()) return 0;
       final text = path.readAsStringSync();
       tagCount = jsonDecode(text);
     }
 
-    return tagCount![classification][name];
+    if (tagCount == null || !tagCount!.containsKey(classification)) {
+      return 0;
+    }
+    return tagCount![classification]?[name];
   }
 
   static Future<List<(DisplayedTag, int)>> queryAutoComplete(
@@ -170,16 +199,16 @@ class HentaiIndex {
     prefix = prefix.toLowerCase().replaceAll('_', ' ');
 
     if (prefix.contains(':') && prefix.split(':')[0] != 'random') {
-      return _queryAutoCompleteWithTagmap(prefix, useTranslated);
+      return await _queryAutoCompleteWithTagmap(prefix, useTranslated);
     }
 
-    return _queryAutoCompleteFullSearch(prefix, useTranslated);
+    return await _queryAutoCompleteFullSearch(prefix, useTranslated);
   }
 
-  static List<(DisplayedTag, int)> _queryAutoCompleteWithTagmap(
+  static Future<List<(DisplayedTag, int)>> _queryAutoCompleteWithTagmap(
     String prefix,
     bool useTranslated,
-  ) {
+  ) async {
     final groupOrig = prefix.split(':')[0];
     final group = _normalizeTagPrefix(groupOrig);
     final name = prefix.split(':').last;
@@ -231,41 +260,71 @@ class HentaiIndex {
       return results;
     }
 
+    final seen = <String>{};
     if (tagCount != null && tagCount!.containsKey(group)) {
       final nameCountsMap = tagCount![group] as Map<dynamic, dynamic>;
-      if (!useTranslated) {
-        results.addAll(
-          nameCountsMap.entries
-              .where((e) => e.key.toString().toLowerCase().contains(name))
-              .map((e) => (DisplayedTag(group: group, name: e.key), (e.value as num).toInt())),
-        );
-      } else {
-        results.addAll(
-          TagTranslate.containsTotal(name)
-              .where(
-                (e) => e.group! == group && nameCountsMap.containsKey(e.name),
-              )
-              .map((e) => (e, (nameCountsMap[e.name] ?? 0) as int)),
-        );
+      // 1) TagTranslate를 통해 영문/한글 매칭 결과 추가 (번역명 포함)
+      final transMatches = TagTranslate.containsTotal(name)
+          .where((e) => e.group! == group || (group == 'tag' && (e.group == 'female' || e.group == 'male')));
+      for (final tag in transMatches) {
+        final key = '${tag.group}:${tag.name}';
+        if (!seen.contains(key)) {
+          seen.add(key);
+          final count = (nameCountsMap[tag.name] ?? 0) as int;
+          results.add((tag, count));
+        }
+      }
+
+      // 2) tagCount 영문 직접 매칭 추가 (번역에 없는 태그이거나 추가 매칭)
+      nameCountsMap.entries
+          .where((e) => e.key.toString().toLowerCase().contains(name.toLowerCase()))
+          .forEach((e) {
+            final key = '$group:${e.key}';
+            if (!seen.contains(key)) {
+              seen.add(key);
+              results.add((
+                DisplayedTag(
+                  group: group,
+                  name: e.key.toString(),
+                  translated: TagTranslate.of(group, e.key.toString()),
+                ),
+                (e.value as num).toInt(),
+              ));
+            }
+          });
+    }
+
+    // 3) 아티스트의 경우 내장 아티스트 사전(Artists.collection) 추가 매칭
+    if (group == 'artist') {
+      _appendFromBuiltinArtists(name, results, seen);
+    }
+
+    // 4) 로컬 SQLite DB(HitomiColumnModel) 실시간 조회 폴백
+    if (group == 'artist' || group == 'group' || group == 'series' || group == 'character' || group == 'uploader') {
+      await _appendFromDatabase(group, name, results, seen);
+    }
+
+    // tagCount가 없거나 매칭 결과가 없을 때 TagTranslate에서 직접 보충
+    if (results.isEmpty) {
+      final matches = TagTranslate.containsTotal(name)
+          .where((e) => e.group == group || (group == 'tag' && (e.group == 'female' || e.group == 'male')));
+      for (final tag in matches) {
+        final key = '${tag.group}:${tag.name}';
+        if (!seen.contains(key)) {
+          seen.add(key);
+          results.add((tag, 0));
+        }
       }
     }
 
-    // tagCount가 없거나 매칭 결과가 적을 때 TagTranslate에서 직접 보충
-    if (results.isEmpty) {
-      final matches = TagTranslate.containsTotal(name)
-          .where((e) => e.group == group || (group == 'tag' && (e.group == 'female' || e.group == 'male')))
-          .map((e) => (e, 0));
-      results.addAll(matches);
-    }
-
-    results.sort((a, b) => b.$2.compareTo(a.$2));
+    _sortAutoCompleteResults(results, name);
     return results;
   }
 
-  static List<(DisplayedTag, int)> _queryAutoCompleteFullSearch(
+  static Future<List<(DisplayedTag, int)>> _queryAutoCompleteFullSearch(
     String prefix,
     bool useTranslated,
-  ) {
+  ) async {
     final results = <(DisplayedTag, int)>[];
     final seen = <String>{};
 
@@ -338,11 +397,19 @@ class HentaiIndex {
       tagCount!.forEach((group, value) {
         if (group != 'tag' && value is Map) {
           value.forEach((name, count) {
-            if (name.toString().toLowerCase().contains(prefix)) {
-              final key = '$group:$name';
+            final nameStr = name.toString();
+            if (nameStr.toLowerCase().contains(prefix)) {
+              final key = '$group:$nameStr';
               if (!seen.contains(key)) {
                 seen.add(key);
-                results.add((DisplayedTag(group: group, name: name.toString()), (count as num).toInt()));
+                results.add((
+                  DisplayedTag(
+                    group: group,
+                    name: nameStr,
+                    translated: TagTranslate.of(group, nameStr),
+                  ),
+                  (count as num).toInt(),
+                ));
               }
             }
           });
@@ -350,8 +417,238 @@ class HentaiIndex {
       });
     }
 
-    results.sort((a, b) => b.$2.compareTo(a.$2));
+    // 3. 내장 아티스트 사전 매칭
+    _appendFromBuiltinArtists(prefix, results, seen);
+
+    // 4. 결과가 부족하거나 로컬 DB에 있는 아티스트/그룹 보강
+    if (results.length < 60) {
+      await _appendFromDatabase('artist', prefix, results, seen);
+      await _appendFromDatabase('group', prefix, results, seen);
+    }
+
+    _sortAutoCompleteResults(results, prefix);
     return results;
+  }
+
+  static void _appendFromBuiltinArtists(
+    String query,
+    List<(DisplayedTag, int)> results,
+    Set<String> seen,
+  ) {
+    final clean = query.trim().toLowerCase().replaceAll('_', ' ');
+    if (clean.isEmpty) return;
+
+    for (final artist in builtinArtists) {
+      if (artist.toLowerCase().contains(clean)) {
+        final key = 'artist:$artist';
+        if (!seen.contains(key)) {
+          seen.add(key);
+          results.add((
+            DisplayedTag(group: 'artist', name: artist),
+            0,
+          ));
+        }
+      }
+    }
+  }
+
+  static Future<void> _appendFromDatabase(
+    String group,
+    String query,
+    List<(DisplayedTag, int)> results,
+    Set<String> seen,
+  ) async {
+    try {
+      final columnMap = {
+        'artist': 'Artists',
+        'group': 'Groups',
+        'series': 'Series',
+        'character': 'Characters',
+        'uploader': 'Uploader',
+      };
+      final column = columnMap[group];
+      if (column == null) return;
+
+      final clean = query.trim().replaceAll('_', ' ');
+      if (clean.isEmpty) return;
+
+      final db = await DataBaseManager.getInstance();
+      final escaped = clean.replaceAll("'", "''");
+      final rawResults = await db.query(
+        "SELECT $column FROM HitomiColumnModel WHERE $column LIKE '%$escaped%' LIMIT 100",
+      );
+
+      final tokenCounts = <String, int>{};
+      for (final row in rawResults) {
+        final val = row[column];
+        if (val == null) continue;
+        final parts = val.toString().split('|');
+        for (var part in parts) {
+          part = part.trim();
+          if (part.isEmpty) continue;
+          if (part.toLowerCase().contains(clean.toLowerCase())) {
+            tokenCounts[part] = (tokenCounts[part] ?? 0) + 1;
+          }
+        }
+      }
+
+      for (final entry in tokenCounts.entries) {
+        final key = '$group:${entry.key}';
+        if (!seen.contains(key)) {
+          seen.add(key);
+          results.add((
+            DisplayedTag(
+              group: group,
+              name: entry.key,
+              translated: TagTranslate.of(group, entry.key),
+            ),
+            entry.value,
+          ));
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// 동기적으로 메모리에 있는 태그 및 아티스트, 그룹, 시리즈를 0ms 만에 검색하는 메서드 (FilterPage 연동용)
+  static List<(DisplayedTag, int)> searchTagsSync(String query) {
+    final clean = query.trim().toLowerCase().replaceAll('_', ' ');
+    if (clean.isEmpty) return const [];
+
+    final results = <(DisplayedTag, int)>[];
+    final seen = <String>{};
+
+    // 1. TagTranslate (일반 태그, 시리즈, 캐릭터 등)
+    final transMatches = TagTranslate.containsTotal(clean);
+    for (final tag in transMatches) {
+      final key = '${tag.group}:${tag.name}';
+      if (!seen.contains(key)) {
+        seen.add(key);
+        int count = 0;
+        if (tagCount != null &&
+            tagCount!.containsKey(tag.group) &&
+            tagCount![tag.group].containsKey(tag.name)) {
+          count = (tagCount![tag.group][tag.name] as num).toInt();
+        }
+        results.add((tag, count));
+      }
+    }
+
+    // 2. tagCount 메모리 맵 (artist, group, uploader, type 등 전체 그룹)
+    if (tagCount != null) {
+      tagCount!.forEach((group, map) {
+        if (map is Map) {
+          map.forEach((k, v) {
+            final kStr = k.toString();
+            if (kStr.toLowerCase().contains(clean)) {
+              final key = '$group:$kStr';
+              if (!seen.contains(key)) {
+                seen.add(key);
+                results.add((
+                  DisplayedTag(
+                    group: group,
+                    name: kStr,
+                    translated: TagTranslate.of(group, kStr),
+                  ),
+                  (v as num).toInt(),
+                ));
+              }
+            }
+          });
+        }
+      });
+    }
+
+    // 3. 내장 아티스트 사전 (Artists.collection)
+    for (final artist in builtinArtists) {
+      if (artist.toLowerCase().contains(clean)) {
+        final key = 'artist:$artist';
+        if (!seen.contains(key)) {
+          seen.add(key);
+          results.add((DisplayedTag(group: 'artist', name: artist), 0));
+        }
+      }
+    }
+
+    _sortAutoCompleteResults(results, clean);
+    return results;
+  }
+
+  /// 태그 자동완성 스마트 랭킹 정렬 알고리즘:
+  /// 1. 일치도 (완전 일치 > 접두어 일치 > 단어 시작 일치 > 중간 포함)
+  /// 2. 태그 그룹 우선순위 (tag, female, male > artist, group > lang > series > character)
+  /// 3. 작품 수 (인기도 가산)
+  /// 4. 이름 길이 (짧은 핵심 태그 우선)
+  static void _sortAutoCompleteResults(
+    List<(DisplayedTag, int)> results,
+    String query,
+  ) {
+    final cleanQuery = query.trim().toLowerCase();
+
+    int scoreTag((DisplayedTag, int) item) {
+      final tag = item.$1;
+      final count = item.$2;
+      final name = (tag.name ?? '').toLowerCase();
+      final translated = (tag.translated ?? '').toLowerCase();
+      final group = (tag.group ?? '').toLowerCase();
+
+      int score = 0;
+
+      // 1. 일치 방식 점수 (Match Quality)
+      if (name == cleanQuery) {
+        score += 10000;
+      } else if (translated == cleanQuery) {
+        score += 9000;
+      } else if (name.startsWith(cleanQuery)) {
+        score += 5000;
+      } else if (translated.startsWith(cleanQuery)) {
+        score += 4500;
+      } else if (name.split(RegExp(r'[\s_]+')).any((word) => word.startsWith(cleanQuery))) {
+        score += 3000;
+      } else {
+        score += 1000;
+      }
+
+      // 2. 그룹 우선순위 (Group Priority)
+      // 핵심 성향 태그(tag, female, male) > 작가/서클 > 언어 > 시리즈 > 캐릭터
+      switch (group) {
+        case 'tag':
+        case 'female':
+        case 'male':
+          score += 800;
+          break;
+        case 'artist':
+        case 'group':
+          score += 600;
+          break;
+        case 'lang':
+        case 'language':
+          score += 500;
+          break;
+        case 'series':
+          score += 300;
+          break;
+        case 'character':
+          score += 100;
+          break;
+        default:
+          score += 50;
+          break;
+      }
+
+      // 3. 인기도 / 작품 수 (Count)
+      if (count > 0) {
+        score += (count > 500 ? 500 : count);
+      }
+
+      // 4. 이름 길이 패널티 (짧은 핵심 단어 우선)
+      if (name.isNotEmpty) {
+        score -= name.length * 2;
+      }
+
+      return score;
+    }
+
+    results.sort((a, b) => scoreTag(b).compareTo(scoreTag(a)));
   }
 
   static Future<List<(DisplayedTag, int)>> queryAutoCompleteFuzzy(
@@ -368,7 +665,7 @@ class HentaiIndex {
       final name = prefix.split(':').last;
 
       if (group == 'lang') {
-        return _queryAutoCompleteWithTagmap(prefix, useTranslated);
+        return await _queryAutoCompleteWithTagmap(prefix, useTranslated);
       }
 
       // <Tag, Similarity, Count>
@@ -404,6 +701,10 @@ class HentaiIndex {
             .where((e) => e.$1.group == group)
             .map((e) => (e.$1, e.$2, 0));
         results.addAll(fuzzed);
+      }
+
+      if (results.isEmpty && (group == 'artist' || group == 'group' || group == 'series')) {
+        return await _queryAutoCompleteWithTagmap(prefix, useTranslated);
       }
 
       results.sort((a, b) => a.$2.compareTo(b.$2));

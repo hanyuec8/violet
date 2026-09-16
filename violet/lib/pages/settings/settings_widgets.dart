@@ -51,7 +51,7 @@ class SettingGroupName extends StatelessWidget {
 
 Widget buildSettingItems(List<Widget> items) {
   final itemsWithDividers = items
-      .map((e) => [e, SettingGroupDivider(key: GlobalKey())])
+      .map((e) => [e, const SettingGroupDivider()])
       .expand((e) => e)
       .take(items.length * 2 - 1)
       .toList();

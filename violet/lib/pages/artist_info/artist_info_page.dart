@@ -50,12 +50,15 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
   bool qureyLoaded = false;
   bool isWebMode = true;
   bool isWebLoading = false;
+  String selectedLanguage = 'korean';
+  final Map<String, List<QueryResult>> _langArticles = {};
   // This is used for top color bar
   int femaleTags = 0;
   int maleTags = 0;
   int tags = 0;
   // Artist Articles
   late List<QueryResult> cc;
+  List<QueryResult> allArticles = <QueryResult>[];
   // Chart component lists
   late List<(String, int)> lff = <(String, int)>[];
   late List<(String, int)> lffOrigin;
@@ -82,7 +85,10 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
   void initState() {
     super.initState();
 
+    selectedLanguage = 'korean';
+
     cc = <QueryResult>[];
+    allArticles = <QueryResult>[];
     lffOrigin = <(String, int)>[];
     similars = <(String, double)>[];
     similarsAll = <(String, double)>[];
@@ -101,61 +107,48 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
       } catch (_) {}
 
       //
-      //  Get query
+      //  Get query (기본 언어 인덱스 직결 로딩)
       //
       try {
-        cc = await query();
+        final initialArticles = await query(null, selectedLanguage);
+        _langArticles[selectedLanguage] = initialArticles;
+        cc = initialArticles;
+        if (selectedLanguage == 'all') {
+          allArticles = initialArticles;
+        }
       } catch (e, st) {
         Logger.error('[ArtistInfoPage-query] E: $e\n$st');
         cc = <QueryResult>[];
       }
 
-      //
-      //  Title based article clustering
-      //
-      try {
-        series = HitomiTitleCluster.doClustering(
-          cc.map((e) => e.title() as String).toList(),
-        ).toList();
-      } catch (_) {
-        series = <List<int>>[];
+      // 1차 통계 산출
+      _updateStatistics();
+
+      if (mounted) {
+        setState(() {
+          qureyLoaded = true;
+        });
       }
 
-      //
-      //  Statistics
-      //
-      try {
-        var ffstat = <String, int>{};
-
-        for (var element in cc) {
-          if (element.tags() == null) continue;
-          (element.tags() as String)
-              .split('|')
-              .where((element) => element != '')
-              .forEach((element) {
-                if (element.startsWith('female:')) {
-                  femaleTags += 1;
-                } else if (element.startsWith('male:')) {
-                  maleTags += 1;
-                } else {
-                  tags += 1;
-                }
-
-                if (!ffstat.containsKey(element)) ffstat[element] = 0;
-                ffstat[element] = ffstat[element]! + 1;
+      // 백그라운드로 전체 언어 작품 및 통계 보강 로딩
+      Future.microtask(() async {
+        try {
+          if (allArticles.isEmpty) {
+            allArticles = await query(null, 'all');
+            _langArticles['all'] = allArticles;
+          }
+          if (cc.isEmpty && allArticles.isNotEmpty) {
+            final fallback = filterByLanguage(allArticles, selectedLanguage);
+            if (mounted) {
+              setState(() {
+                cc = fallback.isNotEmpty ? fallback : allArticles;
+                if (fallback.isEmpty) selectedLanguage = 'all';
               });
-        }
-
-        ffstat.forEach((key, value) {
-          lff.add((key, value));
-        });
-        lff.sort((x, y) => y.$2.compareTo(x.$2));
-
-        lffOrigin = lff;
-        lff = lff.take(5).toList();
-
-        if (femaleTags + maleTags + tags == 0) tags = 0;
-      } catch (_) {}
+            }
+          }
+          _updateStatistics();
+        } catch (_) {}
+      });
 
       //
       //  Similar Artists (or group, uploader)
@@ -266,13 +259,15 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
     }
   }
 
-  Future<List<QueryResult>> query([bool? forceWeb]) async {
+  Future<List<QueryResult>> query([bool? forceWeb, String? lang]) async {
     final useWeb = forceWeb ?? isWebMode;
+    final targetLang = lang ?? selectedLanguage;
     if (useWeb) {
       try {
         final hybridResults = await HybridLoader.fetchArtistArticlesHybrid(
           name: widget.name,
           type: widget.type.name,
+          language: targetLang,
         );
         if (hybridResults.isNotEmpty) {
           return hybridResults;
@@ -283,8 +278,9 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
     }
     try {
       final token = '${widget.type.name}:${widget.name.replaceAll(' ', '_')}';
+      final langToken = targetLang != 'all' ? 'language:$targetLang' : '';
       final query = translate2query(
-        '$token ${Settings.includeTags.value} ${Settings.serializedExcludeTags}',
+        '$token $langToken ${Settings.includeTags.value} ${Settings.serializedExcludeTags}'.trim(),
       );
       final qm = await QueryManager.query('$query ORDER BY Id DESC');
       return qm.results ?? <QueryResult>[];
@@ -294,18 +290,124 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
     }
   }
 
+  void _updateStatistics() {
+    try {
+      final clusterSource = allArticles.isNotEmpty ? allArticles : cc;
+      series = HitomiTitleCluster.doClustering(
+        clusterSource.map((e) => e.title() as String).toList(),
+      ).toList();
+    } catch (_) {
+      series = <List<int>>[];
+    }
+
+    try {
+      var ffstat = <String, int>{};
+      final statSource = allArticles.isNotEmpty ? allArticles : cc;
+      femaleTags = 0;
+      maleTags = 0;
+      tags = 0;
+      lff = <(String, int)>[];
+
+      for (var element in statSource) {
+        if (element.tags() == null) continue;
+        (element.tags() as String)
+            .split('|')
+            .where((element) => element != '')
+            .forEach((element) {
+              if (element.startsWith('female:')) {
+                femaleTags += 1;
+              } else if (element.startsWith('male:')) {
+                maleTags += 1;
+              } else {
+                tags += 1;
+              }
+
+              if (!ffstat.containsKey(element)) ffstat[element] = 0;
+              ffstat[element] = ffstat[element]! + 1;
+            });
+      }
+
+      ffstat.forEach((key, value) {
+        lff.add((key, value));
+      });
+      lff.sort((x, y) => y.$2.compareTo(x.$2));
+
+      lffOrigin = lff;
+      lff = lff.take(5).toList();
+
+      if (femaleTags + maleTags + tags == 0) tags = 0;
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
+
   Future<void> toggleMode(bool webMode) async {
     if (isWebMode == webMode && qureyLoaded && !isWebLoading) return;
     if (!mounted) return;
     setState(() {
       isWebMode = webMode;
       isWebLoading = true;
+      _langArticles.clear(); // 모드 전환 시 캐시 초기화
     });
     try {
-      final newCc = await query(webMode);
+      final fetched = await query(webMode, selectedLanguage);
+      _langArticles[selectedLanguage] = fetched;
       if (mounted) {
         setState(() {
-          cc = newCc;
+          cc = fetched;
+          isWebLoading = false;
+        });
+      }
+      _updateStatistics();
+
+      // 전체 통계 백그라운드 갱신
+      Future.microtask(() async {
+        try {
+          allArticles = await query(webMode, 'all');
+          _langArticles['all'] = allArticles;
+          _updateStatistics();
+        } catch (_) {}
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          isWebLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> toggleLanguage(String lang) async {
+    if (selectedLanguage == lang && !isWebLoading) return;
+    if (!mounted) return;
+
+    // 1. 이미 메모리 캐시에 존재하는 경우 0ms 즉시 표시
+    if (_langArticles.containsKey(lang)) {
+      setState(() {
+        selectedLanguage = lang;
+        cc = _langArticles[lang]!;
+      });
+      return;
+    }
+
+    setState(() {
+      selectedLanguage = lang;
+      isWebLoading = true;
+    });
+
+    try {
+      final fetched = await query(isWebMode, lang);
+      _langArticles[lang] = fetched;
+      if (mounted) {
+        setState(() {
+          if (fetched.isNotEmpty) {
+            cc = fetched;
+          } else if (allArticles.isNotEmpty) {
+            // 해당 언어 인덱스 0건 시 allArticles에서 fallback 필터링
+            final filtered = filterByLanguage(allArticles, lang);
+            cc = filtered.isNotEmpty ? filtered : allArticles;
+          } else {
+            cc = <QueryResult>[];
+          }
           isWebLoading = false;
         });
       }
@@ -316,6 +418,123 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
         });
       }
     }
+  }
+
+  static List<QueryResult> filterByLanguage(
+    List<QueryResult> source,
+    String lang,
+  ) {
+    if (lang == 'all') return List.from(source);
+    final target = lang.toLowerCase();
+
+    return source.where((element) {
+      // 1. language() field check
+      try {
+        final l = element.language()?.toString().toLowerCase().trim();
+        if (l != null && l.isNotEmpty && l != 'n/a') {
+          if (l == target || l.contains(target)) return true;
+        }
+      } catch (_) {}
+
+      // 2. tags() field check
+      try {
+        final t = element.tags()?.toString().toLowerCase();
+        if (t != null && t.isNotEmpty) {
+          final tagList = t.split('|');
+          for (final tag in tagList) {
+            final trimmed = tag.trim();
+            if (trimmed == target ||
+                trimmed == 'language:$target' ||
+                trimmed.endsWith(':$target')) {
+              return true;
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 3. title fallback
+      try {
+        final title = element.title()?.toString().toLowerCase() ?? '';
+        if (target == 'korean') {
+          if (title.contains('[한국어]') ||
+              title.contains('(한국어)') ||
+              title.contains('[korean') ||
+              title.contains('(korean') ||
+              title.contains('한국어') ||
+              title.contains('korean translated')) {
+            return true;
+          }
+        } else if (target == 'japanese') {
+          if (title.contains('[japanese') ||
+              title.contains('(japanese') ||
+              title.contains('[일본어]') ||
+              title.contains('(일본어)')) {
+            return true;
+          }
+        } else if (target == 'english') {
+          if (title.contains('[english') ||
+              title.contains('(english') ||
+              title.contains('[영어]') ||
+              title.contains('(영어)')) {
+            return true;
+          }
+        } else if (target == 'chinese') {
+          if (title.contains('[chinese') ||
+              title.contains('(chinese') ||
+              title.contains('[중국어]') ||
+              title.contains('(중국어)')) {
+            return true;
+          }
+        }
+      } catch (_) {}
+
+      return false;
+    }).toList();
+  }
+
+  Widget languageSelector() {
+    final langs = [
+      ('all', '전체'),
+      ('korean', '한국어'),
+      ('japanese', '일본어'),
+      ('english', '영어'),
+      ('chinese', '중국어'),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2.0, bottom: 6.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: langs.map((item) {
+            final isSelected = selectedLanguage == item.$1;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3.0),
+              child: ChoiceChip(
+                label: Text(
+                  item.$2,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? Colors.white : null,
+                  ),
+                ),
+                selected: isSelected,
+                selectedColor: Settings.majorColor.value,
+                onSelected: (selected) {
+                  if (selected) {
+                    toggleLanguage(item.$1);
+                  }
+                },
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
   }
 
   Widget modeSelector() {
@@ -398,6 +617,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
                               Container(height: 16),
                               nameArea(),
                               modeSelector(),
+                              languageSelector(),
                               if (isWebLoading)
                                 const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 40.0),
@@ -419,6 +639,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
                             Container(height: 16),
                             nameArea(),
                             modeSelector(),
+                            languageSelector(),
                             const Expanded(
                               child: Align(
                                 alignment: Alignment.center,
@@ -914,7 +1135,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
     }
   }
 
-  Widget comment(context) {
+  Widget comment(BuildContext context) {
     return InkWell(
       onTap: () async {
         TextEditingController text = TextEditingController();
@@ -938,6 +1159,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
               text.text,
             );
             await readComments();
+            if (!context.mounted) return;
             Navigator.pop(context, true);
           },
         );

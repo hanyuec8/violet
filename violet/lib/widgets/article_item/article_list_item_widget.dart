@@ -14,6 +14,7 @@ import 'package:pimp_my_button/pimp_my_button.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:violet/component/hentai.dart';
+import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/database/user/record.dart';
 import 'package:violet/locale/locale.dart' as locale;
@@ -88,6 +89,10 @@ class _ArticleListItemWidgetState extends State<ArticleListItemWidget>
       final query = await HentaiManager.idQueryWeb(
         '${c.articleListItem.queryResult.id()}',
       );
+
+      // 원본 queryResult의 result 맵도 최신 메타데이터로 갱신 (부모 화면/FilterPage와 동기화)
+      c.articleListItem.queryResult.result.addAll(query.result);
+      HybridLoader.cacheMetadata(query);
 
       // Update ArticleListItem to new
       data = ArticleListItem.fromJson({

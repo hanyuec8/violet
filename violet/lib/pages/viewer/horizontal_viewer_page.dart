@@ -555,7 +555,9 @@ class _HorizontalViewerPageState extends State<HorizontalViewerPage> {
           if (mounted) {
             setState(() {
               provider.evict();
-              c.imgKeys[index] = GlobalKey();
+              c.imgKeys[index] = ValueKey(
+                'img_${index}_${DateTime.now().millisecondsSinceEpoch}',
+              );
             });
           }
         });

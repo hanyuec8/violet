@@ -38,6 +38,8 @@ class SearchPageController extends GetxController {
   bool _scrollInProgress = false;
   bool _queryEnd = false;
 
+  static const int defaultPageSize = 50;
+
   var isExtended = false.obs;
   var searchPageNum = 0.obs;
   var searchTotalResultCount = 0.obs;
@@ -55,7 +57,7 @@ class SearchPageController extends GetxController {
   int pupilFilterPage = 1;
   int mainHybridPage = 1;
 
-  final VoidCallback reloadForce;
+  final void Function({bool isAppend}) reloadForce;
 
   SearchPageController({required this.reloadForce});
 
@@ -219,7 +221,7 @@ class SearchPageController extends GetxController {
         final hybridList = await HybridLoader.fetchMainHybridArticles(
           query: query,
           page: mainHybridPage,
-          pageSize: 25,
+          pageSize: defaultPageSize,
         );
         mainHybridPage++;
 
@@ -257,17 +259,21 @@ class SearchPageController extends GetxController {
         }
       }
 
+      final hadExistingItems = isPupilFilterUsed.value
+          ? pupilFilterResult.isNotEmpty
+          : queryResult.isNotEmpty;
+
       if (isFilterUsed) {
         final target = isPupilFilterUsed.value ? pupilFilterResult : queryResult;
         filterResult = filterController.applyFilter(target);
-        searchTotalResultCount.value = filterResult.length;
+        searchTotalResultCount.value = baseCount + filterResult.length;
       } else {
-        searchTotalResultCount.value = isPupilFilterUsed.value
+        searchTotalResultCount.value = baseCount + (isPupilFilterUsed.value
             ? pupilFilterResult.length
-            : queryResult.length;
+            : queryResult.length);
       }
 
-      reloadForce();
+      reloadForce(isAppend: hadExistingItems);
       ScriptManager.refresh();
     } catch (e, st) {
       Logger.error(
@@ -292,13 +298,17 @@ class SearchPageController extends GetxController {
     _queryEnd = false;
     queryResult = [];
     pupilFilterResult = [];
-    pupilFilterPage = 1;
-    mainHybridPage = 1;
+
+    // baseCount(점프 위치)를 기반으로 시작 페이지 계산 (1-indexed)
+    final startPage = (baseCount ~/ defaultPageSize) + 1;
+    pupilFilterPage = startPage;
+    mainHybridPage = startPage;
+
     filterController = FilterController(
       heroKey: 'searchtype${ModalBottomSheetContext.getCount()}',
     );
     isFilterUsed = false;
-    searchTotalResultCount.value = 0;
+    searchTotalResultCount.value = baseCount;
     searchPageNum.value = 0;
     if (scrollController?.hasClients ?? false) {
       scrollController?.jumpTo(0.0);
@@ -320,9 +330,9 @@ class SearchPageController extends GetxController {
       isPupilFilterUsed.value = false;
       if (isFilterUsed) {
         filterResult = filterController.applyFilter(queryResult);
-        searchTotalResultCount.value = filterResult.length;
+        searchTotalResultCount.value = baseCount + filterResult.length;
       } else {
-        searchTotalResultCount.value = queryResult.length;
+        searchTotalResultCount.value = baseCount + queryResult.length;
       }
       reloadForce();
       Fluttertoast.showToast(
@@ -341,9 +351,9 @@ class SearchPageController extends GetxController {
 
     if (isFilterUsed) {
       filterResult = filterController.applyFilter(pupilFilterResult);
-      searchTotalResultCount.value = filterResult.length;
+      searchTotalResultCount.value = baseCount + filterResult.length;
     } else {
-      searchTotalResultCount.value = pupilFilterResult.length;
+      searchTotalResultCount.value = baseCount + pupilFilterResult.length;
     }
     reloadForce();
 

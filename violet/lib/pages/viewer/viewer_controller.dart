@@ -108,7 +108,7 @@ class ViewerController extends GetxController {
   late List<double> estimatedImgHeight;
   late List<double> realImgHeight;
   late List<double> realImgWidth;
-  late List<GlobalKey> imgKeys;
+  late List<Key> imgKeys;
   late List<bool> loadingEstimaed;
 
   /// this variable used in [vertical_viewer_page]
@@ -141,10 +141,10 @@ class ViewerController extends GetxController {
     imgHeight = List<double>.filled(maxPage, 0);
     estimatedImgHeight = List<double>.filled(maxPage, 0);
     realImgHeight = List<double>.filled(maxPage, 0);
-    realImgHeight = List<double>.filled(maxPage, 0);
-    imgKeys = List<GlobalKey>.generate(
+    realImgWidth = List<double>.filled(maxPage, 0);
+    imgKeys = List<Key>.generate(
       provider.uris.length,
-      (index) => GlobalKey(),
+      (index) => ValueKey('img_$index'),
     );
     loadingEstimaed = List<bool>.filled(maxPage, false);
   }

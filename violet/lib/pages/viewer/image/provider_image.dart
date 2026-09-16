@@ -11,6 +11,7 @@ import 'package:violet/pages/viewer/viewer_controller.dart';
 import 'package:violet/settings/settings.dart';
 import 'package:violet/settings/settings_wrapper.dart';
 import 'package:violet/pages/viewer/image/image_crop_bookmark.dart';
+import 'package:violet/pages/viewer/vertical_viewer_page.dart';
 
 typedef VImageWidgetBuilder =
     Widget Function(BuildContext context, Widget child);
@@ -27,19 +28,21 @@ typedef VLoadingErrorWidgetBuilder =
 
 class ProviderImage extends StatefulWidget {
   final String getxId;
-  final GlobalKey imgKey;
+  final Key? imgKey;
   final String imgUrl;
   final Map<String, String>? imgHeader;
-  final VImageWidgetBuilder imageWidgetBuilder;
+  final VImageWidgetBuilder? imageWidgetBuilder;
+  final DoubleCallback? heightCallback;
   final int index;
 
   const ProviderImage({
     super.key,
     required this.getxId,
-    required this.imgKey,
+    this.imgKey,
     required this.imgUrl,
     required this.imgHeader,
-    required this.imageWidgetBuilder,
+    this.imageWidgetBuilder,
+    this.heightCallback,
     required this.index,
   });
 
@@ -109,7 +112,9 @@ class _ProviderImageState extends State<ProviderImage> {
       final iconButton = IconButton(
         icon: Icon(Icons.refresh, color: Settings.majorColor.value),
         onPressed: () => setState(() {
-          c.imgKeys[widget.index] = GlobalKey();
+          c.imgKeys[widget.index] = ValueKey(
+            'img_${widget.index}_${DateTime.now().millisecondsSinceEpoch}',
+          );
         }),
       );
 
@@ -129,7 +134,15 @@ class _ProviderImageState extends State<ProviderImage> {
         !_loaded) {
       _loaded = true;
       c.isImageLoaded[widget.index] = true;
-      return widget.imageWidgetBuilder(context, state.completedWidget);
+      if (imageInfo != null && widget.heightCallback != null) {
+        final width = MediaQuery.of(context).size.width;
+        final aspectRatio = imageInfo.image.width / imageInfo.image.height;
+        final height = (width / aspectRatio - 1.5).floor().toDouble();
+        widget.heightCallback!(height);
+      }
+      return widget.imageWidgetBuilder != null
+          ? widget.imageWidgetBuilder!(context, state.completedWidget)
+          : state.completedWidget;
     } else if (state.extendedImageLoadState == LoadState.loading) {
       return SizedBox(
         height: c.estimatedImgHeight[widget.index] != 0

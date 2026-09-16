@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/model/article_info.dart';
 
 class ArticleSourceBadge extends StatefulWidget {
@@ -39,7 +40,7 @@ class _ArticleSourceBadgeState extends State<ArticleSourceBadge> {
     final result = widget.data.queryResult.result;
     _source = (result['source'] ?? '').toString();
     _isCommon = result['is_common'] == true || _source == 'common';
-    _isPupilOnly = result['is_pupil_only'] == true || _source == 'pupil_only';
+    _isPupilOnly = HybridLoader.isPupilOnly(widget.data.queryResult);
     _hasEHash = result['EHash'] != null;
     _hasHitomi = result['ExistOnHitomi'] == 1 || _source == 'pupil' || _isPupilOnly;
 
@@ -66,9 +67,9 @@ class _ArticleSourceBadgeState extends State<ArticleSourceBadge> {
       badgeColor = Colors.teal;
       badgeLabel = 'Violet & Pupil 공통';
       badgeIcon = MdiIcons.swapHorizontalCircleOutline;
-    } else if (_hasHitomi && !_hasEHash) {
-      badgeColor = Colors.deepOrange;
-      badgeLabel = 'Pupil 방식 (단독)';
+    } else if (_hasHitomi) {
+      badgeColor = Colors.orange;
+      badgeLabel = 'Pupil 방식 (Hitomi)';
       badgeIcon = MdiIcons.eyeOutline;
     } else {
       badgeColor = Colors.deepPurple;

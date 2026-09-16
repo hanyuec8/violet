@@ -140,7 +140,7 @@ class HentaiManager {
       'Tags': _encodePipeValues(article['Tags']),
       'Type': article['Type'],
       'Language': article['Language'],
-      'Published': article['Published'],
+      'Published': article['Published'] ?? gallery['Published'],
       'Files': gallery['Files'],
       'Thumbnail': article['Thumbnail'],
       'ExistOnHitomi': 1,
@@ -320,11 +320,23 @@ class HentaiManager {
       'Artists': _encodePipeValues(article['Artists']),
       'Groups': _encodePipeValues(gallery['Groups']),
       'Characters': _encodePipeValues(gallery['Characters']),
-      'Series': _encodePipeValues(article['Series']),
-      'Tags': _encodePipeValues(article['Tags']),
-      'Type': article['Type'],
-      'Language': article['Language'],
-      'Published': article['Published'],
+      'Series': _encodePipeValues(
+        (article['Series'] is List && (article['Series'] as List).isNotEmpty)
+            ? (article['Series'] as List).cast<String>()
+            : (gallery['Series'] is List
+                ? (gallery['Series'] as List).cast<String>()
+                : null),
+      ),
+      'Tags': _encodePipeValues(
+        (article['Tags'] is List && (article['Tags'] as List).isNotEmpty)
+            ? (article['Tags'] as List).cast<String>()
+            : (gallery['Tags'] is List
+                ? (gallery['Tags'] as List).cast<String>()
+                : null),
+      ),
+      'Type': article['Type'] ?? gallery['Type'],
+      'Language': article['Language'] ?? gallery['Language'],
+      'Published': article['Published'] ?? gallery['Published'],
       'Files': gallery['Files'],
       'Thumbnail': article['Thumbnail'],
       'ExistOnHitomi': 1,
@@ -601,6 +613,7 @@ class HentaiManager {
         'Type': info['type'],
         'Language': info['language'],
         'Files': info['files'] is List ? (info['files'] as List).length : null,
+        'Published': info['date'],
       };
     } catch (e, st) {
       Logger.error(

@@ -482,30 +482,31 @@ class DataBaseDownloadPageState extends State<DataBaseDownloadPage> {
           'class': classes,
         };
 
+        final subdir = Platform.isAndroid ? '/data' : '';
         final directory = await getApplicationDocumentsDirectory();
-        final path1 = File('${directory.path}/index.json');
+        final path1 = File('${directory.path}$subdir/index.json');
         path1.writeAsString(jsonEncode(index));
 
-        final path2 = File('${directory.path}/tag-artist.json');
+        final path2 = File('${directory.path}$subdir/tag-artist.json');
         path2.writeAsString(jsonEncode(tagArtist));
-        final path3 = File('${directory.path}/tag-group.json');
+        final path3 = File('${directory.path}$subdir/tag-group.json');
         path3.writeAsString(jsonEncode(tagGroup));
-        final path4 = File('${directory.path}/tag-index.json');
+        final path4 = File('${directory.path}$subdir/tag-index.json');
         path4.writeAsString(jsonEncode(tagIndex));
-        final path5 = File('${directory.path}/tag-uploader.json');
+        final path5 = File('${directory.path}$subdir/tag-uploader.json');
         path5.writeAsString(jsonEncode(tagUploader));
-        final path6 = File('${directory.path}/tag-series.json');
+        final path6 = File('${directory.path}$subdir/tag-series.json');
         path6.writeAsString(jsonEncode(tagSeries));
-        final path7 = File('${directory.path}/tag-character.json');
+        final path7 = File('${directory.path}$subdir/tag-character.json');
         path7.writeAsString(jsonEncode(tagCharacter));
 
-        final path8 = File('${directory.path}/character-series.json');
+        final path8 = File('${directory.path}$subdir/character-series.json');
         path8.writeAsString(jsonEncode(characterSeries));
-        final path9 = File('${directory.path}/series-character.json');
+        final path9 = File('${directory.path}$subdir/series-character.json');
         path9.writeAsString(jsonEncode(seriesCharacter));
-        final path10 = File('${directory.path}/character-character.json');
+        final path10 = File('${directory.path}$subdir/character-character.json');
         path10.writeAsString(jsonEncode(characterCharacter));
-        final path11 = File('${directory.path}/series-series.json');
+        final path11 = File('${directory.path}$subdir/series-series.json');
         path11.writeAsString(jsonEncode(seriesSeries));
 
         break;

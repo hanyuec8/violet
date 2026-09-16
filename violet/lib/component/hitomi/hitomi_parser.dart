@@ -41,8 +41,13 @@ class HitomiParser {
     series = _parseLinksFromLabel(rows, 'series');
     type = _parseFirstLinkFromLabel(rows, 'type');
     language = _legalizeLanguage(_parseFirstLinkFromLabel(rows, 'language'));
-    tags = _parseLinksFromLabel(rows, 'tags').map(_legalizeTag).toList();
-    published = metadata?.querySelector('p')?.text.trim();
+    final parsedTags = _parseLinksFromLabel(rows, 'tags');
+    tags = (parsedTags.isNotEmpty ? parsedTags : _parseLinksFromLabel(rows, 'tag'))
+        .map(_legalizeTag)
+        .toList();
+    published = doc.querySelector('p.date')?.text.trim() ??
+        doc.querySelector('.date')?.text.trim() ??
+        metadata?.querySelector('p')?.text.trim();
 
     return {
       'Magic': magic,

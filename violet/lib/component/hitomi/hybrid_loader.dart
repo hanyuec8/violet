@@ -2,11 +2,15 @@
 // Copyright (C) 2020-2026. violet-team. Licensed under the Apache-2.0 License.
 
 import 'dart:async';
+import 'dart:convert';
 import 'package:violet/component/hentai.dart';
 import 'package:violet/component/hitomi/hitomi_nozomi.dart';
 import 'package:violet/component/hitomi/hitomi_parser.dart';
+import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/database.dart';
 import 'package:violet/database/query.dart';
+import 'package:violet/database/user/bookmark.dart';
+import 'package:violet/database/user/user.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/network/wrapper.dart' as http;
 import 'package:violet/script/script_manager.dart';
@@ -39,13 +43,11 @@ class HybridLoader {
     required String name,
     required String type,
     int page = 1,
+    int pageSize = 60,
+    String? language,
   }) async {
-    final results = <QueryResult>[];
-    final seenIds = <int>{};
-    final seenTitles = <String>{};
-
     final selectedLangs = getSelectedLanguages();
-    String targetLang = selectedLangs.length == 1 ? selectedLangs.first : 'all';
+    String targetLang = language ?? (selectedLangs.length == 1 ? selectedLangs.first : 'all');
 
     String getNozomiUrl(String lang) {
       switch (type.toLowerCase()) {
@@ -66,148 +68,213 @@ class HybridLoader {
       }
     }
 
-    // 1) Hitomi Nozomi Range Request (Pupil 방식)
-    final hitomiFuture = Future<List<QueryResult>>(() async {
-      try {
-        List<int> ids = [];
-        if (targetLang != 'all') {
-          ids = await HitomiNozomi.fetchGalleryIds(
-            getNozomiUrl(targetLang),
-            page,
-            pageSize: 30,
-          );
-        }
-        if (ids.isEmpty) {
-          ids = await HitomiNozomi.fetchGalleryIds(
-            getNozomiUrl('all'),
-            page,
-            pageSize: 30,
-          );
-        }
-        if (ids.isEmpty) return [];
+    Future<List<QueryResult>> fetchWithLang(String lang) async {
+      final results = <QueryResult>[];
+      final seenIds = <int>{};
 
-        // DB 조회 없이 순수 웹(Hitomi)에서 메타데이터 로딩
-        final fetchedList = <QueryResult>[];
-        const chunkSize = 8;
-        for (var i = 0; i < ids.length; i += chunkSize) {
-          final end = (i + chunkSize < ids.length) ? i + chunkSize : ids.length;
-          final chunk = ids.sublist(i, end);
-          final chunkFutures = chunk.map((id) async {
-            try {
-              final qr = await HentaiManager.idQueryHitomi(id.toString());
-              qr.result['ExistOnHitomi'] = 1;
-              qr.result['source'] = 'pupil';
-              return qr;
-            } catch (e) {
-              return QueryResult(result: {
-                'Id': id,
-                'Title': '$name #$id',
-                'Artists': name,
-                'ExistOnHitomi': 1,
-                'source': 'pupil',
-              });
+      // 1) 로컬 SQLite DB (HitomiColumnModel) 스트림: 0.05초 만에 즉시 반환
+      final localDbFuture = Future<List<QueryResult>>(() async {
+        try {
+          final db = await DataBaseManager.getInstance();
+          if (db.db == null || !db.db!.isOpen) return [];
+
+          final safeName = name.replaceAll("'", "''").replaceAll(' ', '_');
+          final token = '${type.toLowerCase()}:$safeName';
+          final langToken = lang != 'all' ? 'language:$lang' : '';
+          final translated = translate2query('$token $langToken'.trim());
+          final offset = (page - 1) * pageSize;
+          final sql = '$translated ORDER BY Id DESC LIMIT $pageSize OFFSET $offset';
+
+          final rows = await db.query(sql);
+          return rows.map((r) {
+            final map = Map<String, dynamic>.from(r);
+            map['source'] = 'common';
+            map['is_common'] = true;
+            return QueryResult(result: map);
+          }).toList();
+        } catch (e, st) {
+          Logger.error('[HybridLoader-Artist-Db] E: $e\n$st');
+          return [];
+        }
+      }).timeout(
+        const Duration(seconds: 4),
+        onTimeout: () => <QueryResult>[],
+      );
+
+      // 2) Hitomi Nozomi Range Request 스트림 (Pupil 방식)
+      final hitomiFuture = Future<List<QueryResult>>(() async {
+        final hitomiList = <QueryResult>[];
+        try {
+          List<int> ids = [];
+          if (lang != 'all') {
+            ids = await HitomiNozomi.fetchGalleryIds(
+              getNozomiUrl(lang),
+              page,
+              pageSize: pageSize,
+            );
+          }
+          if (ids.isEmpty) {
+            ids = await HitomiNozomi.fetchGalleryIds(
+              getNozomiUrl('all'),
+              page,
+              pageSize: pageSize,
+            );
+          }
+          if (ids.isEmpty) return [];
+
+          // 1단계: 캐시(메모리 + user.db ArticleCache 디스크) 일괄 선조회 (0.01초)
+          final cachedMap = await getCachedMetadataBatch(ids);
+          final missingIds = <int>[];
+          for (final id in ids) {
+            if (cachedMap.containsKey(id)) {
+              hitomiList.add(cachedMap[id]!);
+            } else {
+              missingIds.add(id);
             }
-          });
-          fetchedList.addAll(await Future.wait(chunkFutures));
+          }
+
+          // 2단계: 캐시에 없는 항목만 경량 네트워크 조회 (_idQueryHitomiFast)
+          if (missingIds.isNotEmpty) {
+            const chunkSize = 20;
+            for (var i = 0; i < missingIds.length; i += chunkSize) {
+              final end = (i + chunkSize < missingIds.length) ? i + chunkSize : missingIds.length;
+              final chunk = missingIds.sublist(i, end);
+              final chunkFutures = chunk.map((id) => _idQueryHitomiFast(id));
+              hitomiList.addAll(await Future.wait(chunkFutures));
+            }
+          }
+          for (final qr in hitomiList) {
+            qr.result['source'] = 'pupil';
+          }
+          return hitomiList;
+        } catch (e, st) {
+          Logger.error('[HybridLoader-Artist-Hitomi] E: $e\n$st');
+          return hitomiList;
+        }
+      }).timeout(
+        const Duration(seconds: 12),
+        onTimeout: () => <QueryResult>[],
+      );
+
+      // 3) E-Hentai 검색 (Violet 웹 검색 방식)
+      final ehentaiFuture = Future<List<QueryResult>>(() async {
+        try {
+          final langPrefix = lang != 'all' ? 'language:$lang ' : '';
+          final queryTag = '$langPrefix${type.toLowerCase()}:"$name"';
+          final ehQuery = formatEHentaiQuery(queryTag, lang);
+          final offset = (page - 1) * pageSize;
+          final ehList = await HentaiManager.searchEHentai(ehQuery, offset);
+          for (final qr in ehList) {
+            qr.result['source'] = 'violet';
+          }
+          return ehList;
+        } catch (e, st) {
+          Logger.error('[HybridLoader-Artist-EHentai] E: $e\n$st');
+          return [];
+        }
+      }).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => <QueryResult>[],
+      );
+
+      // 3개 소스를 병렬로 동시 대기 (Triple Hybrid)
+      final responses = await Future.wait([localDbFuture, hitomiFuture, ehentaiFuture])
+          .timeout(
+            const Duration(seconds: 14),
+            onTimeout: () => [<QueryResult>[], <QueryResult>[], <QueryResult>[]],
+          );
+      final localDbResults = responses[0];
+      final hitomiResults = responses[1];
+      final ehResults = responses[2];
+
+      void addResult(QueryResult qr) {
+        final id = qr.id();
+
+        // 언어 필터링 (한국어 등 지정 언어가 설정된 경우)
+        if (lang != 'all') {
+          final qrLang = (qr.language() ?? '').toString().toLowerCase();
+          final tags = (qr.tags() ?? '').toString().toLowerCase();
+          final qrTitle = (qr.title() ?? '').toString().toLowerCase();
+
+          final matchLang = qrLang.contains(lang) ||
+              tags.contains(lang) ||
+              (lang == 'korean' &&
+                  (qrLang == 'korean' ||
+                      tags.contains('korean') ||
+                      qrTitle.contains('[한국어]') ||
+                      qrTitle.contains('(한국어)')));
+
+          if (!matchLang && qrLang.isNotEmpty && qrLang != lang && qrLang != 'n/a') {
+            return;
+          }
         }
 
-        return fetchedList;
-      } catch (e, st) {
-        Logger.error('[HybridLoader-Hitomi] E: $e\n$st');
-        return [];
-      }
-    }).timeout(
-      const Duration(seconds: 4),
-      onTimeout: () => <QueryResult>[],
-    );
-
-    // 2) E-Hentai 검색 (Violet 웹 검색 방식)
-    final ehentaiFuture = Future<List<QueryResult>>(() async {
-      try {
-        final langPrefix = targetLang != 'all' ? 'language:$targetLang ' : '';
-        final queryTag = '$langPrefix$type:"$name"';
-        final ehList = await HentaiManager.searchEHentai(queryTag, 0);
-        return ehList;
-      } catch (e, st) {
-        Logger.error('[HybridLoader-EHentai] E: $e\n$st');
-        return [];
-      }
-    }).timeout(
-      const Duration(seconds: 4),
-      onTimeout: () => <QueryResult>[],
-    );
-
-    // 두 소스를 병렬로 동시 대기 (Zero Latency)
-    final responses = await Future.wait([hitomiFuture, ehentaiFuture])
-        .timeout(
-          const Duration(seconds: 5),
-          onTimeout: () => [<QueryResult>[], <QueryResult>[]],
-        );
-    final hitomiResults = responses[0];
-    final ehResults = responses[1];
-
-    void addResult(QueryResult qr) {
-      final id = qr.id();
-      final title = (qr.title() ?? '').trim().toLowerCase();
-
-      // 언어 필터링 (한국어 등 지정 언어가 설정된 경우)
-      if (targetLang != 'all') {
-        final qrLang = (qr.language() ?? '').toString().toLowerCase();
-        final tags = (qr.tags() ?? '').toString().toLowerCase();
-        final qrTitle = (qr.title() ?? '').toString().toLowerCase();
-
-        final matchLang = qrLang.contains(targetLang) ||
-            tags.contains(targetLang) ||
-            (targetLang == 'korean' &&
-                (qrLang == 'korean' ||
-                    tags.contains('korean') ||
-                    qrTitle.contains('[한국어]') ||
-                    qrTitle.contains('(한국어)')));
-
-        if (!matchLang && qrLang.isNotEmpty && qrLang != targetLang) {
-          return;
-        }
+        if (seenIds.contains(id)) return;
+        seenIds.add(id);
+        results.add(qr);
       }
 
-      if (seenIds.contains(id)) return;
-      if (title.isNotEmpty && seenTitles.contains(title)) return;
-
-      seenIds.add(id);
-      if (title.isNotEmpty) seenTitles.add(title);
-      results.add(qr);
-    }
-
-    // Hitomi 최신 결과 우선 반영
-    for (final item in hitomiResults) {
-      addResult(item);
-    }
-
-    // E-Hentai 결과 추가 병합 및 공통 작품 승격
-    for (final item in ehResults) {
-      final itemTitle = normalizeTitle(item.title() ?? '');
-      final existing = results.where((r) {
-        if (r.id() == item.id()) return true;
-        final rTitle = normalizeTitle(r.title() ?? '');
-        return rTitle.isNotEmpty &&
-            (rTitle == itemTitle ||
-                (rTitle.length >= 5 && itemTitle.contains(rTitle)) ||
-                (itemTitle.length >= 5 && rTitle.contains(itemTitle)));
-      }).firstOrNull;
-
-      if (existing != null) {
-        existing.result['source'] = 'common';
-        existing.result['is_common'] = true;
-        if (item.ehash() != null) existing.result['EHash'] = item.ehash();
-      } else {
-        item.result['source'] = 'violet';
+      // 로컬 DB 결과 우선 반영 (Violet 공식 DB 100% 공통 작품)
+      for (final item in localDbResults) {
         addResult(item);
       }
+
+      // Hitomi 최신 결과 반영 (로컬 DB와 대조 및 승격)
+      for (final item in hitomiResults) {
+        final id = item.id();
+        final existing = results.where((r) => r.id() == id).firstOrNull;
+        if (existing != null) {
+          existing.result['source'] = 'common';
+          existing.result['is_common'] = true;
+          _sessionBadgeCache[id] = 'common';
+        } else {
+          // 로컬 DB에 동일 언어 및 제목이 일치하는 항목이 있으면 common으로 승격
+          final existingByTitle = results.where((r) =>
+              isLanguageMatched(r, item) &&
+              isTitleMatched(r.title() ?? '', item.title() ?? '')).firstOrNull;
+          if (existingByTitle != null) {
+            existingByTitle.result['source'] = 'common';
+            existingByTitle.result['is_common'] = true;
+            _sessionBadgeCache[existingByTitle.id()] = 'common';
+          }
+          // 중요: Hitomi의 고유 ID 작품은 절대로 버리지 않고 리스트에 독립 추가
+          addResult(item);
+        }
+      }
+
+      // E-Hentai 결과 추가 병합 및 공통 작품 승격
+      for (final item in ehResults) {
+        final id = item.id();
+        final itemTitle = item.title() ?? '';
+        final existing = results.where((r) {
+          if (r.id() == id) return true;
+          return isLanguageMatched(r, item) && isTitleMatched(r.title() ?? '', itemTitle);
+        }).firstOrNull;
+
+        if (existing != null) {
+          existing.result['source'] = 'common';
+          existing.result['is_common'] = true;
+          if (item.ehash() != null) existing.result['EHash'] = item.ehash();
+          _sessionBadgeCache[existing.id()] = 'common';
+        } else {
+          addResult(item);
+        }
+      }
+
+      // ID 기준 최신순 정렬
+      results.sort((a, b) => b.id().compareTo(a.id()));
+      return results;
     }
 
-    // ID 기준 최신순 정렬
-    results.sort((a, b) => b.id().compareTo(a.id()));
+    // 1차 시도: 사용자가 지정한 targetLang으로 검색
+    var finalResults = await fetchWithLang(targetLang);
 
-    return results;
+    // 2차 Fallback: 지정 언어에 작품이 전혀 없는 경우 (0건) 자동으로 전체('all') 언어로 복구하여 언제나 작품 표시
+    if (finalResults.isEmpty && targetLang != 'all') {
+      finalResults = await fetchWithLang('all');
+    }
+
+    return finalResults;
   }
 
   /// 제목 정규화 유틸리티 (특수문자, 괄호, 이벤트명, 언어태그 제거)
@@ -219,6 +286,68 @@ class HybridLoader {
         .toLowerCase();
     // 한글, 영문, 일본어(가나/한자), 숫자만 남겨 정밀 비교
     return s.replaceAll(RegExp(r'[^0-9a-zA-Z가-힣\u3040-\u30ff\u4e00-\u9faf]'), '');
+  }
+
+  /// 제목에서 서브타이틀(|, /, :) 등을 고려하여 정규화된 토큰 목록을 추출합니다.
+  static List<String> extractTitleTokens(String raw) {
+    if (raw.trim().isEmpty) return [];
+    final results = <String>{};
+
+    // 1. 파이프(|), 슬래시(/), 하이픈(-) 등 서브타이틀 분리자로 분할
+    final parts = raw.split(RegExp(r'\||\/|\s-\s'));
+    for (final part in parts) {
+      final norm = normalizeTitle(part);
+      if (norm.length >= 3) {
+        results.add(norm);
+      }
+    }
+
+    // 2. 전체 문자열 정규화
+    final fullNorm = normalizeTitle(raw);
+    if (fullNorm.length >= 3) {
+      results.add(fullNorm);
+    }
+
+    return results.toList();
+  }
+
+  /// 두 제목이 동일하거나 동일 작품의 변형인지 정밀 대조합니다.
+  static bool isTitleMatched(String rawA, String rawB) {
+    if (rawA.isEmpty || rawB.isEmpty) return false;
+    final tokensA = extractTitleTokens(rawA);
+    final tokensB = extractTitleTokens(rawB);
+
+    for (final a in tokensA) {
+      for (final b in tokensB) {
+        if (a == b) return true;
+        if (a.length >= 5 && b.length >= 5) {
+          if (a.contains(b) || b.contains(a)) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /// 두 작품의 언어가 일치하는지 판별합니다.
+  /// 둘 중 하나가 언어 미지정이거나 N/A인 경우 허용하며, 명확한 언어가 서로 다르면 false를 반환합니다.
+  static bool isLanguageMatched(QueryResult a, QueryResult b) {
+    final langA = normalizeLanguage(a.language()?.toString() ?? '');
+    final langB = normalizeLanguage(b.language()?.toString() ?? '');
+    if (langA.isEmpty || langA == 'n/a' || langB.isEmpty || langB == 'n/a') {
+      return true;
+    }
+    return langA == langB;
+  }
+
+  /// 언어 문자열을 표준화 (korean, japanese, english, chinese, spanish 등)
+  static String normalizeLanguage(String raw) {
+    final l = raw.toLowerCase().trim();
+    if (l.contains('korean') || l.contains('한국어')) return 'korean';
+    if (l.contains('japanese') || l.contains('일본어') || l.contains('日本語')) return 'japanese';
+    if (l.contains('english') || l.contains('영어')) return 'english';
+    if (l.contains('chinese') || l.contains('중국어') || l.contains('中文')) return 'chinese';
+    if (l.contains('spanish') || l.contains('español') || l.contains('스페인어')) return 'spanish';
+    return l;
   }
 
   /// 사용자가 입력한 다양한 검색어(태그, 작가, 그룹, 시리즈, 캐릭터, 업로더 또는 성별 없는 태그)를
@@ -283,6 +412,15 @@ class HybridLoader {
         : (tokens.isNotEmpty ? tokens.first : cleanQuery);
     if (primaryTerm.toLowerCase().startsWith('tag:')) {
       primaryTerm = primaryTerm.substring(4).trim();
+    }
+
+    // 순수 숫자 또는 id:12345 인 경우 품번 ID 직접 반환
+    final numericId = int.tryParse(primaryTerm) ??
+        (primaryTerm.toLowerCase().startsWith('id:')
+            ? int.tryParse(primaryTerm.substring(3).trim())
+            : null);
+    if (numericId != null) {
+      return page == 1 ? [numericId] : <int>[];
     }
 
     final colonIdx = primaryTerm.indexOf(':');
@@ -443,6 +581,122 @@ class HybridLoader {
     return q.isEmpty ? langPrefix : '$langPrefix $q';
   }
 
+  /// Hitomi에서 수집된 작품 목록에 대해 로컬 DB, 북마크 DB, E-Hentai 대조군을 종합 검증하여
+  /// 기존 Violet/E-Hentai에 존재하는 작품은 'common'으로 확정 승격하고,
+  /// 오직 어디에도 존재하지 않는 순수 Hitomi 독점작만 'pupil_only'로 확정합니다.
+  static Future<void> verifyAndTagPupilArticles(
+    List<QueryResult> items, {
+    Set<int>? knownEhIds,
+    Set<String>? knownEhTitles,
+  }) async {
+    if (items.isEmpty) return;
+
+    final idListStr = items.map((e) => e.id()).join(',');
+
+    // 1) 로컬 DB(HitomiColumnModel) ID 및 제목 매칭
+    try {
+      final db = await DataBaseManager.getInstance();
+      if (db.db != null && db.db!.isOpen && idListStr.isNotEmpty) {
+        // ID 매칭
+        final dbMatches = await db.query(
+          'SELECT Id, Title, EHash FROM HitomiColumnModel WHERE Id IN ($idListStr)',
+        );
+        for (final row in dbMatches) {
+          final rid = row['Id'] as int?;
+          if (rid != null) {
+            for (final item in items) {
+              if (item.id() == rid) {
+                item.result['source'] = 'common';
+                item.result['is_common'] = true;
+                if (row['EHash'] != null) item.result['EHash'] = row['EHash'];
+                _sessionBadgeCache[rid] = 'common';
+              }
+            }
+          }
+        }
+
+        // 제목 기반 매칭 (아직 common이 아닌 항목)
+        for (final item in items) {
+          if (item.result['is_common'] == true) continue;
+          final tokens = extractTitleTokens(item.title() ?? '');
+          for (final tok in tokens) {
+            if (tok.length < 4) continue;
+            final safeTok = tok.replaceAll("'", "''");
+            try {
+              final matches = await db.query(
+                "SELECT Id, Title, EHash FROM HitomiColumnModel WHERE Title LIKE '%$safeTok%' LIMIT 3",
+              );
+              for (final mRow in matches) {
+                final dbTitle = mRow['Title'] as String? ?? '';
+                if (isTitleMatched(item.title() ?? '', dbTitle)) {
+                  item.result['source'] = 'common';
+                  item.result['is_common'] = true;
+                  if (mRow['EHash'] != null) item.result['EHash'] = mRow['EHash'];
+                  _sessionBadgeCache[item.id()] = 'common';
+                  break;
+                }
+              }
+            } catch (_) {}
+            if (item.result['is_common'] == true) break;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2) 북마크 DB(user.db) 대조: 사용자의 북마크에 있는 작품은 공통(common)으로 확정
+    try {
+      final bookmark = await Bookmark.getInstance();
+      for (final item in items) {
+        if (item.result['is_common'] == true) continue;
+        if (await bookmark.isBookmark(item.id())) {
+          item.result['source'] = 'common';
+          item.result['is_common'] = true;
+          _sessionBadgeCache[item.id()] = 'common';
+        }
+      }
+    } catch (_) {}
+
+    // 3) 외부에서 전달된 E-Hentai 대조군(knownEhIds, knownEhTitles) 확인
+    if (knownEhIds != null || knownEhTitles != null) {
+      for (final item in items) {
+        if (item.result['is_common'] == true) continue;
+        if (knownEhIds != null && knownEhIds.contains(item.id())) {
+          item.result['source'] = 'common';
+          item.result['is_common'] = true;
+          _sessionBadgeCache[item.id()] = 'common';
+          continue;
+        }
+        if (knownEhTitles != null && knownEhTitles.isNotEmpty) {
+          final iTitle = item.title() ?? '';
+          for (final ehTitle in knownEhTitles) {
+            if (isTitleMatched(iTitle, ehTitle)) {
+              item.result['source'] = 'common';
+              item.result['is_common'] = true;
+              _sessionBadgeCache[item.id()] = 'common';
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // 4) 철저한 검증 후 판정 확정: 어디에도 속하지 않는 순수 Hitomi 독점작만 pupil_only
+    for (final item in items) {
+      if (item.result['is_common'] == true ||
+          item.result['source'] == 'common' ||
+          item.result['source'] == 'violet' ||
+          item.ehash() != null) {
+        item.result['source'] = 'common';
+        item.result['is_common'] = true;
+        _sessionBadgeCache[item.id()] = 'common';
+      } else {
+        item.result['source'] = 'pupil_only';
+        item.result['is_pupil_only'] = true;
+        _sessionBadgeCache[item.id()] = 'pupil_only';
+      }
+    }
+  }
+
   /// Violet 웹 방식(E-Hentai)과 Pupil 방식(Hitomi) 둘 다에서 보이는 공통 작품은 철저히 제외하고,
   /// 오직 Pupil 방식으로만 불러올 수 있는 순수 독점/단독 최신 작품만 필터링하여 반환합니다.
   /// 공통 작품으로 인해 이번 페이지 결과가 비어있더라도, Hitomi 인덱스가 남아있는 한
@@ -508,7 +762,6 @@ class HybridLoader {
             hQr.result['source'] = 'pupil_only';
             candidates.add(hQr);
           }
-          // 'common'이나 'violet'은 이미 E-Hentai에 있는 것이 확인되었으므로 제외
           continue;
         }
         uncachedHitomiList.add(hQr);
@@ -516,26 +769,6 @@ class HybridLoader {
 
       // 2) 캐시되지 않은 신규 ID만 DB 및 E-Hentai 대조군 마련
       if (uncachedHitomiList.isNotEmpty) {
-        // 로컬 DB 전수 대조 (0ms)
-        try {
-          final db = await DataBaseManager.getInstance();
-          if (db.db != null && db.db!.isOpen) {
-            final idListStr = uncachedHitomiList.map((e) => e.id()).join(',');
-            if (idListStr.isNotEmpty) {
-              final dbMatches = await db.query(
-                'SELECT Id, Title, EHash FROM HitomiColumnModel WHERE Id IN ($idListStr)',
-              );
-              for (final row in dbMatches) {
-                final rid = row['Id'] as int?;
-                if (rid != null) ehIds.add(rid);
-                final t = normalizeTitle(row['Title'] as String? ?? '');
-                if (t.isNotEmpty) ehTitles.add(t);
-              }
-            }
-          }
-        } catch (_) {}
-
-        // E-Hentai 최신 피드는 1회만 로딩하여 캐싱 재활용 (지연 0초)
         if (!ehFetched) {
           ehFetched = true;
           try {
@@ -544,40 +777,23 @@ class HybridLoader {
                 .timeout(const Duration(seconds: 3), onTimeout: () => <QueryResult>[]);
             for (final item in ehList) {
               ehIds.add(item.id());
-              final t = normalizeTitle(item.title() ?? '');
-              if (t.isNotEmpty) ehTitles.add(t);
+              if ((item.title() ?? '').isNotEmpty) {
+                ehTitles.add(item.title()!);
+              }
             }
           } catch (_) {}
         }
 
+        await verifyAndTagPupilArticles(
+          uncachedHitomiList,
+          knownEhIds: ehIds,
+          knownEhTitles: ehTitles,
+        );
+
         for (final hQr in uncachedHitomiList) {
-          final hId = hQr.id();
-          if (ehIds.contains(hId)) {
-            _sessionBadgeCache[hId] = 'common';
-            continue;
+          if (hQr.result['is_pupil_only'] == true) {
+            candidates.add(hQr);
           }
-
-          final hTitle = normalizeTitle(hQr.title() ?? '');
-          bool existsOnEh = false;
-          if (hTitle.isNotEmpty && ehTitles.isNotEmpty) {
-            for (final ehTitle in ehTitles) {
-              if (hTitle == ehTitle ||
-                  (hTitle.length >= 6 && ehTitle.contains(hTitle)) ||
-                  (ehTitle.length >= 6 && hTitle.contains(ehTitle))) {
-                existsOnEh = true;
-                break;
-              }
-            }
-          }
-          if (existsOnEh) {
-            _sessionBadgeCache[hId] = 'common';
-            continue;
-          }
-
-          hQr.result['is_pupil_only'] = true;
-          hQr.result['source'] = 'pupil_only';
-          _sessionBadgeCache[hId] = 'pupil_only';
-          candidates.add(hQr);
         }
       }
 
@@ -597,6 +813,102 @@ class HybridLoader {
     );
   }
 
+  static bool _articleCacheTableInitialized = false;
+
+  static Future<void> _ensureArticleCacheTable(DataBaseManager db) async {
+    if (_articleCacheTableInitialized) return;
+    try {
+      await db.execute(
+        'CREATE TABLE IF NOT EXISTS ArticleCache (Id INTEGER PRIMARY KEY, Data TEXT)',
+      );
+      _articleCacheTableInitialized = true;
+    } catch (_) {}
+  }
+
+  static QueryResult? getCachedMetadata(int id) {
+    final cached = _sessionMetadataCache[id];
+    if (cached != null) {
+      return QueryResult(result: Map<String, dynamic>.from(cached.result));
+    }
+    return null;
+  }
+
+  static void cacheMetadata(QueryResult qr) {
+    final id = qr.id();
+    _sessionMetadataCache[id] = qr;
+
+    // 디스크(user.db) 영구 캐시 비동기 저장
+    Future.microtask(() async {
+      try {
+        final db = await CommonUserDatabase.getInstance();
+        await _ensureArticleCacheTable(db);
+        final jsonStr = jsonEncode(qr.result);
+        await db.insertOrReplace('ArticleCache', {
+          'Id': id,
+          'Data': jsonStr,
+        });
+      } catch (e) {
+        Logger.warning('[HybridLoader.cacheMetadata] disk cache error: $e');
+      }
+    });
+  }
+
+  /// ids 목록 중 이미 ArticleCache(로컬 디스크)에 저장된 메타데이터를 일괄 조회
+  static Future<Map<int, QueryResult>> getCachedMetadataBatch(
+    List<int> ids,
+  ) async {
+    final result = <int, QueryResult>{};
+    if (ids.isEmpty) return result;
+
+    // 1. 메모리 캐시 먼저 확인
+    final missingIds = <int>[];
+    for (final id in ids) {
+      final mem = _sessionMetadataCache[id];
+      if (mem != null) {
+        result[id] = QueryResult(result: Map<String, dynamic>.from(mem.result));
+      } else {
+        missingIds.add(id);
+      }
+    }
+
+    if (missingIds.isEmpty) return result;
+
+    // 2. 디스크 캐시(user.db)에서 일괄 쿼리
+    try {
+      final db = await CommonUserDatabase.getInstance();
+      await _ensureArticleCacheTable(db);
+
+      const int chunkSize = 500;
+      for (var i = 0; i < missingIds.length; i += chunkSize) {
+        final chunk = missingIds.sublist(
+          i,
+          i + chunkSize > missingIds.length ? missingIds.length : i + chunkSize,
+        );
+        final rows = await db.query(
+          'SELECT Id, Data FROM ArticleCache WHERE Id IN (${chunk.join(',')})',
+        );
+        for (final row in rows) {
+          try {
+            final id = row['Id'] as int;
+            final dataStr = row['Data'] as String;
+            final map = jsonDecode(dataStr) as Map<String, dynamic>;
+            final qr = QueryResult(result: map);
+            _sessionMetadataCache[id] = qr;
+            result[id] = qr;
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      Logger.warning('[HybridLoader.getCachedMetadataBatch] error: $e');
+    }
+
+    return result;
+  }
+
+  /// 외부 호출용 초고속 Hitomi 경량 로더 (galleryblock HTML 1회 호출)
+  static Future<QueryResult> idQueryHitomiFast(int id) async =>
+      _idQueryHitomiFast(id);
+
   /// galleryinfo.js 2차 요청 없이 galleryblock HTML 1회 요청만으로
   /// 검색 목록에 필요한 핵심 메타데이터를 초고속 수집하는 경량 로더
   static Future<QueryResult> _idQueryHitomiFast(int id) async {
@@ -611,7 +923,7 @@ class HybridLoader {
       final res = await http.get(
         'https://ltn.gold-usergeneratedcontent.net/galleryblock/$id.html',
         headers: headers,
-      ).timeout(const Duration(seconds: 3));
+      ).timeout(const Duration(seconds: 4));
 
       if (res.statusCode != 200) throw Exception('status ${res.statusCode}');
       final article = await HitomiParser.parseGalleryBlock(res.body);
@@ -651,6 +963,7 @@ class HybridLoader {
       };
       final qr = QueryResult(result: meta);
       _sessionMetadataCache[id] = qr;
+      cacheMetadata(qr);
       return qr;
     } catch (e) {
       return QueryResult(
@@ -666,11 +979,48 @@ class HybridLoader {
   static Future<List<QueryResult>> fetchMainHybridArticles({
     String query = '',
     int page = 1,
-    int pageSize = 25,
+    int pageSize = 50,
   }) async {
     final cleanQuery = query.trim();
+
+    // 순수 숫자(품번) 또는 id:숫자 단독 검색인 경우 직결 처리 (초고속 1건 반환)
+    final numericId = int.tryParse(cleanQuery) ??
+        (cleanQuery.toLowerCase().startsWith('id:')
+            ? int.tryParse(cleanQuery.substring(3).trim())
+            : null);
+    if (numericId != null) {
+      if (page > 1) return [];
+      try {
+        final hitomiQr = await _idQueryHitomiFast(numericId);
+        try {
+          final db = await DataBaseManager.getInstance();
+          if (db.db != null && db.db!.isOpen) {
+            final dbMatches = await db.query(
+              'SELECT * FROM HitomiColumnModel WHERE Id = $numericId',
+            );
+            if (dbMatches.isNotEmpty) {
+              final row = dbMatches.first;
+              hitomiQr.result.addAll(row);
+              hitomiQr.result['source'] = 'common';
+              hitomiQr.result['is_common'] = true;
+            }
+          }
+        } catch (_) {}
+        return [hitomiQr];
+      } catch (e, st) {
+        Logger.error('[HybridLoader-NumericIdQuery] E: $e\n$st');
+        return [];
+      }
+    }
+
     final selectedLangs = getSelectedLanguages();
     String targetLang = selectedLangs.length == 1 ? selectedLangs.first : 'all';
+
+    // 쿼리에 명시된 lang:/language: 태그가 있다면 targetLang으로 최우선 반영
+    final langMatch = RegExp(r'(?:^|\s)(?:lang|language):([a-zA-Z가-힣]+)', caseSensitive: false).firstMatch(cleanQuery);
+    if (langMatch != null) {
+      targetLang = langMatch.group(1)!.toLowerCase();
+    }
 
     // 1) Pupil 방식: fetchGalleryIdsForQuery 사용
     final pupilFuture = Future<List<QueryResult>>(() async {
@@ -726,12 +1076,30 @@ class HybridLoader {
     final violetFuture = Future<List<QueryResult>>(() async {
       try {
         final ehQuery = formatEHentaiQuery(cleanQuery, targetLang);
-        final offset = (page - 1) * pageSize;
-        final list = await HentaiManager.searchEHentai(ehQuery, offset);
-        for (final qr in list) {
-          qr.result['source'] = 'violet';
+        if (pageSize <= 25) {
+          final offset = (page - 1) * pageSize;
+          final list = await HentaiManager.searchEHentai(ehQuery, offset);
+          for (final qr in list) {
+            qr.result['source'] = 'violet';
+          }
+          return list;
+        } else {
+          final pagesToFetch = (pageSize / 25).ceil();
+          final baseOffset = (page - 1) * pageSize;
+          final futures = List.generate(
+            pagesToFetch,
+            (i) => HentaiManager.searchEHentai(ehQuery, baseOffset + i * 25),
+          );
+          final pagesResults = await Future.wait(futures);
+          final mergedList = <QueryResult>[];
+          for (final list in pagesResults) {
+            for (final qr in list) {
+              qr.result['source'] = 'violet';
+            }
+            mergedList.addAll(list);
+          }
+          return mergedList;
         }
-        return list;
       } catch (e, st) {
         Logger.error('[HybridLoader-Main-Violet] E: $e\n$st');
         return [];
@@ -741,41 +1109,109 @@ class HybridLoader {
       onTimeout: () => <QueryResult>[],
     );
 
-    final responses = await Future.wait([pupilFuture, violetFuture])
+    // 3) 로컬 DB 방식: HitomiColumnModel 검색 (Triple Hybrid)
+    final localDbFuture = Future<List<QueryResult>>(() async {
+      try {
+        final db = await DataBaseManager.getInstance();
+        if (db.db == null || !db.db!.isOpen) return [];
+
+        String sqlQuery;
+        final offset = (page - 1) * pageSize;
+        if (cleanQuery.isEmpty) {
+          if (targetLang != 'all') {
+            sqlQuery = 'SELECT * FROM HitomiColumnModel WHERE Language=\'$targetLang\' ORDER BY Id DESC LIMIT $pageSize OFFSET $offset';
+          } else {
+            sqlQuery = 'SELECT * FROM HitomiColumnModel ORDER BY Id DESC LIMIT $pageSize OFFSET $offset';
+          }
+        } else {
+          final translated = translate2query(cleanQuery);
+          sqlQuery = '$translated ORDER BY Id DESC LIMIT $pageSize OFFSET $offset';
+        }
+
+        final rows = await db.query(sqlQuery);
+        return rows.map((r) {
+          final map = Map<String, dynamic>.from(r);
+          map['source'] = 'common';
+          map['is_common'] = true;
+          return QueryResult(result: map);
+        }).toList();
+      } catch (_) {
+        return [];
+      }
+    }).timeout(
+      const Duration(seconds: 3),
+      onTimeout: () => <QueryResult>[],
+    );
+
+    final responses = await Future.wait([pupilFuture, violetFuture, localDbFuture])
         .timeout(
           const Duration(seconds: 10),
-          onTimeout: () => [<QueryResult>[], <QueryResult>[]],
+          onTimeout: () => [<QueryResult>[], <QueryResult>[], <QueryResult>[]],
         );
     final pupilList = responses[0];
     final violetList = responses[1];
+    final localDbList = responses[2];
 
     final merged = <QueryResult>[];
     final seenIds = <int>{};
     final seenTitles = <String>{};
 
+    // 로컬 DB 검색 결과 우선 반영 (Violet 공식 DB에 존재하는 100% 공통 작품)
+    for (final lItem in localDbList) {
+      final lId = lItem.id();
+      final lTitle = lItem.title() ?? '';
+      seenIds.add(lId);
+      if (lTitle.isNotEmpty) seenTitles.add(normalizeTitle(lTitle));
+      _sessionBadgeCache[lId] = 'common';
+      merged.add(lItem);
+    }
+
+    // Pupil 최신 결과 반영
     for (final item in pupilList) {
       final id = item.id();
-      final title = normalizeTitle(item.title() ?? '');
+      final title = item.title() ?? '';
+
+      // 이미 로컬 DB에 등록된 작품인 경우 승격
+      if (seenIds.contains(id)) {
+        final existing = merged.where((m) => m.id() == id).firstOrNull;
+        if (existing != null) {
+          existing.result['source'] = 'common';
+          existing.result['is_common'] = true;
+          _sessionBadgeCache[id] = 'common';
+        }
+        continue;
+      }
+
+      final existingByTitle = merged.where((m) =>
+          isLanguageMatched(m, item) &&
+          isTitleMatched(m.title() ?? '', title)).firstOrNull;
+      if (existingByTitle != null) {
+        existingByTitle.result['source'] = 'common';
+        existingByTitle.result['is_common'] = true;
+        _sessionBadgeCache[existingByTitle.id()] = 'common';
+        continue;
+      }
+
       seenIds.add(id);
-      if (title.isNotEmpty) seenTitles.add(title);
+      if (title.isNotEmpty) seenTitles.add(normalizeTitle(title));
       merged.add(item);
     }
 
+    // E-Hentai 결과 추가 병합 및 공통 작품 승격
+    final ehIds = <int>{};
+    final ehTitles = <String>{};
     for (final vItem in violetList) {
       final vId = vItem.id();
-      final vTitle = normalizeTitle(vItem.title() ?? '');
+      final vTitle = vItem.title() ?? '';
+      ehIds.add(vId);
+      if (vTitle.isNotEmpty) ehTitles.add(vTitle);
 
       final existing = merged.where((m) {
         if (m.id() == vId) return true;
-        final mTitle = normalizeTitle(m.title() ?? '');
-        return mTitle.isNotEmpty &&
-            (mTitle == vTitle ||
-                (mTitle.length >= 5 && vTitle.contains(mTitle)) ||
-                (vTitle.length >= 5 && mTitle.contains(vTitle)));
+        return isLanguageMatched(m, vItem) && isTitleMatched(m.title() ?? '', vTitle);
       }).firstOrNull;
 
       if (existing != null) {
-        // 둘 다 있는 경우: Violet & Pupil 공통으로 승격
         existing.result['source'] = 'common';
         existing.result['is_common'] = true;
         if (vItem.ehash() != null) existing.result['EHash'] = vItem.ehash();
@@ -790,12 +1226,14 @@ class HybridLoader {
       }
     }
 
-    for (final item in merged) {
-      if (item.result['source'] == 'pupil') {
-        item.result['source'] = 'pupil_only';
-        item.result['is_pupil_only'] = true;
-        _sessionBadgeCache[item.id()] = 'pupil_only';
-      }
+    // 로컬 DB, 북마크 DB, E-Hentai 대조군을 통해 pupil 작품 전수 정밀 검증
+    final pupilItems = merged.where((m) => m.result['source'] == 'pupil').toList();
+    if (pupilItems.isNotEmpty) {
+      await verifyAndTagPupilArticles(
+        pupilItems,
+        knownEhIds: ehIds,
+        knownEhTitles: ehTitles,
+      );
     }
 
     merged.sort((a, b) => b.id().compareTo(a.id()));
@@ -806,10 +1244,16 @@ class HybridLoader {
   /// 해당 작품이 Violet에 없는 순수 Pupil 독점작인지 여부를 판별합니다.
   static bool isPupilOnly(QueryResult item) {
     final res = item.result;
-    if (res['is_pupil_only'] == true || res['source'] == 'pupil_only') return true;
+    if (res['is_common'] == true || res['source'] == 'common' || res['source'] == 'violet') {
+      return false;
+    }
+    if (res['EHash'] != null) return false;
     final cached = _sessionBadgeCache[item.id()];
-    if (cached == 'pupil_only') return true;
     if (cached == 'common' || cached == 'violet') return false;
-    return res['source'] == 'pupil' && res['is_common'] != true && res['EHash'] == null;
+    if (cached == 'pupil_only' || res['is_pupil_only'] == true || res['source'] == 'pupil_only') {
+      return true;
+    }
+    // 명시적으로 검증되지 않은 작품은 Pupil 단독작으로 노출하지 않음 (안전 가드)
+    return false;
   }
 }

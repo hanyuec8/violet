@@ -13,6 +13,7 @@ import 'package:violet/pages/artist_info/search_type2.dart';
 import 'package:violet/pages/segment/filter_page.dart';
 import 'package:violet/pages/segment/filter_page_controller.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
+import 'package:violet/settings/settings.dart';
 import 'package:violet/style/palette.dart';
 import 'package:violet/widgets/article_item/article_list_item_widget.dart';
 import 'package:violet/widgets/search_bar.dart';
@@ -84,6 +85,9 @@ class _ArticleListPageState extends State<ArticleListPage> {
                             ),
                           ),
                         ),
+                      ),
+                      SliverToBoxAdapter(
+                        child: _languageSelector(),
                       ),
                       _cachedList!,
                     ],
@@ -270,9 +274,70 @@ class _ArticleListPageState extends State<ArticleListPage> {
     }
   }
 
+  String selectedLanguage = 'all';
+
+  Widget _languageSelector() {
+    final langs = [
+      ('all', '전체'),
+      ('korean', '한국어'),
+      ('japanese', '일본어'),
+      ('english', '영어'),
+      ('chinese', '중국어'),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 12.0, right: 12.0, bottom: 8.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: langs.map((item) {
+            final isSelected = selectedLanguage == item.$1;
+            return Padding(
+              padding: const EdgeInsets.only(right: 6.0),
+              child: ChoiceChip(
+                label: Text(
+                  item.$2,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? Colors.white : null,
+                  ),
+                ),
+                selected: isSelected,
+                selectedColor: Settings.majorColor.value,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() {
+                      selectedLanguage = item.$1;
+                      _shouldReload = true;
+                      key = ObjectKey(const Uuid().v4());
+                    });
+                  }
+                },
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
   List<QueryResult> filter() {
-    if (!isFilterUsed) return widget.cc;
-    return filterResult;
+    final base = !isFilterUsed ? widget.cc : filterResult;
+    if (selectedLanguage == 'all') return base;
+    return base.where((e) {
+      final lang = (e.language() ?? '').toString().toLowerCase();
+      final tags = (e.tags() ?? '').toString().toLowerCase();
+      final title = (e.title() ?? '').toString().toLowerCase();
+      if (selectedLanguage == 'korean') {
+        return lang == 'korean' ||
+            tags.contains('korean') ||
+            title.contains('[한국어]') ||
+            title.contains('(한국어)');
+      }
+      return lang == selectedLanguage || tags.contains(selectedLanguage);
+    }).toList();
   }
 
   int nowType = 0;

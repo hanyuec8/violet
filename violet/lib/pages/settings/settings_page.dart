@@ -487,11 +487,17 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
               }
             } catch (_) {}
 
+            var targetDbType = Settings.databaseType.value;
+            if (targetDbType == 'dummy') {
+              targetDbType = 'global';
+              await Settings.databaseType.setValue(targetDbType);
+            }
+
             Navigator.of(context)
                 .push(
                   MaterialPageRoute(
                     builder: (context) => DataBaseDownloadPage(
-                      dbType: Settings.databaseType.value,
+                      dbType: targetDbType,
                       isSync: true,
                     ),
                   ),
