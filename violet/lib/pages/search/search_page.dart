@@ -88,7 +88,7 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
       final hybridList = await HybridLoader.fetchMainHybridArticles(
         query: query,
         page: 1,
-        pageSize: 25,
+        pageSize: SearchPageController.defaultPageSize,
       );
 
       if (generation != _searchGeneration) {
@@ -148,11 +148,13 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
   ObjectKey sliverKey = ObjectKey(const Uuid().v4());
   Timer? _holdTimer;
 
-  reloadForce() {
+  void reloadForce({bool isAppend = false}) {
     setState(() {
       _cachedPannel = null;
-      _shouldReload = true;
-      sliverKey = ObjectKey(const Uuid().v4());
+      if (!isAppend) {
+        _shouldReload = true;
+        sliverKey = ObjectKey(const Uuid().v4());
+      }
     });
   }
 
@@ -164,9 +166,10 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
     print('build!');
 
     if (_cachedPannel == null || _shouldReload) {
-      _shouldReload = false;
-
-      c.itemKeys.clear();
+      if (_shouldReload) {
+        c.itemKeys.clear();
+        _shouldReload = false;
+      }
 
       print('searchResultType: ${Settings.searchResultType.value}');
 
@@ -443,90 +446,102 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
   }
 
   void _showFavoriteTagsSheet() {
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      barrierColor: Colors.black54,
+      barrierDismissible: true,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final favs = Settings.favoriteTags.value.where((e) => e.trim().isNotEmpty).toList();
-            return Container(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.star, color: Settings.majorColor.value, size: 22),
-                      const SizedBox(width: 8),
-                      const Text(
-                        '태그 즐겨찾기',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  if (favs.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      alignment: Alignment.center,
-                      child: Column(
-                        children: [
-                          Icon(Icons.star_outline, size: 40, color: Colors.grey.shade400),
-                          const SizedBox(height: 8),
-                          Text(
-                            '등록된 즐겨찾기 태그가 없습니다.\n검색창에서 태그를 길게 누르면 즐겨찾기에 등록됩니다.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    )
-                  else ...[
-                    Text(
-                      '태그를 터치하면 즉시 검색되고 맨 위로 이동합니다.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            return Dialog(
+              alignment: Alignment.topCenter,
+              insetPadding: const EdgeInsets.fromLTRB(16, 76, 16, 24),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 16,
+              backgroundColor: Settings.themeWhat.value
+                  ? (Settings.themeBlack.value
+                      ? Palette.blackThemeBackground
+                      : Colors.grey.shade900)
+                  : Colors.white,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.star, color: Settings.majorColor.value, size: 22),
+                        const SizedBox(width: 8),
+                        const Text(
+                          '태그 즐겨찾기',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(context).size.height * 0.45,
+                    const SizedBox(height: 4),
+                    if (favs.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        alignment: Alignment.center,
+                        child: Column(
+                          children: [
+                            Icon(Icons.star_outline, size: 40, color: Colors.grey.shade400),
+                            const SizedBox(height: 8),
+                            Text(
+                              '등록된 즐겨찾기 태그가 없습니다.\n검색창에서 태그를 길게 누르면 즐겨찾기에 등록됩니다.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      )
+                    else ...[
+                      Text(
+                        '태그를 터치하면 즉시 검색되고 맨 위로 이동합니다.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                       ),
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
-                          children: favs.map((tag) {
-                            return InputChip(
-                              avatar: Icon(Icons.star, size: 16, color: Settings.majorColor.value),
-                              label: Text(tag),
-                              deleteIcon: const Icon(Icons.close, size: 16),
-                              onDeleted: () async {
-                                await Settings.removeFavoriteTag(tag);
-                                setModalState(() {});
-                                setState(() {});
-                              },
-                              onPressed: () {
-                                Navigator.pop(context);
-                                c.latestQuery = (null, tag);
-                                c.doSearch();
-                              },
-                            );
-                          }).toList(),
+                      const SizedBox(height: 12),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height * 0.5,
+                        ),
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: favs.map((tag) {
+                              return InputChip(
+                                avatar: Icon(Icons.star, size: 16, color: Settings.majorColor.value),
+                                label: Text(tag),
+                                deleteIcon: const Icon(Icons.close, size: 16),
+                                onDeleted: () async {
+                                  await Settings.removeFavoriteTag(tag);
+                                  setModalState(() {});
+                                  setState(() {});
+                                },
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  c.latestQuery = (null, tag);
+                                  c.doSearch();
+                                },
+                              );
+                            }).toList(),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             );
           },
@@ -873,8 +888,11 @@ class ResultPanelWidget extends StatelessWidget {
   }) {
     final keyStr = '$keyPrefix/${resultList[index].id()}/$index';
 
-    if (!itemKeys.containsKey(keyStr)) {
-      itemKeys[keyStr] = GlobalKey();
+    GlobalKey? itemGlobalKey;
+    if (itemKeys.length < 10) {
+      itemGlobalKey = itemKeys.putIfAbsent(keyStr, () => GlobalKey());
+    } else if (itemKeys.containsKey(keyStr)) {
+      itemGlobalKey = itemKeys[keyStr];
     }
 
     final article = Provider<ArticleListItem>.value(
@@ -884,7 +902,7 @@ class ResultPanelWidget extends StatelessWidget {
         showUltra: showUltra,
         addBottomPadding: addBottomPadding,
         width: width,
-        thumbnailTag: const Uuid().v4(),
+        thumbnailTag: '${keyPrefix}_${resultList[index].id()}_$index',
         bookmarkMode: bookmarkMode,
         bookmarkCallback: bookmarkCallback,
         bookmarkCheckCallback: bookmarkCheckCallback,
@@ -899,7 +917,7 @@ class ResultPanelWidget extends StatelessWidget {
     );
 
     final aligned = Padding(
-      key: itemKeys[keyStr],
+      key: itemGlobalKey ?? ValueKey(keyStr),
       padding: EdgeInsets.zero,
       child: Align(
         alignment: Alignment.bottomCenter,

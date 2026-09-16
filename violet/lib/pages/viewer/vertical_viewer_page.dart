@@ -352,8 +352,13 @@ class _VerticalViewerPageState extends State<VerticalViewerPage>
                 imgKey: c.imgKeys[index],
                 imgUrl: c.urlCache[index]!.value,
                 imgHeader: c.headerCache[index],
-                imageWidgetBuilder: (context, child) {
-                  return _imageWidgetBuilder(index, width, child);
+                heightCallback: (height) async {
+                  if (c.imgHeight[index] == 0 || c.imgHeight[index] == 300) {
+                    c.imgHeight[index] = height;
+                    if (_latestIndex >= index && !_onScroll) {
+                      _patchHeightForDynamicLoadedImage();
+                    }
+                  }
                 },
               ),
             );
@@ -385,27 +390,6 @@ class _VerticalViewerPageState extends State<VerticalViewerPage>
         ),
       ),
     );
-  }
-
-  _imageWidgetBuilder(int index, double width, Widget child) {
-    if (c.imgHeight[index] == 0 || c.imgHeight[index] == 300) {
-      Future.delayed(const Duration(milliseconds: 50)).then((value) {
-        try {
-          final RenderBox renderBoxRed =
-              c.imgKeys[index].currentContext!.findRenderObject() as RenderBox;
-          final sizeRender = renderBoxRed.size;
-          if (sizeRender.height != 300) {
-            c.imgHeight[index] = (width / sizeRender.aspectRatio - 1.5)
-                .floor()
-                .toDouble();
-          }
-          if (_latestIndex >= index && !_onScroll) {
-            _patchHeightForDynamicLoadedImage();
-          }
-        } catch (_) {}
-      });
-    }
-    return child;
   }
 
   _isExistsMessageSearchLayer(int index) {

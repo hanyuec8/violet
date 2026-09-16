@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:violet/component/hentai.dart';
+import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/component/image_provider.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
@@ -21,7 +22,6 @@ import 'package:violet/settings/settings.dart';
 import 'package:violet/widgets/article_item/image_provider_manager.dart';
 
 const String heroKey = 'articleInfoHero';
-const String pageKey = 'artcieInfoPage';
 
 // TODO: expand using optional arguments
 Future showArticleInfoById(BuildContext context, int id) async {
@@ -70,6 +70,25 @@ Future showArticleInfoRaw({
             queryResult.result['Artists'] = '|${(gallery['Artists'] as List).join('|')}|';
           }
         }
+        if (gallery['Published'] != null &&
+            (queryResult.published() == null ||
+                queryResult.published() == '' ||
+                queryResult.published() == 0)) {
+          queryResult.result['Published'] = gallery['Published'];
+        }
+        if (gallery['Tags'] != null && (gallery['Tags'] as List).isNotEmpty) {
+          final currentTags = queryResult.tags();
+          if (currentTags == null || currentTags == 'N/A' || currentTags == '') {
+            queryResult.result['Tags'] = '|${(gallery['Tags'] as List).join('|')}|';
+          }
+        }
+        if (gallery['Series'] != null && (gallery['Series'] as List).isNotEmpty) {
+          final currentSeries = queryResult.series();
+          if (currentSeries == null || currentSeries == 'N/A' || currentSeries == '') {
+            queryResult.result['Series'] = '|${(gallery['Series'] as List).join('|')}|';
+          }
+        }
+        HybridLoader.cacheMetadata(queryResult);
       }
     } catch (_) {}
   }
@@ -90,8 +109,6 @@ Future showArticleInfoRaw({
     defaultShowHeight = (height * 0.85).toInt();
   }
 
-  // https://github.com/flutter/flutter/issues/67219
-  Provider<ArticleInfo>? cache;
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -102,7 +119,7 @@ Future showArticleInfoRaw({
         maxChildSize: 0.9,
         expand: false,
         builder: (_, controller) {
-          cache ??= Provider<ArticleInfo>.value(
+          return Provider<ArticleInfo>.value(
             value: ArticleInfo.fromArticleInfo(
               queryResult: queryResult,
               thumbnail: thumbnail,
@@ -113,9 +130,8 @@ Future showArticleInfoRaw({
               usableTabList: usableTabList,
               lockRead: lockRead,
             ),
-            child: const ArticleInfoPage(key: ObjectKey(pageKey)),
+            child: const ArticleInfoPage(),
           );
-          return cache!;
         },
       );
     },
@@ -224,8 +240,6 @@ Future<void> showArticleInfoNotFound(
 
   final isBookmarked = await (await Bookmark.getInstance()).isBookmark(id);
 
-  if (!context.mounted) return;
-  Provider<ArticleInfo>? cache;
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -236,7 +250,7 @@ Future<void> showArticleInfoNotFound(
         maxChildSize: 0.9,
         expand: false,
         builder: (_, controller) {
-          cache ??= Provider<ArticleInfo>.value(
+          return Provider<ArticleInfo>.value(
             value: ArticleInfo.fromArticleInfo(
               queryResult: fallbackQueryResult,
               thumbnail: null,
@@ -246,9 +260,8 @@ Future<void> showArticleInfoNotFound(
               controller: controller,
               lockRead: true,
             ),
-            child: const ArticleInfoPage(key: ObjectKey(pageKey)),
+            child: const ArticleInfoPage(),
           );
-          return cache!;
         },
       );
     },

@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:violet/locale/locale.dart';
-import 'package:violet/other/dialogs.dart';
 import 'package:violet/settings/settings.dart';
 
 class SearchPageModifyPage extends StatefulWidget {
@@ -51,7 +50,9 @@ class _SearchPageModifyPageState extends State<SearchPageModifyPage> {
                   ], // Only numbers can be entered
                 ),
               ),
-              Text(' / ${widget.maxPage}'),
+              Text(
+                ' / ${widget.maxPage > 0 ? widget.maxPage : '∞'}',
+              ),
             ],
           ),
           Container(height: 16),
@@ -63,22 +64,13 @@ class _SearchPageModifyPageState extends State<SearchPageModifyPage> {
                   backgroundColor: Settings.majorColor.value,
                 ),
                 child: Text(Translations.instance!.trans('ok')),
-                onPressed: () async {
-                  if (_pageController.text == '') {
+                onPressed: () {
+                  if (_pageController.text.trim().isEmpty) {
                     Navigator.pop(context, [1, 0]);
                     return;
                   }
-                  if (int.parse(_pageController.text.trim()) >=
-                      widget.maxPage) {
-                    await showOkDialog(
-                      context,
-                      Translations.instance!.trans(
-                        'setlowerthanmaxitemposition',
-                      ),
-                    );
-                    return;
-                  }
-                  Navigator.pop(context, [1, int.parse(_pageController.text)]);
+                  final target = int.tryParse(_pageController.text.trim()) ?? 0;
+                  Navigator.pop(context, [1, target]);
                 },
               ),
               const SizedBox(width: 8),

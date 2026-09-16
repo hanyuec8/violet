@@ -1,6 +1,7 @@
 // This source code is a part of Project Violet.
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_analytics/firebase_analytics.dart';
@@ -10,6 +11,8 @@ import 'package:material_design_icons_flutter/material_design_icons_flutter.dart
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import 'package:violet/component/hentai.dart';
+import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/locale/locale.dart';
@@ -70,6 +73,120 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
   bool checkMode = false;
   bool checkModePre = false;
   List<int> checked = [];
+  final Set<int> _fetchingIds = <int>{};
+  void Function(int current, int total)? _activeProgressCallback;
+
+  bool _isIdOnly(QueryResult qr) {
+    return (qr.result.keys.length == 1 && qr.result.containsKey('Id')) ||
+        (qr.tags() == null && qr.artists() == null && qr.title() == null);
+  }
+
+  Future<void> _fetchIdOnlyItems(
+    List<QueryResult> items, {
+    void Function(int current, int total)? onProgress,
+    bool Function()? shouldCancel,
+  }) async {
+    final targets = items.where(_isIdOnly).toList();
+    if (targets.isEmpty) {
+      onProgress?.call(items.length, items.length);
+      _activeProgressCallback?.call(items.length, items.length);
+      return;
+    }
+
+    // 1. 디스크 캐시(ArticleCache) 일괄 선조회
+    final uncompletedIds = targets.map((e) => e.id()).toList();
+    final cachedBatch =
+        await HybridLoader.getCachedMetadataBatch(uncompletedIds);
+    for (final item in targets) {
+      final cached = cachedBatch[item.id()];
+      if (cached != null && !_isIdOnly(cached)) {
+        item.result.addAll(cached.result);
+      }
+    }
+
+    final totalCount = targets.length;
+    int completed = targets.where((e) => !_isIdOnly(e)).length;
+    onProgress?.call(completed, totalCount);
+    _activeProgressCallback?.call(completed, totalCount);
+
+    final needNetwork = targets.where(_isIdOnly).toList();
+    if (needNetwork.isEmpty) {
+      onProgress?.call(totalCount, totalCount);
+      _activeProgressCallback?.call(totalCount, totalCount);
+      return;
+    }
+
+    void notifyItemDone() {
+      completed++;
+      final actualLoaded = targets.where((e) => !_isIdOnly(e)).length;
+      final cur = actualLoaded > completed ? actualLoaded : completed;
+      final safeCur = cur > totalCount ? totalCount : cur;
+      onProgress?.call(safeCur, totalCount);
+      _activeProgressCallback?.call(safeCur, totalCount);
+    }
+
+    const int chunkSize = 20;
+    for (var i = 0; i < needNetwork.length; i += chunkSize) {
+      if (!mounted) return;
+      if (shouldCancel?.call() == true) break;
+
+      final chunk = needNetwork.sublist(
+        i,
+        i + chunkSize > needNetwork.length ? needNetwork.length : i + chunkSize,
+      );
+      await Future.wait(
+        chunk.map((item) async {
+          if (shouldCancel?.call() == true) return;
+          final id = item.id();
+          if (_fetchingIds.contains(id)) {
+            for (int w = 0; w < 30; w++) {
+              await Future.delayed(const Duration(milliseconds: 100));
+              final cached = HybridLoader.getCachedMetadata(id);
+              if (cached != null && !_isIdOnly(cached)) {
+                item.result.addAll(cached.result);
+                notifyItemDone();
+                return;
+              }
+              if (!_fetchingIds.contains(id)) break;
+            }
+          }
+          if (!_isIdOnly(item)) {
+            notifyItemDone();
+            return;
+          }
+
+          _fetchingIds.add(id);
+          try {
+            final cached = HybridLoader.getCachedMetadata(id);
+            if (cached != null && !_isIdOnly(cached)) {
+              item.result.addAll(cached.result);
+              return;
+            }
+
+            // 고속 경량 파서(_idQueryHitomiFast) 우선 시도 (1회 HTML 경량 요청)
+            var res = await HybridLoader.idQueryHitomiFast(id).timeout(
+              const Duration(seconds: 4),
+              onTimeout: () => item,
+            );
+            if (_isIdOnly(res)) {
+              res = await HentaiManager.idQueryWeb('$id').timeout(
+                const Duration(seconds: 4),
+                onTimeout: () => item,
+              );
+            }
+            if (res.result.length > 1 && !_isIdOnly(res)) {
+              item.result.addAll(res.result);
+              HybridLoader.cacheMetadata(res);
+            }
+          } catch (_) {
+          } finally {
+            _fetchingIds.remove(id);
+            notifyItemDone();
+          }
+        }),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -129,24 +246,42 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
       return;
     }
 
-    final queryIds = await QueryManager.queryIds(
-      articleList.map((e) => int.parse(e.article())).toList(),
-    );
+    final intIds = articleList.map((e) => int.parse(e.article())).toList();
+    final queryIds = await QueryManager.queryIds(intIds);
     final queryResultById = Map<String, QueryResult>.fromIterable(
       queryIds,
       key: (e) => e.id().toString(),
     );
 
+    final missingIds = intIds
+        .where((id) => !queryResultById.containsKey(id.toString()))
+        .toList();
+    final cachedBatch = await HybridLoader.getCachedMetadataBatch(missingIds);
+
     queryResult = articleList
         .map(
-          (e) =>
-              queryResultById[e.article()] ??
-              QueryResult(result: {'Id': int.parse(e.article())}),
+          (e) {
+            final id = int.parse(e.article());
+            return queryResultById[e.article()] ??
+                cachedBatch[id] ??
+                QueryResult(result: {'Id': id});
+          },
         )
         .toList();
 
     _applyFilter();
     _rebuild();
+
+    // 미로딩된 항목이 있으면 백그라운드에서 비동기로 사전 프리페치
+    if (queryResult.any(_isIdOnly)) {
+      Future.microtask(() async {
+        await _fetchIdOnlyItems(queryResult);
+        if (mounted) {
+          _shouldRebuild = true;
+          setState(() {});
+        }
+      });
+    }
   }
 
   void refresh() {
@@ -358,7 +493,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     );
   }
 
-  alignOnTap() async {
+  Future<void> alignOnTap() async {
     if (checkMode) return;
 
     final newAlignType = await Navigator.of(context).push(
@@ -374,7 +509,7 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
             ) {
               return FadeTransition(opacity: animation, child: wi);
             },
-        pageBuilder: (_, __, ___) => SearchType(
+        pageBuilder: (context, _, _) => SearchType(
           heroTag: 'searchtype\$bookmark',
           previousType: alignType,
         ),
@@ -397,8 +532,51 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
     });
   }
 
-  filterOnTap() async {
+  Future<void> filterOnTap() async {
     if (checkMode) return;
+
+    // 1. 디스크 캐시(ArticleCache)에 이미 있는 것은 0.01초 만에 즉시 보충
+    final uncompleted = queryResult.where(_isIdOnly).toList();
+    if (uncompleted.isNotEmpty) {
+      final cachedBatch = await HybridLoader.getCachedMetadataBatch(
+        uncompleted.map((e) => e.id()).toList(),
+      );
+      for (final item in uncompleted) {
+        final c = cachedBatch[item.id()];
+        if (c != null && !_isIdOnly(c)) {
+          item.result.addAll(c.result);
+        }
+      }
+    }
+
+    // 2. 여전히 메타데이터가 없는 항목이 남아있는 경우 실시간 진행률 다이얼로그 표시
+    final stillUncompleted = queryResult.where(_isIdOnly).toList();
+    if (stillUncompleted.isNotEmpty && mounted) {
+      final result = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (dialogContext) => _TagFetchProgressDialog(
+              targets: stillUncompleted,
+              isCompleted: (qr) => !_isIdOnly(qr),
+              registerActiveCallback: (cb) => _activeProgressCallback = cb,
+              fetcher: _fetchIdOnlyItems,
+            ),
+      );
+      _activeProgressCallback = null;
+
+      // 사용자가 'cancel'을 누른 경우 필터 페이지를 열지 않음
+      if (result == 'cancel') {
+        _applyFilter();
+        _shouldRebuild = true;
+        setState(() {
+          _shouldRebuild = true;
+        });
+        return;
+      }
+    }
+
+    if (!mounted) return;
     isFilterUsed = true;
 
     await PlatformNavigator.navigateFade(
@@ -574,5 +752,190 @@ class _GroupArticleListPageState extends State<GroupArticleListPage> {
       });
       refresh();
     }
+  }
+}
+
+class _TagFetchProgressDialog extends StatefulWidget {
+  final List<QueryResult> targets;
+  final bool Function(QueryResult qr) isCompleted;
+  final void Function(void Function(int current, int total) cb)?
+      registerActiveCallback;
+  final Future<void> Function(
+    List<QueryResult> items, {
+    void Function(int current, int total)? onProgress,
+    bool Function()? shouldCancel,
+  }) fetcher;
+
+  const _TagFetchProgressDialog({
+    required this.targets,
+    required this.isCompleted,
+    this.registerActiveCallback,
+    required this.fetcher,
+  });
+
+  @override
+  State<_TagFetchProgressDialog> createState() =>
+      _TagFetchProgressDialogState();
+}
+
+class _TagFetchProgressDialogState extends State<_TagFetchProgressDialog> {
+  int current = 0;
+  late int total;
+  bool isCancelled = false;
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    total = widget.targets.length;
+    current = widget.targets.where(widget.isCompleted).length;
+
+    widget.registerActiveCallback?.call((cur, tot) {
+      if (mounted && !isCancelled) {
+        final actual = widget.targets.where(widget.isCompleted).length;
+        final best = cur > actual ? cur : actual;
+        setState(() {
+          current = best > total ? total : best;
+        });
+      }
+    });
+
+    _startFetch();
+    _startPolling();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startPolling() {
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!mounted || isCancelled) {
+        timer.cancel();
+        return;
+      }
+      final loadedCount = widget.targets.where(widget.isCompleted).length;
+      if (loadedCount != current) {
+        setState(() {
+          current = loadedCount > total ? total : loadedCount;
+        });
+      }
+      if (loadedCount >= total && total > 0) {
+        timer.cancel();
+        if (mounted && !isCancelled) {
+          Navigator.of(context).pop('done');
+        }
+      }
+    });
+  }
+
+  void _startFetch() async {
+    await widget.fetcher(
+      widget.targets,
+      onProgress: (cur, tot) {
+        if (mounted && !isCancelled) {
+          final actual = widget.targets.where(widget.isCompleted).length;
+          final best = cur > actual ? cur : actual;
+          setState(() {
+            current = best > total ? total : best;
+          });
+        }
+      },
+      shouldCancel: () => isCancelled,
+    );
+
+    if (mounted && !isCancelled) {
+      _pollTimer?.cancel();
+      Navigator.of(context).pop('done');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = total > 0 ? (current / total).clamp(0.0, 1.0) : 0.0;
+
+    return AlertDialog(
+      backgroundColor: Palette.themeColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: Text(
+        '태그 정보 불러오는 중',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Settings.themeWhat.value ? Colors.white : Colors.black,
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: Colors.grey.withValues(alpha: 0.2),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Settings.majorColor.value,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$current / $total 개 완료',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Settings.themeWhat.value
+                      ? Colors.grey[300]
+                      : Colors.grey[700],
+                ),
+              ),
+              Text(
+                '${(progress * 100).toInt()}%',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Settings.majorColor.value,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            isCancelled = true;
+            _pollTimer?.cancel();
+            Navigator.of(context).pop('cancel');
+          },
+          child: Text(
+            Translations.instance!.trans('cancel'),
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Settings.majorColor.value,
+          ),
+          onPressed: () {
+            isCancelled = true;
+            _pollTimer?.cancel();
+            Navigator.of(context).pop('open_now');
+          },
+          child: const Text(
+            '지금 열기',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      ],
+    );
   }
 }

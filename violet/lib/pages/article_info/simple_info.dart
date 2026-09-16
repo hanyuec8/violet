@@ -196,13 +196,20 @@ class SimpleInfoWidget extends StatelessWidget {
   }
 
   Widget simpleInfoDateTime(ArticleInfo data) {
+    final dt = data.queryResult.getDateTime();
+    final pub = data.queryResult.published();
+    String dateText = '';
+    if (dt != null) {
+      dateText = _dateFormat.format(dt.toLocal());
+    } else if (pub != null && pub != '' && pub != 0) {
+      dateText = ' $pub';
+    }
+
     return Row(
       children: <Widget>[
         const Icon(Icons.date_range, size: 20),
         Text(
-          data.queryResult.getDateTime() != null
-              ? _dateFormat.format(data.queryResult.getDateTime()!.toLocal())
-              : '',
+          dateText,
           style: const TextStyle(fontSize: 15),
         ),
       ],

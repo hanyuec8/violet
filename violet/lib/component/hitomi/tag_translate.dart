@@ -115,9 +115,20 @@ class TagTranslate {
 
   // [<Origin, Translated>]
   static List<DisplayedTag> contains(String part) {
-    part = part.replaceAll(' ', '');
+    final cleanPart = part.replaceAll(' ', '').toLowerCase();
     return _translateMap.entries
-        .where((element) => element.value.replaceAll(' ', '').contains(part))
+        .where((element) {
+          final val = element.value.replaceAll(' ', '').toLowerCase();
+          if (val.contains(cleanPart)) return true;
+          final key = element.key.replaceAll(' ', '').toLowerCase();
+          if (key.contains(cleanPart)) return true;
+          final colonIdx = key.indexOf(':');
+          if (colonIdx != -1) {
+            final nameOnly = key.substring(colonIdx + 1);
+            if (nameOnly.contains(cleanPart)) return true;
+          }
+          return false;
+        })
         .map((e) => DisplayedTag(tag: e.key, translated: e.value))
         .toList();
   }
@@ -149,15 +160,27 @@ class TagTranslate {
   // [<Origin, Translated>]
   static List<(DisplayedTag, int)> containsFuzzing(String part) {
     part = part.replaceAll(' ', '');
+    final cleanPart = part.toLowerCase();
     var result = _translateMap.entries
         .map(
-          (e) => (
-            DisplayedTag(tag: e.key, translated: e.value.split('|')[0]),
-            Distance.levenshteinDistance(
-              e.value.replaceAll(' ', '').split('|')[0].runes.toList(),
+          (e) {
+            final val = e.value.replaceAll(' ', '').split('|')[0];
+            final distVal = Distance.levenshteinDistance(
+              val.runes.toList(),
               part.runes.toList(),
-            ),
-          ),
+            );
+            final key = e.key.replaceAll(' ', '').toLowerCase();
+            final nameOnly = key.contains(':') ? key.substring(key.indexOf(':') + 1) : key;
+            final distKey = Distance.levenshteinDistance(
+              nameOnly.runes.toList(),
+              cleanPart.runes.toList(),
+            );
+            final bestDist = distVal < distKey ? distVal : distKey;
+            return (
+              DisplayedTag(tag: e.key, translated: val),
+              bestDist,
+            );
+          },
         )
         .toList();
     result.sort((x, y) => x.$2.compareTo(y.$2));

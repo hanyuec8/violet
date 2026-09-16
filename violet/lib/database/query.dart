@@ -31,23 +31,35 @@ class QueryResult {
 
 
   DateTime? getDateTime() {
-    if (published() == null || published() == 0) {
-      if (publishedeh() != null) return DateTime.parse(publishedeh());
+    final pub = published();
+    if (pub == null || pub == 0 || pub == '') {
+      final eh = publishedeh();
+      if (eh != null && eh != '' && eh != 0) {
+        return DateTime.tryParse(eh.toString());
+      }
       return null;
     }
 
-    if (published() is! int && int.tryParse(published()) == null) {
-      return DateTime.tryParse(
-        '${(published() as String).replaceAll('+00:00', '')}Z',
-      );
+    if (pub is int || int.tryParse(pub.toString()) != null) {
+      final intVal = pub is int ? pub : int.parse(pub.toString());
+      const epochTicks = 621355968000000000;
+      const ticksPerMillisecond = 10000;
+
+      final ticksSinceEpoch = intVal - epochTicks;
+      final ms = ticksSinceEpoch ~/ ticksPerMillisecond;
+      return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
     }
 
-    const epochTicks = 621355968000000000;
-    const ticksPerMillisecond = 10000;
+    final str = pub.toString().trim();
+    final direct = DateTime.tryParse(str);
+    if (direct != null) return direct;
 
-    var ticksSinceEpoch = (published() as int) - epochTicks;
-    var ms = ticksSinceEpoch ~/ ticksPerMillisecond;
-    return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+    if (!str.contains('+') && !RegExp(r'-\d{2}').hasMatch(str) && !str.endsWith('Z')) {
+      final withZ = DateTime.tryParse('${str}Z');
+      if (withZ != null) return withZ;
+    }
+
+    return DateTime.tryParse('${str.replaceAll('+00:00', '')}Z');
   }
 
   // group, name

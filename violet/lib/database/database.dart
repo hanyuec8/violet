@@ -98,6 +98,15 @@ class DataBaseManager {
     return result;
   }
 
+  Future<int> insertOrReplace(String name, Map<String, dynamic> wh) async {
+    await checkOpen();
+    return await db!.insert(
+      name,
+      wh,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
   Future<void> update(
     String name,
     Map<String, dynamic> wh,
