@@ -68,32 +68,6 @@ List<Widget> buildSearchGroup(BuildContext context, VoidCallback onReload) {
           }
         },
       ),
-      ListTile(
-        leading: Icon(MdiIcons.tooltipEdit, color: Settings.majorColor.value),
-        title: Text(Translations.instance!.trans('tagrebuild')),
-        trailing: const Icon(Icons.keyboard_arrow_right),
-        onTap: () async {
-          if (await showYesNoDialog(
-            context,
-            Translations.instance!.trans('tagrebuildmsg'),
-            Translations.instance!.trans('tagrebuild'),
-          )) {
-            if (!context.mounted) return;
-            await showDialog(
-              context: context,
-              builder: (BuildContext context) => const TagRebuildPage(),
-            );
-
-            await HentaiIndex.init();
-
-            showToast(
-              level: ToastLevel.check,
-              message:
-                  '${Translations.instance!.trans('tagrebuild')} ${Translations.instance!.trans('complete')}',
-            );
-          }
-        },
-      ),
       InkWell(
         child: ListTile(
           leading: Icon(Mdi.compassOutline, color: Settings.majorColor.value),
@@ -110,32 +84,6 @@ List<Widget> buildSearchGroup(BuildContext context, VoidCallback onReload) {
         ),
         onTap: () async {
           await Settings.searchPure.setValue(!Settings.searchPure.value);
-          onReload();
-        },
-      ),
-      InkWell(
-        child: ListTile(
-          leading: Icon(
-            MdiIcons.databaseSearch,
-            color: Settings.majorColor.value,
-          ),
-          title: Text(
-            Translations.instance!.trans('recordsearchdatabaseonly'),
-          ),
-          trailing: Switch(
-            value: Settings.recordSearchDatabaseOnly.value,
-            onChanged: (newValue) async {
-              await Settings.recordSearchDatabaseOnly.setValue(newValue);
-              onReload();
-            },
-            activeTrackColor: Settings.majorColor.value,
-            activeThumbColor: Settings.majorAccentColor.value,
-          ),
-        ),
-        onTap: () async {
-          await Settings.recordSearchDatabaseOnly.setValue(
-            !Settings.recordSearchDatabaseOnly.value,
-          );
           onReload();
         },
       ),
