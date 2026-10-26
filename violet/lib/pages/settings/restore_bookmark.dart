@@ -79,7 +79,7 @@ class _RestoreBookmarkPageState extends State<RestoreBookmarkPage> {
             var ref = BookmarkArtist(result: artist);
             batch.insert('BookmarkArtist', {
               'Artist': ref.artist(),
-              'IsGroup': ref.type(),
+              'IsGroup': ref.type().index,
               'DateTime': ref.datetime(),
               'GroupId': groupInv[ref.group()],
             }, conflictAlgorithm: ConflictAlgorithm.fail);
@@ -107,6 +107,8 @@ class _RestoreBookmarkPageState extends State<RestoreBookmarkPage> {
           });
         }
         await dbraw.close();
+        await Bookmark.reset();
+        await User.reset();
       } catch (e, st) {
         Logger.error(
           '[Restore Bookmark] $e\n'

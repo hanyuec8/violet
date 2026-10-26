@@ -183,7 +183,11 @@ class BookmarkCropImage {
 }
 
 class Bookmark {
-  static late final Bookmark _instance;
+  static Bookmark? _instance;
+  static int defaultGroupId = 1;
+
+  static bool isDefaultGroupId(int groupId) =>
+      groupId == 1 || groupId == defaultGroupId;
   static Future<void> load() async {
     final db = await CommonUserDatabase.getInstance();
     final ee = await db.query(
@@ -262,11 +266,28 @@ class Bookmark {
               DateTime text);
               ''');
     }
+    try {
+      final rows = await db.query(
+        "SELECT Id FROM BookmarkGroup WHERE Name='violet_default' LIMIT 1",
+      );
+      if (rows.isNotEmpty) {
+        defaultGroupId = rows.first['Id'] as int;
+      }
+    } catch (_) {}
     _instance = Bookmark();
   }
 
   static Future<Bookmark> getInstance() async {
-    return _instance;
+    if (_instance == null) {
+      await load();
+    }
+    return _instance!;
+  }
+
+  static Future<void> reset() async {
+    await CommonUserDatabase.reloadInstance();
+    _instance = null;
+    await load();
   }
 
   Future<void> insertArticle(
@@ -281,7 +302,8 @@ class Bookmark {
       'DateTime': datetime.toString(),
       'GroupId': group,
     };
-    await db.insert('BookmarkArticle', body);
+    final id = await db.insert('BookmarkArticle', body);
+    body['Id'] = id;
 
     if (Platform.isAndroid || Platform.isIOS) {
       FirebaseAnalytics.instance.logEvent(
@@ -289,8 +311,13 @@ class Bookmark {
         parameters: body,
       );
     }
-    bookmarkSet ??= HashSet<int>();
-    bookmarkSet!.add(int.parse(article));
+    final aid = int.tryParse(article);
+    if (aid != null) {
+      bookmarkSet ??= HashSet<int>();
+      bookmarkSet!.add(aid);
+      bookmarkArticleMap ??= <int, BookmarkArticle>{};
+      bookmarkArticleMap![aid] = BookmarkArticle(result: body);
+    }
   }
 
   Future<void> insertArtist(
@@ -387,6 +414,7 @@ class Bookmark {
     await db.delete('BookmarkArtist', 'GroupId=?', [group.id().toString()]);
     await db.delete('BookmarkGroup', 'Id=?', [group.id().toString()]);
     bookmarkSet = null;
+    bookmarkArticleMap = null;
     //
   }
 
@@ -506,20 +534,35 @@ class Bookmark {
     );
   }
 
+  Map<int, BookmarkArticle>? bookmarkArticleMap;
   HashSet<int>? bookmarkSet;
   Lock bookmarkSetLock = Lock();
-  Future<bool> isBookmark(int id) async {
+
+  Future<void> _ensureBookmarkArticleLoaded() async {
     await bookmarkSetLock.synchronized(() async {
-      if (bookmarkSet == null) {
+      if (bookmarkArticleMap == null) {
         final article = await getArticle();
         bookmarkSet = HashSet<int>();
+        bookmarkArticleMap = <int, BookmarkArticle>{};
         for (var element in article) {
-          bookmarkSet!.add(int.parse(element.article()));
+          final aid = int.tryParse(element.article());
+          if (aid != null) {
+            bookmarkSet!.add(aid);
+            bookmarkArticleMap![aid] = element;
+          }
         }
       }
     });
+  }
 
+  Future<bool> isBookmark(int id) async {
+    await _ensureBookmarkArticleLoaded();
     return bookmarkSet!.contains(id);
+  }
+
+  Future<BookmarkArticle?> getBookmarkArticle(int id) async {
+    await _ensureBookmarkArticleLoaded();
+    return bookmarkArticleMap![id];
   }
 
   Future<void> bookmark(int id) async {
@@ -532,7 +575,8 @@ class Bookmark {
     if (!await isBookmark(id)) return;
     var db = await CommonUserDatabase.getInstance();
     await db.delete('BookmarkArticle', 'Article=?', [id.toString()]);
-    bookmarkSet!.remove(id);
+    bookmarkSet?.remove(id);
+    bookmarkArticleMap?.remove(id);
   }
 
   Map<ArtistType, HashSet<String>>? bookmarkArtistSet;
@@ -580,8 +624,9 @@ class Bookmark {
   Future<void> bookmarkArtist(
     String name,
     ArtistType type, [
-    int group = 1,
+    int? group,
   ]) async {
+    group ??= defaultGroupId;
     if (await isBookmarkArtist(name, type)) return;
     bookmarkArtistSet![type]!.add(name);
     await insertArtist(name, type, null, group);

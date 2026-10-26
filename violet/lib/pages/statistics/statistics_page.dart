@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_heatmap_calendar/flutter_heatmap_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:violet/component/query_translate.dart';
+import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/record.dart';
 import 'package:violet/log/act_log.dart';
@@ -31,6 +31,7 @@ typedef StatisticsPage = Statistics;
 class _StatisticsState extends State<Statistics> {
   final ScrollController _controller = ScrollController();
   bool _allowOverlap = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -56,7 +57,11 @@ class _StatisticsState extends State<Statistics> {
   int cacheCount = 0;
   int cacheSize = 0;
 
-  Future<void> updateRercord(dummy) async {
+  Future<void> updateRercord([_]) async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
       final articles = await User.getInstance().then(
         (value) => value.getUserLog().then((value) async {
@@ -73,13 +78,6 @@ class _StatisticsState extends State<Statistics> {
         }),
       );
 
-      final queryRaw =
-          '${translate2query('${Settings.includeTags.value} ${Settings.serializedExcludeTags}')} AND '
-          'Id IN (${articles.map((e) => e.articleId()).join(',')})';
-      final query = await QueryManager.query(queryRaw);
-
-      if (query.results!.isEmpty) return;
-
       /* -- Statistics -- */
 
       lff = <(String, int)>[];
@@ -91,8 +89,35 @@ class _StatisticsState extends State<Statistics> {
 
       var ffstat = <String, int>{};
 
+      List<QueryResult> queryResults = [];
+      if (articles.isNotEmpty) {
+        final intIds = articles
+            .map((e) => int.tryParse(e.articleId()))
+            .where((id) => id != null && id > 0)
+            .cast<int>()
+            .toList();
+
+        if (intIds.isNotEmpty) {
+          try {
+            // 1. Local SQLite DB
+            final localResults = await QueryManager.queryIds(intIds);
+            queryResults.addAll(localResults);
+
+            // 2. Missing IDs (Hitomi/Pupil works from ArticleCache in user.db)
+            final foundIds = localResults.map((e) => e.id()).toSet();
+            final missingIds = intIds.where((id) => !foundIds.contains(id)).toList();
+            if (missingIds.isNotEmpty) {
+              final cached = await HybridLoader.getCachedMetadataBatch(missingIds);
+              queryResults.addAll(cached.values);
+            }
+          } catch (e) {
+            Logger.error('[Statistics query] E: $e');
+          }
+        }
+      }
+
       if (!_allowOverlap) {
-        for (var element in query.results!) {
+        for (var element in queryResults) {
           if (element.tags() == null) continue;
           (element.tags() as String)
               .split('|')
@@ -115,7 +140,7 @@ class _StatisticsState extends State<Statistics> {
           (value) => value.getUserLog(),
         );
         final idMap = <String, QueryResult>{};
-        for (var element in query.results!) {
+        for (var element in queryResults) {
           idMap[element.id().toString()] = element;
         }
         for (var element in log) {
@@ -154,13 +179,17 @@ class _StatisticsState extends State<Statistics> {
 
       await logAnalysis();
       await cacheAnalysis();
-
-      setState(() {});
     } catch (e, st) {
       Logger.error(
         '[lab-statistics] E: $e\n'
         '$st',
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -172,162 +201,163 @@ class _StatisticsState extends State<Statistics> {
 
     await logAnalysisLog();
     await logAnalysisActLog();
-
-    setState(() {});
   }
 
   Future<void> logAnalysisLog() async {
-    logSize = await Logger.logFile.length();
+    try {
+      if (!await Logger.logFile.exists()) return;
+      logSize = await Logger.logFile.length();
+      if (logSize == 0) return;
 
-    const chunkSize = 64 * 1024 * 1024;
-    final chunkStarts = List.generate(
-      (logSize / chunkSize.toDouble()).ceil(),
-      (i) => i * chunkSize,
-    );
-    final raf = await Logger.logFile.open(mode: FileMode.read);
+      const maxReadSize = 2 * 1024 * 1024;
+      final readSize = min(logSize, maxReadSize);
+      final raf = await Logger.logFile.open(mode: FileMode.read);
+      try {
+        if (logSize > readSize) {
+          await raf.setPosition(logSize - readSize);
+        }
+        final data = await raf.read(readSize);
+        final str = String.fromCharCodes(data);
 
-    final dts = <DateTime>[];
-    final stopMark = <int>[];
+        final dts = <DateTime>[];
+        final stopMark = <int>[];
 
-    var latestStopMarkPos = 0;
+        var latestStopMarkPos = 0;
 
-    for (var chunkStart in chunkStarts) {
-      await raf.setPosition(chunkStart);
-      final data = await raf.read(chunkSize);
-      final str = String.fromCharCodes(data);
+        for (final line in str.split('\n')) {
+          if (line.startsWith('[')) {
+            final split = line.split('[');
+            if (split.length > 1) {
+              final right = split[1].split(']');
+              if (right.isNotEmpty) {
+                final dt = DateTime.tryParse(right[0]);
+                if (dt != null) dts.add(dt);
+                baseTime ??= dt;
+              }
+            }
 
-      for (final line in str.split('\n')) {
-        if (line.startsWith('[')) {
-          final dt = DateTime.tryParse(line.split('[')[1].split(']')[0]);
-          if (dt != null) dts.add(dt);
-
-          baseTime ??= dt;
-
-          if (line.contains(
-            'https://raw.githubusercontent.com/violet-dev/sync-data/master/syncversion.txt',
-          )) {
-            stopMark.add(latestStopMarkPos);
-          } else if (line.contains(
-            'https://raw.githubusercontent.com/project-violet/scripts/main/hitomi_get_image_list_v3.js',
-          )) {
-            latestStopMarkPos = dts.length - 1;
+            if (line.contains(
+              'https://raw.githubusercontent.com/violet-dev/sync-data/master/syncversion.txt',
+            )) {
+              stopMark.add(latestStopMarkPos);
+            } else if (line.contains(
+              'https://raw.githubusercontent.com/project-violet/scripts/main/hitomi_get_image_list_v3.js',
+            )) {
+              latestStopMarkPos = dts.isNotEmpty ? dts.length - 1 : 0;
+            }
           }
         }
+
+        totalSeconds = 0;
+        startUpTimes = 0;
+        for (var i = 0; i < stopMark.length - 1; i++) {
+          final nextIdx = stopMark[i + 1] - 1;
+          if (nextIdx < 0 || nextIdx >= dts.length) continue;
+          if (stopMark[i] < 0 || stopMark[i] >= dts.length) continue;
+          final s = dts[stopMark[i]]
+              .difference(dts[nextIdx])
+              .abs()
+              .inSeconds;
+          if (s > 60 * 60 * 24) continue;
+          totalSeconds += s;
+          startUpTimes += 1;
+        }
+      } finally {
+        await raf.close();
       }
-    }
-
-    final marker = List<int>.generate(dts.length, (index) => index);
-
-    // for (var i = 0, c = 0; i < dts.length; i++) {
-    //   final bs = binarySearch(stopMark, i);
-    //   if (bs >= 0 && stopMark[bs] == i) {
-    //     c++;
-    //   }
-    //   marker[i] = c;
-    // }
-
-    for (var i = 0, c = 0; i < dts.length; i++) {
-      if (c < stopMark.length && stopMark[c] == i) c++;
-      marker[i] = c;
-    }
-
-    totalSeconds = 0;
-    startUpTimes = 0;
-    for (var i = 0; i < stopMark.length - 1; i++) {
-      final s = dts[stopMark[i]]
-          .difference(dts[stopMark[i + 1] - 1])
-          .abs()
-          .inSeconds;
-      if (s > 60 * 60 * 24) continue;
-      totalSeconds += s;
-      startUpTimes += 1;
+    } catch (e) {
+      Logger.error('[logAnalysisLog] E: $e');
     }
   }
 
   Future<void> logAnalysisActLog() async {
-    final logs = await ActLogger.logFile.readAsLines();
-    final events = <String, List<ActLogEvent>>{};
+    try {
+      if (!await ActLogger.logFile.exists()) return;
+      final logs = await ActLogger.logFile.readAsLines();
+      final events = <String, List<ActLogEvent>>{};
 
-    for (var log in logs) {
-      log = log.trim();
-      if (log == '') continue;
+      for (var log in logs) {
+        log = log.trim();
+        if (log == '') continue;
 
-      final hash = log.substring(0, log.indexOf(' '));
-      final data = log.substring(log.indexOf(' ') + 1);
-      final eve = ActLogEvent.fromJson(data);
-      if (!events.containsKey(hash)) events[hash] = <ActLogEvent>[];
+        final spaceIdx = log.indexOf(' ');
+        if (spaceIdx == -1) continue;
+        final hash = log.substring(0, spaceIdx);
+        final data = log.substring(spaceIdx + 1);
+        try {
+          final eve = ActLogEvent.fromJson(data);
+          if (!events.containsKey(hash)) events[hash] = <ActLogEvent>[];
 
-      events[hash]!.add(eve);
-      basePureTime ??= eve.dateTime;
+          events[hash]!.add(eve);
+          basePureTime ??= eve.dateTime;
 
-      if (eve.type == ActLogType.appStart || eve.type == ActLogType.appResume) {
-        pureStartUpTime += 1;
-      }
-    }
-
-    final minDate = DateTime.fromMicrosecondsSinceEpoch(
-      events.entries
-          .map(
-            (e) => e.value
-                .map((e) => e.dateTime!.microsecondsSinceEpoch)
-                .reduce(min),
-          )
-          .reduce(min),
-    );
-    final maxDate = DateTime.fromMicrosecondsSinceEpoch(
-      events.entries
-          .map(
-            (e) => e.value
-                .map((e) => e.dateTime!.microsecondsSinceEpoch)
-                .reduce(max),
-          )
-          .reduce(max),
-    );
-
-    for (var i = 0; ; i++) {
-      final d = DateTime(minDate.year, minDate.month, minDate.day + i);
-
-      timePerDate[d] = 0;
-
-      if (maxDate.difference(d).isNegative) break;
-    }
-
-    totalPureSeconds = 0;
-    for (var element in events.entries) {
-      var accSeconds = 0;
-
-      bool stopAcc = false;
-      DateTime? base;
-      for (final eve in element.value) {
-        if (eve.dateTime == null) continue;
-        if (base == null) {
-          base = eve.dateTime;
-          continue;
-        }
-
-        if (!stopAcc) {
-          final diffSec = base.difference(eve.dateTime!).abs().inSeconds;
-
-          if (diffSec < 60) {
-            accSeconds += diffSec;
-
-            final dt = DateTime(base.year, base.month, base.day);
-            if (!timePerDate.containsKey(dt)) {
-              timePerDate[dt] = 0;
-            }
-            timePerDate[dt] = timePerDate[dt]! + diffSec;
+          if (eve.type == ActLogType.appStart || eve.type == ActLogType.appResume) {
+            pureStartUpTime += 1;
           }
-        }
-        if (eve.type == ActLogType.appSuspense) stopAcc = true;
-        if (eve.type == ActLogType.appStart ||
-            eve.type == ActLogType.appResume) {
-          stopAcc = false;
-        }
-
-        base = eve.dateTime;
+        } catch (_) {}
       }
 
-      totalPureSeconds += accSeconds;
+      if (events.isEmpty) return;
+
+      final allDateTimes = events.values
+          .expand((e) => e)
+          .map((e) => e.dateTime)
+          .whereType<DateTime>()
+          .toList();
+
+      if (allDateTimes.isEmpty) return;
+
+      final minEpoch = allDateTimes
+          .map((e) => e.microsecondsSinceEpoch)
+          .reduce(min);
+      final maxEpoch = allDateTimes
+          .map((e) => e.microsecondsSinceEpoch)
+          .reduce(max);
+      final minDate = DateTime.fromMicrosecondsSinceEpoch(minEpoch);
+      final maxDate = DateTime.fromMicrosecondsSinceEpoch(maxEpoch);
+
+      final dayDiff = maxDate.difference(minDate).inDays.clamp(0, 365);
+      for (var i = 0; i <= dayDiff; i++) {
+        final d = DateTime(minDate.year, minDate.month, minDate.day + i);
+        timePerDate[d] = 0;
+      }
+
+      totalPureSeconds = 0;
+      for (var element in events.entries) {
+        var accSeconds = 0;
+
+        bool stopAcc = false;
+        DateTime? base;
+        for (final eve in element.value) {
+          if (eve.dateTime == null) continue;
+          if (base == null) {
+            base = eve.dateTime;
+            continue;
+          }
+
+          if (!stopAcc) {
+            final diffSec = base.difference(eve.dateTime!).abs().inSeconds;
+
+            if (diffSec < 60) {
+              accSeconds += diffSec;
+
+              final dt = DateTime(base.year, base.month, base.day);
+              timePerDate[dt] = (timePerDate[dt] ?? 0) + diffSec;
+            }
+          }
+          if (eve.type == ActLogType.appSuspense) stopAcc = true;
+          if (eve.type == ActLogType.appStart ||
+              eve.type == ActLogType.appResume) {
+            stopAcc = false;
+          }
+
+          base = eve.dateTime;
+        }
+
+        totalPureSeconds += accSeconds;
+      }
+    } catch (e) {
+      Logger.error('[logAnalysisActLog] E: $e');
     }
   }
 
@@ -337,20 +367,23 @@ class _StatisticsState extends State<Statistics> {
     if (_alreadyCacheAnalysis) return;
     _alreadyCacheAnalysis = true;
 
-    final dir = await getTemporaryDirectory();
+    try {
+      final dir = await getTemporaryDirectory();
 
-    if (dir.existsSync()) {
-      dir.listSync(recursive: true, followLinks: false).forEach((
-        FileSystemEntity entity,
-      ) {
-        if (entity is File) {
-          cacheCount++;
-          cacheSize += entity.lengthSync();
+      if (dir.existsSync()) {
+        await for (final entity
+            in dir.list(recursive: true, followLinks: false)) {
+          if (entity is File) {
+            cacheCount++;
+            try {
+              cacheSize += await entity.length();
+            } catch (_) {}
+          }
         }
-      });
+      }
+    } catch (e) {
+      Logger.error('[cacheAnalysis] E: $e');
     }
-
-    setState(() {});
   }
 
   // Chart component lists
@@ -370,30 +403,24 @@ class _StatisticsState extends State<Statistics> {
       child: Column(
         children: [
           Expanded(
-            child: lff.isNotEmpty
-                ? ListView(
+            child: _isLoading
+                ? const Center(
+                    child: SizedBox(
+                      width: 50,
+                      height: 50,
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                : ListView(
                     padding: EdgeInsets.zero,
                     controller: _controller,
                     physics: const BouncingScrollPhysics(),
                     children: [
                       _tagChart(),
                       _status(),
-                      _statusChart(),
-                      _heatMap(),
-                    ],
-                  )
-                : const Column(
-                    children: <Widget>[
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.center,
-                          child: SizedBox(
-                            width: 50,
-                            height: 50,
-                            child: CircularProgressIndicator(),
-                          ),
-                        ),
-                      ),
+                      if (timePerDate.isNotEmpty) _statusChart(),
+                      if (timePerDate.isNotEmpty) _heatMap(),
+                      const SizedBox(height: 24),
                     ],
                   ),
           ),
@@ -449,7 +476,28 @@ class _StatisticsState extends State<Statistics> {
     return NumberFormat('###,###,###,###').format(param).replaceAll(' ', '');
   }
 
-  _tagChart() {
+  Widget _tagChart() {
+    if (lff.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+        child: Column(
+          children: [
+            const Text(
+              '나의 통계',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              totalRead == 0
+                  ? '아직 열람한 작품 기록이 없습니다.'
+                  : '열람한 작품의 태그 정보가 없습니다.',
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
     final width = MediaQuery.of(context).size.width;
     var axis1 = charts.AxisSpec<String>(
       renderSpec: charts.GridlineRendererSpec(
@@ -470,6 +518,9 @@ class _StatisticsState extends State<Statistics> {
         ),
       ),
     );
+
+    final totalTags = femaleTags + maleTags + tags;
+
     return Column(
       children: [
         Container(height: 16),
@@ -482,28 +533,32 @@ class _StatisticsState extends State<Statistics> {
             ),
           ],
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(64, 16, 64, 0),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8.0),
-            child: Row(
-              children: <Widget>[
-                Expanded(
-                  flex: femaleTags,
-                  child: Container(height: 8, color: Colors.pink),
-                ),
-                Expanded(
-                  flex: maleTags,
-                  child: Container(height: 8, color: Colors.blue),
-                ),
-                Expanded(
-                  flex: tags,
-                  child: Container(height: 8, color: Colors.grey),
-                ),
-              ],
+        if (totalTags > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(64, 16, 64, 0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8.0),
+              child: Row(
+                children: <Widget>[
+                  if (femaleTags > 0)
+                    Expanded(
+                      flex: femaleTags,
+                      child: Container(height: 8, color: Colors.pink),
+                    ),
+                  if (maleTags > 0)
+                    Expanded(
+                      flex: maleTags,
+                      child: Container(height: 8, color: Colors.blue),
+                    ),
+                  if (tags > 0)
+                    Expanded(
+                      flex: tags,
+                      child: Container(height: 8, color: Colors.grey),
+                    ),
+                ],
+              ),
             ),
           ),
-        ),
         Container(padding: const EdgeInsets.all(4)),
         InkWell(
           child: SizedBox(
@@ -560,7 +615,7 @@ class _StatisticsState extends State<Statistics> {
     );
   }
 
-  _status() {
+  Widget _status() {
     return Column(
       children: [
         Text('읽은 작품: ${numberWithComma(totalRead)}개'),
@@ -573,23 +628,26 @@ class _StatisticsState extends State<Statistics> {
         Text('앱 시작 횟수: ${numberWithComma(startUpTimes)}번'),
         Text('앱 실행 시간: ${durationToString(Duration(seconds: totalSeconds))}'),
         const Text('* 백그라운드 포함', style: TextStyle(fontSize: 13.0)),
-        Text('* 기준: $baseTime 부터', style: const TextStyle(fontSize: 13.0)),
+        if (baseTime != null)
+          Text('* 기준: $baseTime 부터', style: const TextStyle(fontSize: 13.0)),
         Container(height: 30),
         Text('앱 전환 횟수: ${numberWithComma(pureStartUpTime)}번'),
         Text(
           '순수 앱 사용 시간: ${durationToString(Duration(seconds: totalPureSeconds))}',
         ),
-        Text('* 기준: $basePureTime 부터', style: const TextStyle(fontSize: 13.0)),
+        if (basePureTime != null)
+          Text('* 기준: $basePureTime 부터', style: const TextStyle(fontSize: 13.0)),
       ],
     );
   }
 
   String yvalue = '';
 
-  _statusChart() {
+  Widget _statusChart() {
+    if (timePerDate.isEmpty) return const SizedBox.shrink();
     final seriesList = charts.Series<(DateTime, int), DateTime>(
       id: 'time',
-      colorFn: (_, __) => charts.MaterialPalette.blue.shadeDefault,
+      colorFn: (_, _) => charts.MaterialPalette.blue.shadeDefault,
       domainFn: (v, _) => v.$1,
       measureFn: (v, _) => v.$2,
       data: timePerDate.entries.map((e) => (e.key, e.value ~/ 60)).toList(),
@@ -635,7 +693,11 @@ class _StatisticsState extends State<Statistics> {
     );
   }
 
-  _heatMap() {
+  Widget _heatMap() {
+    if (timePerDate.isEmpty) return const SizedBox.shrink();
+    final startDate = timePerDate.keys.reduce(
+      (value, element) => value.compareTo(element) < 0 ? value : element,
+    );
     return Card(
       margin: const EdgeInsets.all(20),
       elevation: 20,
@@ -644,12 +706,7 @@ class _StatisticsState extends State<Statistics> {
         child: HeatMap(
           datasets: timePerDate,
           colorMode: ColorMode.opacity,
-          startDate: timePerDate.entries
-              .map((e) => e.key)
-              .reduce(
-                ((value, element) =>
-                    value.compareTo(element) < 0 ? value : element),
-              ),
+          startDate: startDate,
           showText: false,
           scrollable: true,
           onClick: (value) {

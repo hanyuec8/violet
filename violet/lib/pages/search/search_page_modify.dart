@@ -55,6 +55,114 @@ class _SearchPageModifyPageState extends State<SearchPageModifyPage> {
               ),
             ],
           ),
+          if (Settings.lastSearchArticleId.value > 0) ...[
+            const SizedBox(height: 10),
+            Container(
+              decoration: BoxDecoration(
+                color: Settings.themeWhat.value
+                    ? Colors.grey.shade100
+                    : Colors.grey.shade900,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Settings.majorColor.value.withOpacity(0.5),
+                  width: 1.0,
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.bookmark_added,
+                        size: 16,
+                        color: Settings.majorColor.value,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          '마지막 본 작품 (No. ${Settings.lastSearchArticleId.value})',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Settings.majorColor.value,
+                          ),
+                        ),
+                      ),
+                      if (Settings.lastSearchIsPupil.value)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Pupil',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.orange,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (Settings.lastSearchArticleTitle.value.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      Settings.lastSearchArticleTitle.value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 32,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.near_me, size: 14),
+                      label: Text(
+                        '이 작품 위치로 이동 (당시 ${Settings.lastSearchPosition.value}번)',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Settings.majorColor.value,
+                        side: BorderSide(color: Settings.majorColor.value),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context, [2]);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (Settings.lastSearchPosition.value > 0 &&
+              Settings.lastSearchPosition.value != widget.curPage) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ActionChip(
+                avatar: const Icon(Icons.history, size: 16),
+                label: Text('이어서 보기 (${Settings.lastSearchPosition.value}번)'),
+                onPressed: () {
+                  setState(() {
+                    _pageController.text =
+                        Settings.lastSearchPosition.value.toString();
+                    _pageController.selection = TextSelection.fromPosition(
+                      TextPosition(offset: _pageController.text.length),
+                    );
+                  });
+                },
+              ),
+            ),
+          ],
           Container(height: 16),
           Row(
             children: <Widget>[

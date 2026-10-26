@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:violet/algorithm/distance.dart';
 import 'package:violet/component/hitomi/artists.dart';
 import 'package:violet/component/hitomi/displayed_tag.dart';
+import 'package:violet/component/hitomi/tag_catalog.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
 import 'package:violet/database/database.dart';
 import 'package:violet/log/log.dart';
@@ -176,18 +177,41 @@ class HentaiIndex {
     }
   }
 
-  static int? getArticleCount(String classification, String name) {
+  static int getArticleCount(String classification, String name) {
     if (tagCount == null) {
-      final path = _resolveFile(Variables.applicationDocumentsDirectory, 'index.json');
-      if (!path.existsSync()) return 0;
-      final text = path.readAsStringSync();
-      tagCount = jsonDecode(text);
+      try {
+        final path = _resolveFile(
+          Variables.applicationDocumentsDirectory,
+          'index.json',
+        );
+        if (path.existsSync()) {
+          final text = path.readAsStringSync();
+          tagCount = jsonDecode(text);
+        }
+      } catch (_) {}
     }
 
-    if (tagCount == null || !tagCount!.containsKey(classification)) {
-      return 0;
+    if (tagCount != null && tagCount!.containsKey(classification)) {
+      final map = tagCount![classification];
+      if (map is Map) {
+        final clean = name.trim();
+        final lower = clean.toLowerCase();
+        final space = lower.replaceAll('_', ' ');
+        final under = lower.replaceAll(' ', '_');
+
+        final dynamic val = map[clean] ?? map[lower] ?? map[space] ?? map[under];
+        if (val is num && val > 0) {
+          return val.toInt();
+        }
+      }
     }
-    return tagCount![classification]?[name];
+
+    final catalogCount = HitomiTagCatalog.getCount(classification, name);
+    if (catalogCount > 0) {
+      return catalogCount;
+    }
+
+    return 0;
   }
 
   static Future<List<(DisplayedTag, int)>> queryAutoComplete(
@@ -294,9 +318,12 @@ class HentaiIndex {
           });
     }
 
-    // 3) 아티스트의 경우 내장 아티스트 사전(Artists.collection) 추가 매칭
+    // 3) 아티스트/그룹의 경우 Hitomi 카탈로그 및 내장 사전 매칭
     if (group == 'artist') {
       _appendFromBuiltinArtists(name, results, seen);
+      await _appendFromCatalog('artist', name, results, seen);
+    } else if (group == 'group') {
+      await _appendFromCatalog('group', name, results, seen);
     }
 
     // 4) 로컬 SQLite DB(HitomiColumnModel) 실시간 조회 폴백
@@ -317,7 +344,7 @@ class HentaiIndex {
       }
     }
 
-    _sortAutoCompleteResults(results, name);
+    _sortAutoCompleteResults(results, name, isExplicitGroupSearch: true);
     return results;
   }
 
@@ -420,11 +447,19 @@ class HentaiIndex {
     // 3. 내장 아티스트 사전 매칭
     _appendFromBuiltinArtists(prefix, results, seen);
 
-    // 4. 결과가 부족하거나 로컬 DB에 있는 아티스트/그룹 보강
-    if (results.length < 60) {
-      await _appendFromDatabase('artist', prefix, results, seen);
-      await _appendFromDatabase('group', prefix, results, seen);
+    // 4. Hitomi 공식 작가/그룹 카탈로그 매칭 (온디맨드 로컬 캐시)
+    // 단문자(1~2자) 일반 검색 시 무명/0작품 카탈로그 항목이 대량 유입되는 것을 방지하기 위해 최소 3자 이상이거나 count > 0인 항목만 허용
+    if (cleanPrefix.length >= 3) {
+      await _appendFromCatalog('artist', prefix, results, seen);
+      await _appendFromCatalog('group', prefix, results, seen);
+    } else {
+      await _appendFromCatalog('artist', prefix, results, seen, minCount: 1);
+      await _appendFromCatalog('group', prefix, results, seen, minCount: 1);
     }
+
+    // 5. 로컬 SQLite DB(HitomiColumnModel) 실시간 조회 폴백
+    await _appendFromDatabase('artist', prefix, results, seen);
+    await _appendFromDatabase('group', prefix, results, seen);
 
     _sortAutoCompleteResults(results, prefix);
     return results;
@@ -450,6 +485,45 @@ class HentaiIndex {
         }
       }
     }
+  }
+
+  static Future<void> _appendFromCatalog(
+    String group,
+    String query,
+    List<(DisplayedTag, int)> results,
+    Set<String> seen, {
+    int minCount = 0,
+  }) async {
+    try {
+      final clean = query.trim().replaceAll('_', ' ');
+      if (clean.isEmpty) return;
+
+      final matches = group == 'artist'
+          ? await HitomiTagCatalog.searchArtists(clean)
+          : await HitomiTagCatalog.searchGroups(clean);
+
+      for (final item in matches) {
+        final key = '$group:$item';
+        if (!seen.contains(key)) {
+          seen.add(key);
+          int count = 0;
+          if (tagCount != null &&
+              tagCount!.containsKey(group) &&
+              tagCount![group].containsKey(item)) {
+            count = (tagCount![group][item] as num).toInt();
+          }
+          if (count < minCount) continue;
+          results.add((
+            DisplayedTag(
+              group: group,
+              name: item,
+              translated: TagTranslate.of(group, item),
+            ),
+            count,
+          ));
+        }
+      }
+    } catch (_) {}
   }
 
   static Future<void> _appendFromDatabase(
@@ -580,8 +654,9 @@ class HentaiIndex {
   /// 4. 이름 길이 (짧은 핵심 태그 우선)
   static void _sortAutoCompleteResults(
     List<(DisplayedTag, int)> results,
-    String query,
-  ) {
+    String query, {
+    bool isExplicitGroupSearch = false,
+  }) {
     final cleanQuery = query.trim().toLowerCase();
 
     int scoreTag((DisplayedTag, int) item) {
@@ -595,49 +670,67 @@ class HentaiIndex {
 
       // 1. 일치 방식 점수 (Match Quality)
       if (name == cleanQuery) {
-        score += 10000;
+        score += 20000;
       } else if (translated == cleanQuery) {
-        score += 9000;
+        score += 18000;
       } else if (name.startsWith(cleanQuery)) {
-        score += 5000;
+        score += 15000;
       } else if (translated.startsWith(cleanQuery)) {
-        score += 4500;
+        score += 13000;
       } else if (name.split(RegExp(r'[\s_]+')).any((word) => word.startsWith(cleanQuery))) {
-        score += 3000;
+        score += 8000;
       } else {
         score += 1000;
       }
 
       // 2. 그룹 우선순위 (Group Priority)
-      // 핵심 성향 태그(tag, female, male) > 작가/서클 > 언어 > 시리즈 > 캐릭터
-      switch (group) {
-        case 'tag':
-        case 'female':
-        case 'male':
-          score += 800;
-          break;
-        case 'artist':
-        case 'group':
-          score += 600;
-          break;
-        case 'lang':
-        case 'language':
-          score += 500;
-          break;
-        case 'series':
-          score += 300;
-          break;
-        case 'character':
-          score += 100;
-          break;
-        default:
-          score += 50;
-          break;
+      if (isExplicitGroupSearch) {
+        switch (group) {
+          case 'artist':
+          case 'group':
+            score += name.startsWith(cleanQuery) ? 2000 : 1000;
+            break;
+          default:
+            score += 500;
+            break;
+        }
+      } else {
+        // 일반 검색 시 대중적인 태그(tag, female, male)를 미확인 작가/그룹보다 우선 노출
+        switch (group) {
+          case 'tag':
+          case 'female':
+          case 'male':
+            score += 1500;
+            break;
+          case 'lang':
+          case 'language':
+            score += 1200;
+            break;
+          case 'artist':
+          case 'group':
+            score += 600;
+            break;
+          case 'series':
+            score += 300;
+            break;
+          case 'character':
+            score += 100;
+            break;
+          default:
+            score += 50;
+            break;
+        }
       }
 
-      // 3. 인기도 / 작품 수 (Count)
+      // 3. 인기도 / 작품 수 (Count) - 작품 수가 있는 검증된 태그를 최우선 배치
       if (count > 0) {
-        score += (count > 500 ? 500 : count);
+        score += 8000;
+        score += (count > 2000 ? 2000 : count);
+      } else {
+        // 작품 수 0건이면서 2자 이하 초단문자인 미검증 단어는 큰 감점
+        if (name.length <= 2) {
+          score -= 10000;
+        }
       }
 
       // 4. 이름 길이 패널티 (짧은 핵심 단어 우선)

@@ -308,7 +308,7 @@ class _ViewerPageState extends State<ViewerPage> {
     await _close();
   }
 
-  _checkLatestRead() async {
+  Future<void> _checkLatestRead() async {
     final user = await User.getInstance();
     final log = await user.getUserLog();
 
@@ -318,9 +318,11 @@ class _ViewerPageState extends State<ViewerPage> {
     // 최근 읽은 기록 조회
     final e = x.elementAt(1);
     if (e.lastPage() == null) return;
-    if (e.lastPage()! <= 1 ||
-        DateTime.now().difference(DateTime.parse(e.datetimeStart())).inDays >
-            7) {
+
+    final bookmark = await Bookmark.getInstance();
+    final bookmarkArticle = await bookmark.getBookmarkArticle(_pageInfo.id);
+
+    if (!User.isProgressValid(e, bookmarkArticle)) {
       return;
     }
 

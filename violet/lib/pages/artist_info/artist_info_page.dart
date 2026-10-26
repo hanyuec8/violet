@@ -42,6 +42,12 @@ class ArtistInfoPage extends StatefulWidget {
 
   const ArtistInfoPage({super.key, required this.name, required this.type});
 
+  static List<QueryResult> filterByLanguage(
+    List<QueryResult> source,
+    String lang,
+  ) =>
+      _ArtistInfoPageState.filterByLanguage(source, lang);
+
   @override
   State<ArtistInfoPage> createState() => _ArtistInfoPageState();
 }
@@ -59,6 +65,14 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
   // Artist Articles
   late List<QueryResult> cc;
   List<QueryResult> allArticles = <QueryResult>[];
+
+  /// 현재 선택된 언어 필터가 적용된 단일 진실 공급원(SSOT) 작품 목록
+  List<QueryResult> get displayArticles {
+    final source = cc.isNotEmpty ? cc : allArticles;
+    if (selectedLanguage == 'all') return source;
+    return ArtistInfoPage.filterByLanguage(source, selectedLanguage);
+  }
+
   // Chart component lists
   late List<(String, int)> lff = <(String, int)>[];
   late List<(String, int)> lffOrigin;
@@ -139,10 +153,9 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
           }
           if (cc.isEmpty && allArticles.isNotEmpty) {
             final fallback = filterByLanguage(allArticles, selectedLanguage);
-            if (mounted) {
+            if (mounted && fallback.isNotEmpty) {
               setState(() {
-                cc = fallback.isNotEmpty ? fallback : allArticles;
-                if (fallback.isEmpty) selectedLanguage = 'all';
+                cc = fallback;
               });
             }
           }
@@ -262,6 +275,8 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
   Future<List<QueryResult>> query([bool? forceWeb, String? lang]) async {
     final useWeb = forceWeb ?? isWebMode;
     final targetLang = lang ?? selectedLanguage;
+    List<QueryResult> results = <QueryResult>[];
+
     if (useWeb) {
       try {
         final hybridResults = await HybridLoader.fetchArtistArticlesHybrid(
@@ -270,24 +285,31 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
           language: targetLang,
         );
         if (hybridResults.isNotEmpty) {
-          return hybridResults;
+          results = hybridResults;
         }
       } catch (e, st) {
         Logger.error('[ArtistInfoPage-HybridQuery] E: $e\n$st');
       }
     }
-    try {
-      final token = '${widget.type.name}:${widget.name.replaceAll(' ', '_')}';
-      final langToken = targetLang != 'all' ? 'language:$targetLang' : '';
-      final query = translate2query(
-        '$token $langToken ${Settings.includeTags.value} ${Settings.serializedExcludeTags}'.trim(),
-      );
-      final qm = await QueryManager.query('$query ORDER BY Id DESC');
-      return qm.results ?? <QueryResult>[];
-    } catch (e, st) {
-      Logger.error('[ArtistInfoPage-DbQuery] E: $e\n$st');
-      return <QueryResult>[];
+
+    if (results.isEmpty) {
+      try {
+        final token = '${widget.type.name}:${widget.name.replaceAll(' ', '_')}';
+        final langToken = targetLang != 'all' ? 'language:$targetLang' : '';
+        final query = translate2query(
+          '$token $langToken ${Settings.includeTags.value} ${Settings.serializedExcludeTags}'.trim(),
+        );
+        final qm = await QueryManager.query('$query ORDER BY Id DESC');
+        results = qm.results ?? <QueryResult>[];
+      } catch (e, st) {
+        Logger.error('[ArtistInfoPage-DbQuery] E: $e\n$st');
+      }
     }
+
+    if (targetLang != 'all') {
+      return ArtistInfoPage.filterByLanguage(results, targetLang);
+    }
+    return results;
   }
 
   void _updateStatistics() {
@@ -404,7 +426,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
           } else if (allArticles.isNotEmpty) {
             // 해당 언어 인덱스 0건 시 allArticles에서 fallback 필터링
             final filtered = filterByLanguage(allArticles, lang);
-            cc = filtered.isNotEmpty ? filtered : allArticles;
+            cc = filtered;
           } else {
             cc = <QueryResult>[];
           }
@@ -807,7 +829,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
           child: Text(
-            '${Translations.instance!.trans('articles')} (${cc.length})',
+            '${Translations.instance!.trans('articles')} (${displayArticles.length})',
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -816,10 +838,10 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
         ),
         articleArea(),
         Visibility(
-          visible: cc.length > maxItemCount,
+          visible: displayArticles.length > maxItemCount,
           child: more(
             () => ArticleListPage(
-              cc: cc,
+              cc: displayArticles,
               name: '${widget.type.name.titlecase()}: ${widget.name}',
             ),
           ),
@@ -975,12 +997,66 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
   }
 
   Widget articleArea() {
+    if (isWebLoading) {
+      return Container(
+        height: 160,
+        alignment: Alignment.center,
+        child: const CircularProgressIndicator(),
+      );
+    }
+
+    final articles = displayArticles;
+
+    if (qureyLoaded && articles.isEmpty) {
+      final langName = selectedLanguage == 'all'
+          ? ''
+          : (selectedLanguage == 'korean'
+              ? '한국어'
+              : selectedLanguage == 'japanese'
+                  ? '일본어'
+                  : selectedLanguage == 'english'
+                      ? '영어'
+                      : selectedLanguage == 'chinese'
+                          ? '중국어'
+                          : selectedLanguage);
+      final emptyText = langName.isNotEmpty
+          ? '$langName 작품이 없습니다'
+          : '작품이 없습니다';
+
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 36),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 44,
+              color: Settings.themeWhat.value
+                  ? Colors.grey.shade600
+                  : Colors.grey.shade400,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              emptyText,
+              style: TextStyle(
+                fontSize: 14,
+                color: Settings.themeWhat.value
+                    ? Colors.grey.shade400
+                    : Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final windowWidth = MediaQuery.of(context).size.width;
     final columnCount =
         MediaQuery.of(context).orientation == Orientation.landscape ? 4 : 3;
     final maxItemCount =
         MediaQuery.of(context).orientation == Orientation.landscape ? 8 : 6;
-    final displayCount = min(cc.length, maxItemCount);
+    final displayCount = min(articles.length, maxItemCount);
 
     return GridView.builder(
       shrinkWrap: true,
@@ -999,12 +1075,12 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
           child: SizedBox(
             child: Provider<ArticleListItem>.value(
               value: ArticleListItem.fromArticleListItem(
-                queryResult: cc[index],
+                queryResult: articles[index],
                 showDetail: false,
                 addBottomPadding: false,
                 width: (windowWidth - 4.0) / columnCount,
                 thumbnailTag: const Uuid().v4(),
-                usableTabList: cc,
+                usableTabList: articles,
               ),
               child: const ArticleListItemWidget(),
             ),

@@ -70,3 +70,4 @@ test/rawdata-korean
 script/xx.py
 script/*.json
 target/*
+catalog/

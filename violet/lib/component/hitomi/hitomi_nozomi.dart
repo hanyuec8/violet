@@ -11,6 +11,9 @@ import 'package:violet/log/log.dart';
 class HitomiNozomi {
   static const String domain = 'ltn.gold-usergeneratedcontent.net';
 
+  /// Nozomi URL -> 총 작품 수 인메모리 캐시
+  static final Map<String, int> _totalCountCache = <String, int>{};
+
   /// 특정 Nozomi URL에서 지정한 페이지 범위(기본 25개 갤러리 ID)를 Range Header로 요청합니다.
   static Future<List<int>> fetchGalleryIds(
     String nozomiUrl,
@@ -32,9 +35,24 @@ class HitomiNozomi {
       );
 
       if (response.statusCode == 206 || response.statusCode == 200) {
+        // Content-Range 헤더(예: bytes 0-15/36) 또는 Content-Length를 통해 총 작품 수 캐싱
+        try {
+          final contentRange = response.headers['content-range'];
+          if (contentRange != null && contentRange.contains('/')) {
+            final totalStr = contentRange.split('/').last.trim();
+            final totalBytes = int.tryParse(totalStr);
+            if (totalBytes != null && totalBytes > 0) {
+              _totalCountCache[nozomiUrl] = totalBytes ~/ 4;
+            }
+          } else if (response.statusCode == 200) {
+            _totalCountCache[nozomiUrl] = response.bodyBytes.length ~/ 4;
+          }
+        } catch (_) {}
+
         return parseNozomiBytes(Uint8List.fromList(response.bodyBytes));
       } else {
         if (response.statusCode == 404) {
+          _totalCountCache[nozomiUrl] = 0;
           Logger.info(
             '[HitomiNozomi] Nozomi index not found (404): $nozomiUrl',
           );
@@ -48,6 +66,50 @@ class HitomiNozomi {
       Logger.error('[HitomiNozomi] Exception during range request: $e\n$st');
     }
     return [];
+  }
+
+  /// 특정 Nozomi 인덱스의 총 작품 수를 반환합니다 (캐시 우선, 부재 시 Range 0-0 요청으로 전체 바이트 수 추출).
+  static Future<int?> getTotalCount(String nozomiUrl) async {
+    if (_totalCountCache.containsKey(nozomiUrl)) {
+      return _totalCountCache[nozomiUrl];
+    }
+    try {
+      final response = await http.get(
+        nozomiUrl,
+        headers: {
+          'Range': 'bytes=0-0',
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://hitomi.la/',
+        },
+      ).timeout(const Duration(seconds: 3));
+
+      if (response.statusCode == 200 || response.statusCode == 206) {
+        final contentRange = response.headers['content-range'];
+        if (contentRange != null && contentRange.contains('/')) {
+          final totalStr = contentRange.split('/').last.trim();
+          final totalBytes = int.tryParse(totalStr);
+          if (totalBytes != null && totalBytes >= 0) {
+            final count = totalBytes ~/ 4;
+            _totalCountCache[nozomiUrl] = count;
+            return count;
+          }
+        }
+        final lengthStr = response.headers['content-length'];
+        if (lengthStr != null) {
+          final totalBytes = int.tryParse(lengthStr);
+          if (totalBytes != null && totalBytes >= 0) {
+            final count = totalBytes ~/ 4;
+            _totalCountCache[nozomiUrl] = count;
+            return count;
+          }
+        }
+      } else if (response.statusCode == 404) {
+        _totalCountCache[nozomiUrl] = 0;
+        return 0;
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// 4바이트 Big-Endian 정수 배열을 Dart `List<int>` ID 목록으로 바이트 언패킹(Unpack)합니다.

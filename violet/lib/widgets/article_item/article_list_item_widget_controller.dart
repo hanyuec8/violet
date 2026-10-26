@@ -64,7 +64,7 @@ class ArticleListItemWidgetController extends GetxController {
   }
 
 
-  setSize() {
+  void setSize() {
     if (articleListItem.showDetail) {
       thisWidth = articleListItem.width - 16;
       if (!articleListItem.showUltra) {
@@ -94,7 +94,7 @@ class ArticleListItemWidgetController extends GetxController {
     }
   }
 
-  checkIsBookmarked() {
+  void checkIsBookmarked() {
     Bookmark.getInstance().then((value) async {
       isBookmarked.value = await value.isBookmark(
         articleListItem.queryResult.id(),
@@ -102,27 +102,32 @@ class ArticleListItemWidgetController extends GetxController {
     });
   }
 
-  checkLastRead() {
-    User.getInstance().then(
-      (value) => value.getUserLog().then((value) async {
-        var x = value.where(
-          (e) =>
-              e.articleId() == articleListItem.queryResult.id().toString() &&
-              e.lastPage() != null &&
-              e.lastPage()! > 1 &&
-              DateTime.parse(
-                    e.datetimeStart(),
-                  ).difference(DateTime.now()).inDays <
-                  31,
-        );
-        if (x.isEmpty) return;
-        isLatestRead.value = true;
-        latestReadPage.value = x.first.lastPage()!;
-      }),
-    );
+  void checkLastRead() {
+    User.getInstance().then((user) async {
+      final userLog = await user.getUserLog();
+      final id = articleListItem.queryResult.id();
+      final idStr = id.toString();
+
+      final candidates = userLog.where(
+        (e) =>
+            e.articleId() == idStr &&
+            e.lastPage() != null &&
+            e.lastPage()! > 1,
+      );
+      if (candidates.isEmpty) return;
+
+      final bookmark = await Bookmark.getInstance();
+      final bookmarkArticle = await bookmark.getBookmarkArticle(id);
+
+      final latestLog = candidates.first;
+      if (!User.isProgressValid(latestLog, bookmarkArticle)) return;
+
+      isLatestRead.value = true;
+      latestReadPage.value = latestLog.lastPage()!;
+    });
   }
 
-  initTexts() {
+  void initTexts() {
     final qr = currentQueryResult.value;
     var a = (qr.artists() as String)
         .split('|')
@@ -143,7 +148,7 @@ class ArticleListItemWidgetController extends GetxController {
         : '';
   }
 
-  setProvider() async {
+  Future<void> setProvider() async {
     final provider = await getImageProvider(currentQueryResult.value);
 
     thumbnail.value = await provider.getThumbnailUrl();
