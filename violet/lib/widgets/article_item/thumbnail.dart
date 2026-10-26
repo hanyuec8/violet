@@ -58,6 +58,9 @@ class ThumbnailWidget extends StatelessWidget {
                       showDetail: c.articleListItem.showDetail,
                     ),
                   ),
+                  LastSearchMarkerOverlayWidget(
+                    articleId: c.articleListItem.queryResult.id(),
+                  ),
                 ],
               )
             : !Settings.simpleItemWidgetLoadingIcon.value
@@ -307,6 +310,54 @@ class PagesOverlayWidget extends StatelessWidget {
               padding: const EdgeInsets.all(6.0),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class LastSearchMarkerOverlayWidget extends StatelessWidget {
+  final int articleId;
+
+  const LastSearchMarkerOverlayWidget({super.key, required this.articleId});
+
+  @override
+  Widget build(BuildContext context) {
+    if (articleId <= 0 || articleId != Settings.lastSearchArticleId.value) {
+      return const SizedBox.shrink();
+    }
+
+    return Align(
+      alignment: Alignment.bottomLeft,
+      child: Container(
+        margin: const EdgeInsets.all(4),
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.redAccent.shade700.withOpacity(0.92),
+          borderRadius: BorderRadius.circular(4),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 3,
+              offset: Offset(0, 1),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.bookmark, size: 10, color: Colors.white),
+            SizedBox(width: 2),
+            Text(
+              '마지막 본 위치',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 9.5,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -112,8 +112,7 @@ class HybridLoader {
               page,
               pageSize: pageSize,
             );
-          }
-          if (ids.isEmpty) {
+          } else {
             ids = await HitomiNozomi.fetchGalleryIds(
               getNozomiUrl('all'),
               page,
@@ -204,7 +203,7 @@ class HybridLoader {
                       qrTitle.contains('[한국어]') ||
                       qrTitle.contains('(한국어)')));
 
-          if (!matchLang && qrLang.isNotEmpty && qrLang != lang && qrLang != 'n/a') {
+          if (!matchLang) {
             return;
           }
         }
@@ -266,13 +265,8 @@ class HybridLoader {
       return results;
     }
 
-    // 1차 시도: 사용자가 지정한 targetLang으로 검색
+    // 사용자가 지정한 targetLang으로 검색 (지정 언어 부재 시 타 언어를 임의로 섞지 않음)
     var finalResults = await fetchWithLang(targetLang);
-
-    // 2차 Fallback: 지정 언어에 작품이 전혀 없는 경우 (0건) 자동으로 전체('all') 언어로 복구하여 언제나 작품 표시
-    if (finalResults.isEmpty && targetLang != 'all') {
-      finalResults = await fetchWithLang('all');
-    }
 
     return finalResults;
   }
@@ -443,6 +437,7 @@ class HybridLoader {
               pageSize: pageSize,
             );
             if (ids.isNotEmpty) return ids;
+            if (explicitLang != null && explicitLang.isNotEmpty) return [];
           }
           return await HitomiNozomi.fetchGalleryIds(
             HitomiNozomi.getArtistIndexUrl(val, 'all'),
@@ -457,6 +452,7 @@ class HybridLoader {
               pageSize: pageSize,
             );
             if (ids.isNotEmpty) return ids;
+            if (explicitLang != null && explicitLang.isNotEmpty) return [];
           }
           return await HitomiNozomi.fetchGalleryIds(
             HitomiNozomi.getGroupIndexUrl(val, 'all'),
@@ -471,6 +467,7 @@ class HybridLoader {
               pageSize: pageSize,
             );
             if (ids.isNotEmpty) return ids;
+            if (explicitLang != null && explicitLang.isNotEmpty) return [];
           }
           return await HitomiNozomi.fetchGalleryIds(
             HitomiNozomi.getSeriesIndexUrl(val, 'all'),
@@ -485,6 +482,7 @@ class HybridLoader {
               pageSize: pageSize,
             );
             if (ids.isNotEmpty) return ids;
+            if (explicitLang != null && explicitLang.isNotEmpty) return [];
           }
           return await HitomiNozomi.fetchGalleryIds(
             HitomiNozomi.getCharacterIndexUrl(val, 'all'),
@@ -499,6 +497,7 @@ class HybridLoader {
               pageSize: pageSize,
             );
             if (ids.isNotEmpty) return ids;
+            if (explicitLang != null && explicitLang.isNotEmpty) return [];
           }
           return await HitomiNozomi.fetchGalleryIds(
             HitomiNozomi.getUploaderIndexUrl(val, 'all'),
@@ -516,6 +515,7 @@ class HybridLoader {
               language: effectiveLang,
             );
             if (ids.isNotEmpty) return ids;
+            if (explicitLang != null && explicitLang.isNotEmpty) return [];
           }
           return await HitomiNozomi.fetchTagGalleryIds(
             primaryTerm,
@@ -1022,11 +1022,69 @@ class HybridLoader {
       targetLang = langMatch.group(1)!.toLowerCase();
     }
 
-    // 1) Pupil 방식: fetchGalleryIdsForQuery 사용
+    // 1) random 검색 및 seed 분리
+    bool isRandom = false;
+    double? randomSeed;
+    final queryTokens = cleanQuery.split(' ');
+    if (queryTokens.any((x) => x == 'random' || x.startsWith('random:'))) {
+      isRandom = true;
+      for (final t in queryTokens) {
+        if (t.startsWith('random:')) {
+          randomSeed = double.tryParse(t.split('random:').last);
+          break;
+        }
+      }
+      randomSeed ??= (DateTime.now().microsecondsSinceEpoch % 10000) / 1000.0 + 1.0;
+    }
+
+    // 온라인 및 태그 검색용 순수 검색어 (random 관련 토큰 제거)
+    final pureQuery = queryTokens
+        .where((x) => x != 'random' && !x.startsWith('random:'))
+        .join(' ')
+        .trim();
+
+    // 2) 번호(Id) 및 날짜(Date) 범위 필터 추출
+    int? filterMinId;
+    int? filterMaxId;
+    final idRangeMatch = RegExp(r'id:(\d+)(?:~|\.\.|\-)(\d+)', caseSensitive: false).firstMatch(cleanQuery);
+    if (idRangeMatch != null) {
+      filterMinId = int.tryParse(idRangeMatch.group(1)!);
+      filterMaxId = int.tryParse(idRangeMatch.group(2)!);
+    }
+    final idGteMatch = RegExp(r'id(?:>=|>)(\d+)', caseSensitive: false).firstMatch(cleanQuery);
+    if (idGteMatch != null) filterMinId = int.tryParse(idGteMatch.group(1)!);
+    final idLteMatch = RegExp(r'id(?:<=|<)(\d+)', caseSensitive: false).firstMatch(cleanQuery);
+    if (idLteMatch != null) filterMaxId = int.tryParse(idLteMatch.group(1)!);
+
+    DateTime? filterMinDate;
+    DateTime? filterMaxDate;
+    final dateRangeMatch = RegExp(r'(?:date|published):(\d{4}(?:-\d{2}-\d{2})?)(?:~|\.\.)(\d{4}(?:-\d{2}-\d{2})?)', caseSensitive: false).firstMatch(cleanQuery);
+    if (dateRangeMatch != null) {
+      var sStr = dateRangeMatch.group(1)!;
+      var eStr = dateRangeMatch.group(2)!;
+      if (sStr.length == 4) sStr = '$sStr-01-01';
+      if (eStr.length == 4) eStr = '$eStr-12-31';
+      filterMinDate = DateTime.tryParse(sStr);
+      filterMaxDate = DateTime.tryParse('$eStr 23:59:59');
+    }
+    final dateGteMatch = RegExp(r'(?:date|published)(?:>=|>)(\d{4}(?:-\d{2}-\d{2})?)', caseSensitive: false).firstMatch(cleanQuery);
+    if (dateGteMatch != null) {
+      var sStr = dateGteMatch.group(1)!;
+      if (sStr.length == 4) sStr = '$sStr-01-01';
+      filterMinDate = DateTime.tryParse(sStr);
+    }
+    final dateLteMatch = RegExp(r'(?:date|published)(?:<=|<)(\d{4}(?:-\d{2}-\d{2})?)', caseSensitive: false).firstMatch(cleanQuery);
+    if (dateLteMatch != null) {
+      var eStr = dateLteMatch.group(1)!;
+      if (eStr.length == 4) eStr = '$eStr-12-31';
+      filterMaxDate = DateTime.tryParse('$eStr 23:59:59');
+    }
+
+    // 1) Pupil 방식: fetchGalleryIdsForQuery 사용 (random 태그 제외한 pureQuery 사용)
     final pupilFuture = Future<List<QueryResult>>(() async {
       try {
         List<int> ids = [];
-        if (cleanQuery.isEmpty && selectedLangs.length > 1) {
+        if (pureQuery.isEmpty && selectedLangs.length > 1) {
           // 복수 언어가 설정된 경우 각 언어 인덱스를 분할/병렬 로드하여 합침
           final subPageSize = (pageSize / selectedLangs.length).ceil() + 5;
           final subIds = await Future.wait(
@@ -1043,7 +1101,7 @@ class HybridLoader {
           ids = mergedSet.toList();
         } else {
           ids = await fetchGalleryIdsForQuery(
-            query: cleanQuery,
+            query: pureQuery,
             page: page,
             pageSize: pageSize,
             targetLang: targetLang,
@@ -1068,14 +1126,14 @@ class HybridLoader {
         return [];
       }
     }).timeout(
-      const Duration(seconds: 8),
+      const Duration(seconds: 12),
       onTimeout: () => <QueryResult>[],
     );
 
-    // 2) Violet 웹 방식: E-Hentai 검색
+    // 2) Violet 웹 방식: E-Hentai 검색 (random 태그 제외한 pureQuery 사용)
     final violetFuture = Future<List<QueryResult>>(() async {
       try {
-        final ehQuery = formatEHentaiQuery(cleanQuery, targetLang);
+        final ehQuery = formatEHentaiQuery(pureQuery, targetLang);
         if (pageSize <= 25) {
           final offset = (page - 1) * pageSize;
           final list = await HentaiManager.searchEHentai(ehQuery, offset);
@@ -1105,11 +1163,11 @@ class HybridLoader {
         return [];
       }
     }).timeout(
-      const Duration(seconds: 8),
+      const Duration(seconds: 10),
       onTimeout: () => <QueryResult>[],
     );
 
-    // 3) 로컬 DB 방식: HitomiColumnModel 검색 (Triple Hybrid)
+    // 3) 로컬 DB 방식: HitomiColumnModel 검색 (Triple Hybrid, random 지원)
     final localDbFuture = Future<List<QueryResult>>(() async {
       try {
         final db = await DataBaseManager.getInstance();
@@ -1117,15 +1175,19 @@ class HybridLoader {
 
         String sqlQuery;
         final offset = (page - 1) * pageSize;
-        if (cleanQuery.isEmpty) {
+        final orderBy = isRandom
+            ? 'ORDER BY Id * $randomSeed - ROUND(Id * $randomSeed - 0.5, 0) DESC'
+            : 'ORDER BY Id DESC';
+
+        if (pureQuery.isEmpty) {
           if (targetLang != 'all') {
-            sqlQuery = 'SELECT * FROM HitomiColumnModel WHERE Language=\'$targetLang\' ORDER BY Id DESC LIMIT $pageSize OFFSET $offset';
+            sqlQuery = 'SELECT * FROM HitomiColumnModel WHERE Language=\'$targetLang\' $orderBy LIMIT $pageSize OFFSET $offset';
           } else {
-            sqlQuery = 'SELECT * FROM HitomiColumnModel ORDER BY Id DESC LIMIT $pageSize OFFSET $offset';
+            sqlQuery = 'SELECT * FROM HitomiColumnModel $orderBy LIMIT $pageSize OFFSET $offset';
           }
         } else {
-          final translated = translate2query(cleanQuery);
-          sqlQuery = '$translated ORDER BY Id DESC LIMIT $pageSize OFFSET $offset';
+          final translated = translate2query(pureQuery);
+          sqlQuery = '$translated $orderBy LIMIT $pageSize OFFSET $offset';
         }
 
         final rows = await db.query(sqlQuery);
@@ -1145,7 +1207,7 @@ class HybridLoader {
 
     final responses = await Future.wait([pupilFuture, violetFuture, localDbFuture])
         .timeout(
-          const Duration(seconds: 10),
+          const Duration(seconds: 14),
           onTimeout: () => [<QueryResult>[], <QueryResult>[], <QueryResult>[]],
         );
     final pupilList = responses[0];
@@ -1236,7 +1298,34 @@ class HybridLoader {
       );
     }
 
-    merged.sort((a, b) => b.id().compareTo(a.id()));
+    // 번호(Id) 및 날짜(Date) 범위 필터 적용
+    if (filterMinId != null || filterMaxId != null || filterMinDate != null || filterMaxDate != null) {
+      merged.retainWhere((item) {
+        final id = item.id();
+        if (filterMinId != null && id < filterMinId) return false;
+        if (filterMaxId != null && id > filterMaxId) return false;
+        if (filterMinDate != null || filterMaxDate != null) {
+          final dt = item.getDateTime();
+          if (dt != null) {
+            if (filterMinDate != null && dt.isBefore(filterMinDate)) return false;
+            if (filterMaxDate != null && dt.isAfter(filterMaxDate)) return false;
+          }
+        }
+        return true;
+      });
+    }
+
+    if (isRandom && randomSeed != null) {
+      final seed = randomSeed;
+      // random 검색일 때는 일관된 seed 정렬 유지
+      merged.sort((a, b) {
+        final scoreA = (a.id() * seed) - (a.id() * seed).floor();
+        final scoreB = (b.id() * seed) - (b.id() * seed).floor();
+        return scoreB.compareTo(scoreA);
+      });
+    } else {
+      merged.sort((a, b) => b.id().compareTo(a.id()));
+    }
 
     return merged;
   }

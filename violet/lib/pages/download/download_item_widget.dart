@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:violet/component/hitomi/hitomi.dart';
+import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/database/user/download.dart';
 import 'package:violet/database/user/record.dart';
 import 'package:violet/locale/locale.dart';
@@ -106,29 +107,34 @@ class DownloadItemWidgetState extends State<DownloadItemWidget>
   }
 
   void _checkLastRead() {
-    User.getInstance().then(
-      (value) => value.getUserLog().then((value) async {
-        final x = value.where(
-          (e) =>
-              e.articleId() == widget.item.url() &&
-              e.lastPage() != null &&
-              e.lastPage()! > 1 &&
-              DateTime.parse(
-                    e.datetimeStart(),
-                  ).difference(DateTime.now()).inDays <
-                  31,
-        );
-        if (x.isEmpty) return;
-        _shouldReload = true;
+    User.getInstance().then((user) async {
+      final userLog = await user.getUserLog();
+      final targetUrl = widget.item.url();
+      final x = userLog.where(
+        (e) =>
+            e.articleId() == targetUrl &&
+            e.lastPage() != null &&
+            e.lastPage()! > 1,
+      );
+      if (x.isEmpty) return;
 
-        if (!disposed) {
-          setState(() {
-            isLastestRead = true;
-            latestReadPage = x.first.lastPage()!;
-          });
-        }
-      }),
-    );
+      final id = int.tryParse(targetUrl);
+      final bookmark = await Bookmark.getInstance();
+      final bookmarkArticle =
+          id != null ? await bookmark.getBookmarkArticle(id) : null;
+
+      final latestLog = x.first;
+      if (!User.isProgressValid(latestLog, bookmarkArticle)) return;
+
+      _shouldReload = true;
+
+      if (!disposed) {
+        setState(() {
+          isLastestRead = true;
+          latestReadPage = latestLog.lastPage()!;
+        });
+      }
+    });
   }
 
   void _styleCallback(DownloadListItem item) {

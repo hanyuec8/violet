@@ -307,6 +307,16 @@ class Settings {
     'recordSearchDatabaseOnly',
     false,
   );
+  static final lastSearchPosition = SettingItem<int>('lastSearchPosition', 0);
+  static final lastSearchArticleId = SettingItem<int>('lastSearchArticleId', 0);
+  static final lastSearchArticleTitle = SettingItem<String>(
+    'lastSearchArticleTitle',
+    '',
+  );
+  static final lastSearchIsPupil = SettingItem<bool>(
+    'lastSearchIsPupil',
+    false,
+  );
 
   static late String userAppId;
 
@@ -514,7 +524,7 @@ class SettingItem<T> {
     load();
   }
 
-  T get value => _value!;
+  T get value => _value ?? defaultValue;
   Future<void> setValue(T v) async {
     _value = v;
     if (!Platform.environment.containsKey('FLUTTER_TEST')) {

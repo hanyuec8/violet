@@ -7,6 +7,8 @@ import 'package:material_design_icons_flutter/material_design_icons_flutter.dart
 import 'package:mdi/mdi.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:violet/component/hitomi/hitomi_nozomi.dart';
+import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/component/index.dart';
 import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
@@ -38,6 +40,9 @@ class _GroupArtistListState extends State<GroupArtistList>
   @override
   bool get wantKeepAlive => true;
   late List<BookmarkArtist> artists;
+  final Map<String, int> _artistCountCache = <String, int>{};
+  final Map<String, List<QueryResult>> _artistThumbnailCache =
+      <String, List<QueryResult>>{};
 
   Future<List<BookmarkArtist>> _bookmark() async {
     if (_filterLevel == 0) await refresh();
@@ -52,7 +57,23 @@ class _GroupArtistListState extends State<GroupArtistList>
         '${artists[i].type().name}:$postfix ${Settings.includeTags.value}',
       );
       final qm = QueryManager.queryPagination(queryString, 1);
-      var query = (await qm.next())[0].id();
+      final items = await qm.next();
+      var query = items.isNotEmpty ? items[0].id() : 0;
+
+      // 로컬 DB 부재 시 캐시 또는 _future 결과의 최신 품번 반영
+      if (query == 0) {
+        final cacheKey = '${artists[i].type().name}:${artists[i].artist()}';
+        final cached = _artistThumbnailCache[cacheKey];
+        if (cached != null && cached.isNotEmpty) {
+          query = cached[0].id();
+        } else {
+          try {
+            final f = await _future(artists[i].artist(), artists[i].type());
+            if (f.isNotEmpty) query = f[0].id();
+          } catch (_) {}
+        }
+      }
+
       ids.add((query, i));
     }
     ids.sort((e1, e2) => e2.$1.compareTo(e1.$1));
@@ -66,12 +87,49 @@ class _GroupArtistListState extends State<GroupArtistList>
   }
 
   Future<List<QueryResult>> _future(String e, ArtistType type) async {
+    final cacheKey = '${type.name}:$e';
+    if (_artistThumbnailCache.containsKey(cacheKey)) {
+      return _artistThumbnailCache[cacheKey]!;
+    }
+
     var postfix = e.toLowerCase().replaceAll(' ', '_');
     var queryString = translate2query(
       '${type.name}:$postfix ${Settings.includeTags.value}',
     );
     final qm = QueryManager.queryPagination(queryString, 4);
-    return await qm.next();
+    final localResults = await qm.next();
+    if (localResults.isNotEmpty) {
+      _artistThumbnailCache[cacheKey] = localResults;
+      return localResults;
+    }
+
+    // 로컬 DB 부재 시 하이브리드 로더로 최신 작품 4개 썸네일 조회
+    try {
+      final hybrid = await HybridLoader.fetchArtistArticlesHybrid(
+        name: e,
+        type: type.name,
+        pageSize: 4,
+        language: 'all',
+      );
+      if (hybrid.isNotEmpty) {
+        final list = hybrid.take(4).toList();
+        _artistThumbnailCache[cacheKey] = list;
+
+        // 총 작품 수 비동기 조회 및 실시간 카운트 갱신 (Nozomi 인덱스 크기)
+        final nozomiUrl = HitomiNozomi.getArtistIndexUrl(e, 'all');
+        HitomiNozomi.getTotalCount(nozomiUrl).then((cnt) {
+          if (cnt != null && cnt > 0 && mounted) {
+            setState(() {
+              _artistCountCache[cacheKey] = cnt;
+            });
+          }
+        });
+
+        return list;
+      }
+    } catch (_) {}
+
+    return [];
   }
 
   Future<void> refresh() async {
@@ -224,6 +282,21 @@ class _GroupArtistListState extends State<GroupArtistList>
     );
   }
 
+  int _resolveArticleCount(BookmarkArtist e, List<QueryResult> qq) {
+    final cacheKey = '${e.type().name}:${e.artist()}';
+    if (_artistCountCache.containsKey(cacheKey)) {
+      return _artistCountCache[cacheKey]!;
+    }
+    final dbCount = HentaiIndex.getArticleCount(e.type().name, e.artist());
+    if (dbCount > 0) return dbCount;
+
+    // 로컬 DB 카운트가 0인 신작 작가: 로드된 썸네일 수량 이상 반영
+    if (qq.isNotEmpty) {
+      return qq.length;
+    }
+    return 0;
+  }
+
   Widget _listItem(
     BuildContext context,
     BookmarkArtist e,
@@ -288,7 +361,7 @@ class _GroupArtistListState extends State<GroupArtistList>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
                     Text(
-                      ' ${e.type().name}:${e.artist()} (${HentaiIndex.getArticleCount(e.type().name, e.artist())})',
+                      ' ${e.type().name}:${e.artist()} (${_resolveArticleCount(e, qq)})',
                       style: const TextStyle(fontSize: 17),
                     ),
                   ],
@@ -443,7 +516,7 @@ class _GroupArtistListState extends State<GroupArtistList>
     var groups = await (await Bookmark.getInstance()).getGroup();
     var currentGroup = widget.groupId;
     groups = groups
-        .where((e) => e.id() != currentGroup && e.id() != 1)
+        .where((e) => e.id() != currentGroup && !Bookmark.isDefaultGroupId(e.id()))
         .toList();
     int choose = -9999;
     if (!mounted) return;

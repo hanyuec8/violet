@@ -20,7 +20,14 @@ class DisplayedTag {
   }
 
   String getTag() {
-    if (group == 'page') return '$group$name';
+    if (group == 'page' ||
+        ((group == 'id' || group == 'date') &&
+            name != null &&
+            (name!.startsWith('>') ||
+                name!.startsWith('<') ||
+                name!.startsWith('=')))) {
+      return '$group$name';
+    }
     return '$group:$name';
   }
 

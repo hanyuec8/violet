@@ -92,6 +92,8 @@ class _SearchBarPageState extends State<SearchBarPage>
         'character',
         'type',
         'class',
+        'id',
+        'date',
         'random',
         'page',
       ];
@@ -841,6 +843,26 @@ class _SearchBarPageState extends State<SearchBarPage>
           '=',
           '<>',
         ].map((e) => (DisplayedTag(group: 'page', name: e), 0)),
+      );
+    } else if (token == 'id') {
+      result.addAll(
+        [
+          '1000000~2000000',
+          '>=',
+          '<=',
+          '>',
+          '<',
+          '=',
+        ].map((e) => (DisplayedTag(group: 'id', name: e), 0)),
+      );
+    } else if (token == 'date') {
+      result.addAll(
+        [
+          '2024-01-01~2024-12-31',
+          '2023~2024',
+          '>=',
+          '<=',
+        ].map((e) => (DisplayedTag(group: 'date', name: e), 0)),
       );
     }
 

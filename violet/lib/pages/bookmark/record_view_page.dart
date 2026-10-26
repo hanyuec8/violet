@@ -5,13 +5,13 @@ import 'dart:collection';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:uuid/uuid.dart';
-import 'package:violet/component/hentai.dart';
+import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/record.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/model/article_list_item.dart';
+import 'package:violet/other/dialogs.dart';
 import 'package:violet/pages/common/utils.dart';
 import 'package:violet/pages/segment/card_panel.dart';
 import 'package:violet/settings/settings.dart';
@@ -26,262 +26,355 @@ class RecordArticleItem {
   bool get isNotFound => queryResult == null;
 }
 
-class RecordViewPage extends StatelessWidget {
+class RecordViewPage extends StatefulWidget {
   const RecordViewPage({super.key});
 
   @override
+  State<RecordViewPage> createState() => _RecordViewPageState();
+}
+
+class _RecordViewPageState extends State<RecordViewPage> {
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<RecordArticleItem> _items = [];
+  List<QueryResult> _usableTabList = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecords();
+  }
+
+  bool _isIdOnly(QueryResult qr) {
+    return (qr.result.keys.length == 1 && qr.result.containsKey('Id')) ||
+        (qr.tags() == null && qr.artists() == null && qr.title() == null);
+  }
+
+  Future<void> _loadRecords() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final user = await User.getInstance();
+      final logs = await user.getUserLog();
+
+      final seen = HashSet<String>();
+      final distinctLogs = <ArticleReadLog>[];
+      for (final log in logs) {
+        if (seen.add(log.articleId())) {
+          distinctLogs.add(log);
+        }
+      }
+
+      if (distinctLogs.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _items = [];
+            _usableTabList = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      final intIds = distinctLogs
+          .map((e) => int.tryParse(e.articleId()))
+          .whereType<int>()
+          .toList();
+
+      final resultMap = <int, QueryResult>{};
+
+      // 1. 로컬 DB 조회
+      if (intIds.isNotEmpty) {
+        try {
+          final localResults = await QueryManager.queryIds(intIds);
+          for (final qr in localResults) {
+            resultMap[qr.id()] = qr;
+          }
+        } catch (e, st) {
+          Logger.error('[RecordViewPage-LocalQuery] E: $e\n$st');
+        }
+      }
+
+      // 2. ArticleCache (디스크/세션 캐시) 일괄 조회
+      final missingIds = intIds
+          .where((id) => !resultMap.containsKey(id) || _isIdOnly(resultMap[id]!))
+          .toList();
+      if (missingIds.isNotEmpty) {
+        try {
+          final cachedBatch =
+              await HybridLoader.getCachedMetadataBatch(missingIds);
+          for (final entry in cachedBatch.entries) {
+            if (!_isIdOnly(entry.value)) {
+              resultMap[entry.key] = entry.value;
+            }
+          }
+        } catch (e, st) {
+          Logger.error('[RecordViewPage-CacheBatch] E: $e\n$st');
+        }
+      }
+
+      // 3. 여전히 누락된 작품 온라인 조회 (경량, 최대 20개, 2초 타임아웃)
+      final stillMissing = intIds
+          .where((id) => !resultMap.containsKey(id) || _isIdOnly(resultMap[id]!))
+          .take(20)
+          .toList();
+      if (stillMissing.isNotEmpty && !Settings.recordSearchDatabaseOnly.value) {
+        await Future.wait(
+          stillMissing.map((id) async {
+            try {
+              final res = await HybridLoader.idQueryHitomiFast(id)
+                  .timeout(const Duration(seconds: 2));
+              if (!_isIdOnly(res)) {
+                resultMap[id] = res;
+              }
+            } catch (_) {}
+          }),
+        );
+      }
+
+      // 4. 결과 매핑
+      final items = distinctLogs.map((readLog) {
+        final id = int.tryParse(readLog.articleId());
+        final qr = id != null ? resultMap[id] : null;
+        return RecordArticleItem(
+          readLog: readLog,
+          queryResult: qr,
+        );
+      }).toList();
+
+      final usableTabList = items
+          .map((e) => e.queryResult)
+          .whereType<QueryResult>()
+          .where((e) => !_isIdOnly(e))
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _items = items;
+          _usableTabList = usableTabList;
+          _isLoading = false;
+        });
+      }
+    } catch (e, st) {
+      Logger.error('[RecordViewPage-Load] E: $e\n$st');
+      if (mounted) {
+        setState(() {
+          _errorMessage = '$e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _clearAllRecords() async {
+    if (!await showYesNoDialog(
+      context,
+      '열람 기록을 모두 삭제할까요?',
+      Translations.instance!.trans('readrecord'),
+    )) {
+      return;
+    }
+
+    final user = await User.getInstance();
+    await user.clearUserLog();
+    await _loadRecords();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
     return CardPanel.build(
       context,
-      child: future(context, width),
       enableBackgroundColor: true,
+      child: Column(
+        children: [
+          _buildHeader(context),
+          Expanded(child: _buildBody(context)),
+        ],
+      ),
     );
   }
 
-  Widget future(BuildContext context, double width) {
-    final windowWidth = MediaQuery.of(context).size.width;
-    final columnCount =
-        MediaQuery.of(context).orientation == Orientation.landscape ? 4 : 3;
-    return FutureBuilder(
-      future: User.getInstance().then(
-        (value) => value.getUserLog().then((value) async {
-          var overap = HashSet<String>();
-          var rr = <ArticleReadLog>[];
-          var rrFromWeb = <ArticleReadLog>[];
-          var queryResults = <QueryResult>[];
-          var sortedQueryResults = <QueryResult>[];
-
-          for (var element in value) {
-            if (overap.contains(element.articleId())) continue;
-            rr.add(element);
-            overap.add(element.articleId());
-          }
-          try {
-            queryResults = await QueryManager.queryIds(
-              rr.map((e) => e.articleId()).toList(),
-            );
-          } catch (e, st) {
-            Logger.error('[RecordViewPage] $e\n$st');
-          }
-          for (var readLog in rr) {
-            bool isContains = false;
-            for (var queryResult in queryResults) {
-              if (readLog.articleId() == '${queryResult.id()}') {
-                isContains = true;
-                break;
-              }
-            }
-            if (!isContains) {
-              rrFromWeb.add(readLog);
-            }
-          }
-          if (!Settings.recordSearchDatabaseOnly.value) {
-            for (var element in rrFromWeb) {
-              try {
-                final result = await HentaiManager.idSearch(
-                  element.articleId(),
-                );
-                if (result.results.isEmpty) {
-                  continue;
-                }
-
-                final ehash = result.results[0].ehash();
-
-                queryResults.add(
-                  QueryResult(
-                    result: {
-                      'Id': int.parse(element.articleId()),
-                      'Title': result.results[0].title(),
-                      'EHash': ehash,
-                      'Type': result.results[0].type(),
-                      'Artists': result.results[0].artists(),
-                      'Characters': result.results[0].characters(),
-                      'Groups': result.results[0].groups(),
-                      'Language': result.results[0].language(),
-                      'Series': result.results[0].series(),
-                      'Tags': result.results[0].tags(),
-                      'Uploader': result.results[0].uploader(),
-                      'PublishedEH': result.results[0].publishedeh(),
-                      'Files': result.results[0].files(),
-                      'Thumbnail': result.results[0].thumbnail(),
-                      'URL': result.results[0].url(),
-                    },
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  Translations.instance!.trans('readrecord'),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
-                );
-              } catch (e, st) {
-                Logger.error(
-                  '[RecordViewPage] Article not found: '
-                  '${element.articleId()}\n$e\n$st',
-                );
-              }
-            }
-          }
-          for (var readLog in rr) {
-            for (var queryResult in queryResults) {
-              if (readLog.articleId() == '${queryResult.id()}') {
-                sortedQueryResults.add(queryResult);
-                break;
-              }
-            }
-          }
-          return rr.map((readLog) {
-            for (var queryResult in sortedQueryResults) {
-              if (readLog.articleId() == '${queryResult.id()}') {
-                return RecordArticleItem(
-                  readLog: readLog,
-                  queryResult: queryResult,
-                );
-              }
-            }
-
-            return RecordArticleItem(readLog: readLog);
-          }).toList();
-        }),
-      ),
-      builder: (context, AsyncSnapshot<List<RecordArticleItem>> snapshot) {
-        if (!snapshot.hasData) {
-          return Center(
-            child: CircularProgressIndicator(
-              color: Colors.blue, // Change spinner color
-              strokeWidth: 4.0, // Change thickness
+                ),
+                if (!_isLoading && _items.isNotEmpty)
+                  Text(
+                    '총 ${_items.length}개 작품',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Settings.themeWhat.value
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+              ],
             ),
-          );
-        }
-        return CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: <Widget>[
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columnCount,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: 3 / 4,
-                ),
-                delegate: SliverChildListDelegate(
-                  snapshot.data!.map((e) {
-                    final itemWidth = (windowWidth - 4.0 - 48) / columnCount;
-                    return Padding(
-                      key: Key('record/${e.readLog.articleId()}'),
-                      padding: EdgeInsets.zero,
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: <Widget>[
-                            e.isNotFound
-                                ? RecordArticleNotFoundItem(
-                                    articleId: e.readLog.articleId(),
-                                    width: itemWidth,
-                                  )
-                                : snapshot.hasData
-                                ? Provider<ArticleListItem>.value(
-                                    value: ArticleListItem.fromArticleListItem(
-                                      queryResult: e.queryResult!,
-                                      addBottomPadding: false,
-                                      showDetail: false,
-                                      width: itemWidth,
-                                      thumbnailTag: const Uuid().v4(),
-                                      usableTabList: snapshot.data!
-                                          .map((e) => e.queryResult)
-                                          .whereType<QueryResult>()
-                                          .toList(),
-                                    ),
-                                    child: const ArticleListItemWidget(),
-                                  )
-                                : Container(),
-                          ],
-                        ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: '새로고침',
+            onPressed: _isLoading ? null : _loadRecords,
+          ),
+          if (_items.isNotEmpty)
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'clear') {
+                  _clearAllRecords();
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'clear',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        size: 20,
+                        color: Colors.redAccent,
                       ),
-                    );
-                  }).toList(),
+                      SizedBox(width: 8),
+                      Text(
+                        '기록 모두 삭제',
+                        style: TextStyle(color: Colors.redAccent),
+                      ),
+                    ],
+                  ),
                 ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    if (_isLoading) {
+      return const Center(
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 48,
+                color: Colors.redAccent,
               ),
+              const SizedBox(height: 12),
+              const Text(
+                '열람 기록을 불러오지 못했습니다.',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _loadRecords,
+                icon: const Icon(Icons.refresh),
+                label: const Text('다시 시도'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_items.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.history,
+              size: 64,
+              color: Colors.grey.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '아직 열람한 작품 기록이 없습니다.',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
             ),
           ],
+        ),
+      );
+    }
+
+    final windowWidth = MediaQuery.of(context).size.width;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+    final columnCount = isLandscape ? 4 : 3;
+
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+      physics: const BouncingScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columnCount,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 3 / 4,
+      ),
+      itemCount: _items.length,
+      itemBuilder: (context, index) {
+        final e = _items[index];
+        final itemWidth =
+            (windowWidth - 16 - 8 * (columnCount - 1)) / columnCount;
+        return Padding(
+          key: Key('record/${e.readLog.articleId()}_$index'),
+          padding: EdgeInsets.zero,
+          child: e.isNotFound
+              ? RecordArticleNotFoundItem(
+                  articleId: e.readLog.articleId(),
+                  width: itemWidth,
+                )
+              : Provider<ArticleListItem>.value(
+                  value: ArticleListItem.fromArticleListItem(
+                    queryResult: e.queryResult!,
+                    addBottomPadding: false,
+                    showDetail: false,
+                    width: itemWidth,
+                    thumbnailTag: 'record_${e.readLog.articleId()}_$index',
+                    usableTabList: _usableTabList,
+                  ),
+                  child: const ArticleListItemWidget(),
+                ),
         );
-        //       ListView.builder(
-        // itemCount: .length,
-        // itemBuilder: (context, index) {
-        //   var xx = snapshot.data[index];
-        //   return SizedBox(
-        //     height: 159,
-        //     child: Padding(
-        //       padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
-        //       child: FutureBuilder(
-        //         // future: QueryManager.query(
-        //         //     "SELECT * FROM HitomiColumnModel WHERE Id=${snapshot.data[index].articleId()}"),
-        //         future:
-        //             HentaiManager.idSearch(snapshot.data[index].articleId()),
-        //         builder: (context,
-        //             AsyncSnapshot<(List<QueryResult), int>> snapshot) {
-        //           return Column(
-        //             crossAxisAlignment: CrossAxisAlignment.stretch,
-        //             children: <Widget>[
-        //               snapshot.hasData
-        //                   ? Provider<ArticleListItem>.value(
-        //                       value: ArticleListItem.fromArticleListItem(
-        //                         queryResult: snapshot.data.$1[0],
-        //                         addBottomPadding: false,
-        //                         width: (width - 16),
-        //                         thumbnailTag: Uuid().v4(),
-        //                       ),
-        //                       child: ArticleListItemVerySimpleWidget(),
-        //                     )
-        //                   : Container();
-        // return Column(
-        //   crossAxisAlignment: CrossAxisAlignment.stretch,
-        //   children: <Widget>[
-        //     snapshot.hasData
-        //         ? Provider<ArticleListItem>.value(
-        //             value: ArticleListItem.fromArticleListItem(
-        //               queryResult: snapshot.data.$1[0],
-        //               showDetail: true,
-        //               addBottomPadding: false,
-        //               width: (width - 16),
-        //               thumbnailTag: Uuid().v4(),
-        //             ),
-        //             child: ArticleListItemVerySimpleWidget(),
-        //           )
-        //         : Container(),
-        //     Row(
-        //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        //       // crossAxisAlignment: CrossAxisAlignment,
-        //       children: <Widget>[
-        //         // Flexible(
-        //         //     child: Text(
-        //         //         ' ' +
-        //         //             unescape.convert(snapshot.hasData
-        //         //                 ? snapshot.data.results[0].title()
-        //         //                 : ''),
-        //         //         style: TextStyle(fontSize: 17),
-        //         //         overflow: TextOverflow.ellipsis)),
-        //         Flexible(
-        //           // child: Text(xx.datetimeStart().split(' ')[0]),
-        //           child: Text(''),
-        //         ),
-        //         Text(
-        //             xx.lastPage().toString() +
-        //                 ' ${Translations.instance!.trans('readpage')} ',
-        //             style: TextStyle(
-        //               color: Settings.themeWhat.value
-        //                   ? Colors.grey.shade300
-        //                   : Colors.grey.shade700,
-        //             )),
-        //       ],
-        //     ),
-        //   ],
-        // );
-        //       },
-        //     ),
-        //   ),
-        // );
-        // return ListTile() Text(snapshot.data[index].articleId().toString());
       },
-      //   );
-      // },
     );
   }
 }
@@ -303,7 +396,7 @@ class RecordArticleNotFoundItem extends StatelessWidget {
       onTap: () {
         showArticleInfoNotFound(
           context,
-          int.parse(articleId),
+          int.tryParse(articleId) ?? 0,
           title: Translations.instance!.trans('articlenotfound'),
         );
       },
@@ -323,12 +416,23 @@ class RecordArticleNotFoundItem extends StatelessWidget {
               ),
             ],
           ),
-          child: Center(
-            child: Icon(
-              Icons.error_outline,
-              size: 48,
-              color: Theme.of(context).colorScheme.error,
-            ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 36,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                articleId,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ),
       ),

@@ -15,6 +15,8 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugins.GeneratedPluginRegistrant
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import java.io.FileInputStream
 import java.io.FileOutputStream
 
@@ -207,20 +209,58 @@ class MainActivity : FlutterFragmentActivity() {
             }
 
             try {
-                val uri = data!!.data!!
+                var uri = data?.data ?: run {
+                    request.result.error("intentResultFail", "data or uri is null", null)
+                    return
+                }
+
+                // Android SAF는 MimeTypeMap에 등록되지 않은 확장자(.db 등)에 대해 중복 번호를
+                // 확장자 뒤에 붙여 'filename.db (13)' 형태로 생성하는 문제가 있습니다.
+                // 이 경우 DocumentsContract.renameDocument를 통해 'filename (13).db'로 복원합니다.
+                try {
+                    contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            if (nameIndex != -1) {
+                                val displayName = cursor.getString(nameIndex)
+                                if (displayName != null) {
+                                    val regex = Regex("""^(.*)\.([a-zA-Z0-9_-]+)\s*\(([0-9]+)\)$""")
+                                    val match = regex.find(displayName)
+                                    if (match != null) {
+                                        val base = match.groupValues[1]
+                                        val ext = match.groupValues[2]
+                                        val num = match.groupValues[3]
+                                        val correctedName = "$base ($num).$ext"
+                                        val renamedUri = DocumentsContract.renameDocument(contentResolver, uri, correctedName)
+                                        if (renamedUri != null) {
+                                            uri = renamedUri
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Throwable) {
+                    // rename 실패 시에도 원본 uri로 계속 진행
+                }
+
                 val targetFileDescriptor = contentResolver.openFileDescriptor(uri, "w")
+                if (targetFileDescriptor == null) {
+                    request.result.error("fileDescriptorError", "Cannot open file descriptor", null)
+                    return
+                }
 
-                val input = FileInputStream(request.filePath)
-                val output = FileOutputStream(targetFileDescriptor!!.fileDescriptor)
-
-                input.copyTo(output)
-
-                input.close()
-                output.close()
+                targetFileDescriptor.use { pfd ->
+                    FileInputStream(request.filePath).use { input ->
+                        FileOutputStream(pfd.fileDescriptor).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
 
                 request.result.success(null)
             } catch (e: Throwable) {
-                request.result.error("exception", e.toString(), e);
+                request.result.error("exception", e.toString(), e)
             }
         } finally {
             exportFileRequestMap.remove(requestCode)

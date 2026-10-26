@@ -1,4 +1,4 @@
-﻿// This source code is a part of Project Violet.
+// This source code is a part of Project Violet.
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
 import 'dart:convert';
@@ -12,6 +12,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violet/component/eh/eh_bookmark.dart';
 import 'package:violet/database/user/bookmark.dart';
+import 'package:violet/database/user/record.dart';
+import 'package:violet/database/user/user.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/other/dialogs.dart';
@@ -205,11 +207,56 @@ List<Widget> buildBookmarkGroup(BuildContext context, VoidCallback onReload) {
             }
 
             final pickedFile = File(pickedFilePath);
+            if (!await pickedFile.exists()) {
+              showToast(
+                level: ToastLevel.error,
+                message: Translations.instance!.trans('failimportbookmark'),
+              );
+              return;
+            }
+
+            // SQLite 파일 검증 (16바이트 매직 헤더 "SQLite format 3\000")
+            final fileLength = await pickedFile.length();
+            if (fileLength < 16) {
+              showToast(
+                level: ToastLevel.error,
+                message: Translations.instance!.trans('failimportbookmark'),
+              );
+              return;
+            }
+
+            final header = await pickedFile.openRead(0, 16).first;
+            final isSQLite = header.length >= 16 &&
+                String.fromCharCodes(header.take(15)) == 'SQLite format 3';
+            if (!isSQLite) {
+              showToast(
+                level: ToastLevel.error,
+                message: Translations.instance!.trans('failimportbookmark'),
+              );
+              return;
+            }
+
             final db = (await getApplicationDocumentsDirectory());
 
+            // 1. 기존 활성 SQLite DB 연결 안전하게 해제
+            await CommonUserDatabase.reloadInstance();
+
+            // 2. 기존 WAL/SHM 임시 파일이 있다면 제거하여 데이터베이스 오염 방지
+            final walFile = File('${db.path}/user.db-wal');
+            if (await walFile.exists()) {
+              await walFile.delete();
+            }
+            final shmFile = File('${db.path}/user.db-shm');
+            if (await shmFile.exists()) {
+              await shmFile.delete();
+            }
+
+            // 3. 파일 복사
             await pickedFile.copy('${db.path}/user.db');
 
-            await Bookmark.getInstance();
+            // 4. 북마크 및 열람기록 인스턴스 새로고침
+            await Bookmark.reset();
+            await User.reset();
 
             showToast(
               level: ToastLevel.check,
@@ -236,11 +283,21 @@ List<Widget> buildBookmarkGroup(BuildContext context, VoidCallback onReload) {
             final dir = (await getApplicationDocumentsDirectory());
             final bookmarkDatabaseFile = File('${dir.path}/user.db');
 
+            final now = DateTime.now();
+            final formattedDate =
+                '${now.year.toString().padLeft(4, '0')}-'
+                '${now.month.toString().padLeft(2, '0')}-'
+                '${now.day.toString().padLeft(2, '0')}_'
+                '${now.hour.toString().padLeft(2, '0')}'
+                '${now.minute.toString().padLeft(2, '0')}'
+                '${now.second.toString().padLeft(2, '0')}';
+            final exportFileName = 'violet-bookmarks-$formattedDate.db';
+
             if (Platform.isAndroid) {
               await PlatformMiscMethods.instance.exportFile(
                 bookmarkDatabaseFile.path,
                 mimeType: 'application/vnd.sqlite3',
-                fileNameToSaveAs: 'violet-bookmarks.db',
+                fileNameToSaveAs: exportFileName,
               );
             } else if (Platform.isIOS) {
               final bytes = await bookmarkDatabaseFile.readAsBytes();
@@ -248,7 +305,7 @@ List<Widget> buildBookmarkGroup(BuildContext context, VoidCallback onReload) {
               await FlutterFileDialog.saveFile(
                 params: SaveFileDialogParams(
                   data: bytes,
-                  fileName: 'bookmark.db',
+                  fileName: exportFileName,
                 ),
               );
             } else {
@@ -259,7 +316,7 @@ List<Widget> buildBookmarkGroup(BuildContext context, VoidCallback onReload) {
                 return;
               }
 
-              final extpath = '$selectedPath/bookmark.db';
+              final extpath = '$selectedPath/$exportFileName';
 
               await bookmarkDatabaseFile.copy(extpath);
             }

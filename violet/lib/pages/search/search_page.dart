@@ -96,6 +96,8 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
       }
 
       c.mainHybridPage = 2;
+      c.baseCount = 0;
+      c.searchPageNum.value = 0;
       c.queryResult = hybridList;
       if (c.filterController.isPopulationSort) {
         Population.sortByPopulation(c.queryResult);
@@ -310,7 +312,7 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
                     ),
                     Obx(
                       () => Text(
-                        '${c.searchPageNum.value + c.baseCount}/${c.queryResult.length}/${c.searchTotalResultCount}',
+                        '${c.searchPageNum.value + c.baseCount}/${c.getSearchList().length}/${c.searchTotalResultCount}',
                       ),
                     ),
                   ],
@@ -336,6 +338,8 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
           );
 
           c.doSearch(setPage);
+        } else if (rr[0] == 2) {
+          await c.jumpToLastArticle(context);
         }
       },
     );
@@ -582,6 +586,7 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
 
       c.latestQuery = (null, query);
       c.doSearch();
+      reloadForce();
     } catch (e, st) {
       await Logger.error(
         '[showSearchBar] E: ${e.toString()}\n${st.toString()}',
