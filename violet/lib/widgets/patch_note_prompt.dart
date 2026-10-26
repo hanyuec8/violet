@@ -50,10 +50,10 @@ class _PatchNotePromptState extends State<PatchNotePrompt> {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            color: theme.dialogBackgroundColor,
+            color: (theme.dialogTheme.backgroundColor ?? theme.colorScheme.surface),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.12),
+                color: Colors.black.withValues(alpha: 0.12),
                 blurRadius: 20,
                 spreadRadius: 2,
                 offset: const Offset(0, 10),
@@ -75,8 +75,8 @@ class _PatchNotePromptState extends State<PatchNotePrompt> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      headerBaseColor.withOpacity(0.95),
-                      headerBaseColor.withOpacity(0.75),
+                      headerBaseColor.withValues(alpha: 0.95),
+                      headerBaseColor.withValues(alpha: 0.75),
                     ],
                   ),
                 ),
@@ -179,14 +179,21 @@ class _LatestPatchSummaryCard extends StatelessWidget {
     }
     final latest = patches.first;
     final theme = Theme.of(context);
-    final surface = theme.colorScheme.surfaceVariant;
+    final surface = theme.colorScheme.surfaceContainerHighest;
     final onSurface = theme.colorScheme.onSurfaceVariant;
+
+    final isKorean = Translations.instance?.locale.languageCode == 'ko';
+    final displayContents = (isKorean &&
+            latest.contentsKorean != null &&
+            latest.contentsKorean!.isNotEmpty)
+        ? latest.contentsKorean!
+        : latest.contents;
 
     return Container(
       decoration: BoxDecoration(
-        color: surface.withOpacity(0.35),
+        color: surface.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: onSurface.withOpacity(0.08)),
+        border: Border.all(color: onSurface.withValues(alpha: 0.08)),
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -207,13 +214,13 @@ class _LatestPatchSummaryCard extends StatelessWidget {
               Text(
                 '${latest.dateTime.year}.${latest.dateTime.month}.${latest.dateTime.day}',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                  color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          ...latest.contents.map(
+          ...displayContents.map(
             (e) => Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Row(
