@@ -22,16 +22,13 @@ import 'package:violet/component/index.dart';
 import 'package:violet/database/database.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/log/log.dart';
-import 'package:violet/other/dialogs.dart';
 import 'package:violet/other/ex_country.dart';
 import 'package:violet/pages/common/toast.dart';
-import 'package:violet/pages/community/user_status_card.dart';
 import 'package:violet/pages/database_download/database_download_page.dart';
 import 'package:violet/pages/statistics/statistics_page.dart';
 import 'package:violet/pages/settings/patchnote_page.dart';
 import 'package:violet/pages/segment/double_tap_to_top.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
-import 'package:violet/pages/settings/db_rebuild_page.dart';
 import 'package:violet/pages/settings/lock_setting_page.dart';
 import 'package:violet/pages/settings/log_page.dart';
 import 'package:violet/pages/settings/login/ehentai_login.dart';
@@ -45,7 +42,6 @@ import 'package:violet/platform/misc.dart';
 import 'package:violet/settings/settings.dart';
 import 'package:violet/util/helper.dart';
 import 'package:violet/version/sync.dart';
-import 'package:violet/version/update_sync.dart';
 import 'package:violet/widgets/theme_switchable_state.dart';
 import 'package:violet/network/wrapper.dart' as http;
 
@@ -72,7 +68,7 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
 
     if (_cachedGroups == null || _shouldReload) {
       _shouldReload = false;
-      _cachedGroups = <Widget>[const UserStatusCard()]
+      _cachedGroups = <Widget>[]
         ..addAll(buildSearchGroup(context, () => setState(() => _shouldReload = true)))
         ..addAll(_systemGroup())
         ..addAll(_securityGroup())
@@ -400,62 +396,6 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
           ),
         ),
         InkWell(
-          child: ListTile(
-            leading: Icon(
-              MdiIcons.databaseEdit,
-              color: Settings.majorColor.value,
-            ),
-            title: Text(Translations.instance!.trans('dbrebuild')),
-            trailing: const Icon(Icons.keyboard_arrow_right),
-          ),
-          onTap: () async {
-            if (await showYesNoDialog(
-              context,
-              Translations.instance!.trans('dbrebuildmsg'),
-              Translations.instance!.trans('dbrebuild'),
-            )) {
-              await showDialog(
-                context: context,
-                builder: (BuildContext context) => const DBRebuildPage(),
-              );
-
-              showToast(
-                level: ToastLevel.check,
-                message:
-                    '${Translations.instance!.trans('dbrebuild')} ${Translations.instance!.trans('complete')}',
-              );
-            }
-          },
-        ),
-        InkWell(
-          child: ListTile(
-            leading: Icon(
-              MdiIcons.vectorIntersection,
-              color: Settings.majorColor.value,
-            ),
-            title: Text(Translations.instance!.trans('dbopt')),
-            trailing: Switch(
-              value: Settings.useOptimizeDatabase.value,
-              onChanged: (newValue) async {
-                await Settings.useOptimizeDatabase.setValue(newValue);
-                setState(() {
-                  _shouldReload = true;
-                });
-              },
-              activeTrackColor: Settings.majorColor.value,
-              activeColor: Settings.majorAccentColor.value,
-            ),
-          ),
-          onTap: () async {
-            await Settings.useOptimizeDatabase.setValue(
-              !Settings.useOptimizeDatabase.value,
-            );
-            setState(() {
-              _shouldReload = true;
-            });
-          },
-        ),
-        InkWell(
           customBorder: const RoundedRectangleBorder(
             borderRadius: BorderRadius.only(
               bottomLeft: Radius.circular(8.0),
@@ -584,79 +524,6 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
           },
         ),
 
-        ListTile(
-          leading: Icon(
-            MdiIcons.commentSearch,
-            color: Settings.majorColor.value,
-          ),
-          title: Text(Translations.instance!.trans('messagesearchapi')),
-          trailing: const Icon(Icons.keyboard_arrow_right),
-          onTap: () async {
-            TextEditingController text = TextEditingController(
-              text: Settings.searchMessageAPI.value,
-            );
-            Widget okButton = TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Settings.majorColor.value,
-              ),
-              child: Text(Translations.instance!.trans('ok')),
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
-            );
-            Widget cancelButton = TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Settings.majorColor.value,
-              ),
-              child: Text(Translations.instance!.trans('cancel')),
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
-            );
-            Widget defaultButton = TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Settings.majorColor.value,
-              ),
-              child: Text(Translations.instance!.trans('default')),
-              onPressed: () {
-                _shouldReload = true;
-                setState(() => text.text = 'https://koromo.cc/api/search/msg');
-              },
-            );
-            var dialog = await showDialog(
-              useRootNavigator: false,
-              context: context,
-              builder: (BuildContext context) => AlertDialog(
-                contentPadding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-                title: const Text('대사 검색기 API'),
-                content: TextField(
-                  controller: text,
-                  autofocus: true,
-                  maxLines: 3,
-                ),
-                actions: [defaultButton, okButton, cancelButton],
-              ),
-            );
-            if (dialog != null && dialog == true) {
-              await Settings.searchMessageAPI.setValue(text.text);
-            }
-          },
-        ),
-        ListTile(
-          leading: Icon(MdiIcons.timerOff, color: Settings.majorColor.value),
-          title: Text(Translations.instance!.trans('ignoretimeout')),
-          trailing: Switch(
-            value: Settings.ignoreTimeout.value,
-            onChanged: (newValue) async {
-              await Settings.ignoreTimeout.setValue(newValue);
-              setState(() {
-                _shouldReload = true;
-              });
-            },
-            activeTrackColor: Settings.majorColor.value,
-            activeColor: Settings.majorAccentColor.value,
-          ),
-        ),
         InkWell(
           customBorder: const RoundedRectangleBorder(
             borderRadius: BorderRadius.only(
@@ -665,16 +532,12 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
             ),
           ),
           child: ListTile(
-            leading: Image.asset(
-              'assets/images/logo.png',
-              width: 25,
-              height: 25,
-            ),
-            title: Text(Translations.instance!.trans('usevioletserver')),
+            leading: Icon(MdiIcons.timerOff, color: Settings.majorColor.value),
+            title: Text(Translations.instance!.trans('ignoretimeout')),
             trailing: Switch(
-              value: Settings.useVioletServer.value,
+              value: Settings.ignoreTimeout.value,
               onChanged: (newValue) async {
-                await Settings.useVioletServer.setValue(newValue);
+                await Settings.ignoreTimeout.setValue(newValue);
                 setState(() {
                   _shouldReload = true;
                 });
@@ -684,38 +547,9 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
             ),
           ),
           onTap: () async {
-            await Settings.useVioletServer.setValue(
-              !Settings.useVioletServer.value,
+            await Settings.ignoreTimeout.setValue(
+              !Settings.ignoreTimeout.value,
             );
-            setState(() {
-              _shouldReload = true;
-            });
-          },
-        ),
-        InkWell(
-          customBorder: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(8.0),
-              bottomRight: Radius.circular(8.0),
-            ),
-          ),
-          child: ListTile(
-            leading: Icon(MdiIcons.server, color: Settings.majorColor.value),
-            title: Text(Translations.instance!.trans('usechunksync')),
-            trailing: Switch(
-              value: Settings.useChunkSync.value,
-              onChanged: (newValue) async {
-                await Settings.useChunkSync.setValue(newValue);
-                setState(() {
-                  _shouldReload = true;
-                });
-              },
-              activeTrackColor: Settings.majorColor.value,
-              activeColor: Settings.majorAccentColor.value,
-            ),
-          ),
-          onTap: () async {
-            await Settings.useChunkSync.setValue(!Settings.useChunkSync.value);
             setState(() {
               _shouldReload = true;
             });
@@ -970,42 +804,7 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
       _buildItems([
         InkWell(
           customBorder: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(8.0),
-              topRight: Radius.circular(8.0),
-            ),
-          ),
-          child: ListTile(
-            // borderRadius: BorderRadius.circular(8.0),
-            leading: Icon(Icons.update, color: Settings.majorColor.value),
-            title: Text(Translations.instance!.trans('checkupdate')),
-            trailing: const Icon(
-              // Icons.message,
-              Icons.keyboard_arrow_right,
-            ),
-          ),
-          onTap: () async {
-            await UpdateSyncManager.checkUpdateSync();
-
-            if (UpdateSyncManager.updateRequire) {
-              showToast(
-                level: ToastLevel.check,
-                message: Translations.instance!.trans('newupdate'),
-              );
-            } else {
-              showToast(
-                level: ToastLevel.check,
-                message: Translations.instance!.trans('latestver'),
-              );
-            }
-          },
-        ),
-        InkWell(
-          customBorder: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(8.0),
-              bottomRight: Radius.circular(8.0),
-            ),
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
           ),
           child: ListTile(
             leading: Icon(
@@ -1013,32 +812,11 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
               color: Settings.majorColor.value,
             ),
             title: Text(Translations.instance!.trans('manualupdate')),
-            trailing: const Icon(
-              // Icons.message,
-              Icons.keyboard_arrow_right,
-            ),
+            trailing: const Icon(Icons.keyboard_arrow_right),
           ),
           onTap: () async {
-            await UpdateSyncManager.checkUpdateSync();
-
-            if (!UpdateSyncManager.updateRequire) {
-              showToast(
-                level: ToastLevel.check,
-                message: Translations.instance!.trans('latestver'),
-              );
-              return;
-            }
-
-            if (Platform.isIOS) {
-              showToast(
-                level: ToastLevel.warning,
-                message: Translations.instance!.trans('cannotuseios'),
-              );
-              return;
-            }
-
             final url = Uri.parse(
-              'https://github.com/TaYaKi71751/violet/releases/latest',
+              'https://github.com/hanyuec8/violet/releases/latest',
             );
             if (await canLaunchUrl(url)) {
               await launchUrl(url);

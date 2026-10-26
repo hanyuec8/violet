@@ -18,13 +18,9 @@ import 'package:violet/locale/locale.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/other/dialogs.dart';
 import 'package:violet/pages/common/toast.dart';
-import 'package:violet/pages/segment/platform_navigator.dart';
-import 'package:violet/pages/settings/bookmark_version_select.dart';
 import 'package:violet/pages/settings/import_from_eh.dart';
-import 'package:violet/pages/settings/restore_bookmark.dart';
 import 'package:violet/pages/settings/settings_widgets.dart';
 import 'package:violet/platform/misc.dart';
-import 'package:violet/server/violet.dart';
 import 'package:violet/settings/settings.dart';
 
 List<Widget> buildBookmarkGroup(BuildContext context, VoidCallback onReload) {
@@ -38,159 +34,11 @@ List<Widget> buildBookmarkGroup(BuildContext context, VoidCallback onReload) {
             topRight: Radius.circular(8.0),
           ),
         ),
-        onTap: null,
         child: ListTile(
-          leading: Icon(
-            MdiIcons.bookArrowUpOutline,
-            color: Settings.majorColor.value,
-          ),
-          title: Text(Translations.instance!.trans('autobackupbookmark')),
-          trailing: Switch(
-            value: Settings.autobackupBookmark.value,
-            onChanged: null,
-            activeTrackColor: Settings.majorColor.value,
-            activeColor: Settings.majorAccentColor.value,
-          ),
+          leading: Icon(MdiIcons.import, color: Settings.majorColor.value),
+          title: Text(Translations.instance!.trans('importingbookmark')),
+          trailing: const Icon(Icons.keyboard_arrow_right),
         ),
-      ),
-      ListTile(
-        leading: Icon(
-          MdiIcons.bookArrowDownOutline,
-          color: Settings.majorColor.value,
-        ),
-        title: Text(Translations.instance!.trans('restoringbookmark')),
-        trailing: const Icon(Icons.keyboard_arrow_right),
-        onTap: () async {
-          await showOkDialog(
-            context,
-            Translations.instance!.trans('restorebookmarkmsg'),
-            Translations.instance!.trans('warning'),
-          );
-
-          final prefs = await SharedPreferences.getInstance();
-          var myappid = prefs.getString('fa_userid');
-
-          TextEditingController text = TextEditingController(text: myappid);
-          Widget okButton = TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Settings.majorColor.value,
-            ),
-            child: Text(Translations.instance!.trans('ok')),
-            onPressed: () {
-              Navigator.pop(context, true);
-            },
-          );
-          Widget cancelButton = TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Settings.majorColor.value,
-            ),
-            child: Text(Translations.instance!.trans('cancel')),
-            onPressed: () {
-              Navigator.pop(context, false);
-            },
-          );
-          if (!context.mounted) return;
-          var dialog = await showDialog(
-            useRootNavigator: false,
-            context: context,
-            builder: (BuildContext context) => AlertDialog(
-              contentPadding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-              title: const Text('Enter User App Id'),
-              content: TextField(
-                controller: text,
-                autofocus: true,
-                maxLines: 3,
-              ),
-              actions: [okButton, cancelButton],
-            ),
-          );
-          if (dialog == null || dialog == false) {
-            return;
-          }
-
-          try {
-            var result = await VioletServer.restoreBookmark(text.text);
-            if (result == null) {
-              if (!context.mounted) return;
-              await showOkDialog(
-                context,
-                "Invalid User-App-Id! If you're still getting this error, contact the developer.",
-                Translations.instance!.trans('restoringbookmark'),
-              );
-              return;
-            }
-
-            var versions = await VioletServer.versionsBookmark(text.text);
-            if (versions == null) {
-              if (!context.mounted) return;
-              await showOkDialog(
-                context,
-                '북마크 버전 정보를 가져오는데 오류가 발생했습니다. UserAppId와 함께 개발자에게 문의하시기 바랍니다.',
-                Translations.instance!.trans('restoringbookmark'),
-              );
-              return;
-            }
-
-            if (!context.mounted) return;
-            var version = await PlatformNavigator.navigateSlide(
-              context,
-              BookmarkVersionSelectPage(
-                userAppId: text.text,
-                versions: versions,
-              ),
-            );
-
-            if (version == null) {
-              return;
-            }
-
-            if (!context.mounted) return;
-            var restoreWithRecord = await showYesNoDialog(
-              context,
-              '열람기록도 같이 복원할까요?',
-            );
-
-            var bookmark = await VioletServer.resotreBookmarkWithVersion(
-              text.text,
-              version,
-            );
-
-            if (!context.mounted) return;
-            var rr = await showDialog(
-              context: context,
-              builder: (BuildContext context) => RestoreBookmarkPage(
-                source: bookmark,
-                restoreWithRecord: restoreWithRecord,
-              ),
-            );
-
-            if (rr != null && rr == false) {
-              return;
-            }
-          } catch (e, st) {
-            Logger.error(
-              '[Restore Bookmark] $e\n'
-              '$st',
-            );
-            showToast(
-              level: ToastLevel.error,
-              message: 'Bookmark Restoring Error!',
-            );
-            return;
-          }
-
-          await Bookmark.getInstance();
-
-          showToast(
-            level: ToastLevel.check,
-            message: Translations.instance!.trans('importbookmark'),
-          );
-        },
-      ),
-      ListTile(
-        leading: Icon(MdiIcons.import, color: Settings.majorColor.value),
-        title: Text(Translations.instance!.trans('importingbookmark')),
-        trailing: const Icon(Icons.keyboard_arrow_right),
         onTap: () async {
           try {
             await FilePicker.platform.clearTemporaryFiles();
