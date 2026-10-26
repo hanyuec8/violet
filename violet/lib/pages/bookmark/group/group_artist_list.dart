@@ -45,7 +45,7 @@ class _GroupArtistListState extends State<GroupArtistList>
   final Map<String, List<QueryResult>> _artistThumbnailCache =
       <String, List<QueryResult>>{};
 
-  String _selectedLanguage = 'all';
+  String _selectedLanguage = 'korean';
   Set<int> _bookmarkedArticleIds = {};
   bool _isSearching = false;
   String _searchQuery = '';
@@ -100,20 +100,16 @@ class _GroupArtistListState extends State<GroupArtistList>
   }
 
   Future<void> _sortByLatest() async {
+    await Future.wait(
+      artists.map((a) => _future(a.artist(), a.type(), _selectedLanguage)),
+    );
+
     var ids = <(int, int)>[];
     for (int i = 0; i < artists.length; i++) {
       final a = artists[i];
       final cacheKey = '${a.type().name}:${a.artist()}:$_selectedLanguage';
       final cached = _artistThumbnailCache[cacheKey];
-      var query = (cached != null && cached.isNotEmpty) ? cached[0].id() : 0;
-
-      if (query == 0) {
-        try {
-          final f = await _future(a.artist(), a.type(), _selectedLanguage);
-          if (f.isNotEmpty) query = f[0].id();
-        } catch (_) {}
-      }
-
+      final query = (cached != null && cached.isNotEmpty) ? cached[0].id() : 0;
       ids.add((query, i));
     }
     ids.sort((e1, e2) => e2.$1.compareTo(e1.$1));
@@ -249,9 +245,9 @@ class _GroupArtistListState extends State<GroupArtistList>
                         padding: const EdgeInsets.symmetric(horizontal: 8.0),
                         child: Stack(
                           children: <Widget>[
-                            _filter(),
-                            _searchButton(),
                             _title(),
+                            _searchButton(),
+                            _filter(),
                           ],
                         ),
                       ),
@@ -291,10 +287,10 @@ class _GroupArtistListState extends State<GroupArtistList>
 
   Widget _languageChips() {
     final langs = [
+      ('한국어', 'korean'),
+      ('일본어', 'japanese'),
+      ('영어', 'english'),
       ('전체', 'all'),
-      ('🇰🇷 한국어', 'korean'),
-      ('🇯🇵 일본어', 'japanese'),
-      ('🇺🇸 영어', 'english'),
     ];
 
     return SingleChildScrollView(
@@ -443,22 +439,28 @@ class _GroupArtistListState extends State<GroupArtistList>
 
   Widget _title() {
     if (_isSearching) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 14, left: 12, right: 110),
-        child: TextField(
-          controller: _searchController,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: '작가 이름 검색...',
-            isDense: true,
-            border: InputBorder.none,
-            hintStyle: TextStyle(color: Colors.grey.shade500),
+      return Positioned(
+        left: 12,
+        right: 112,
+        top: 0,
+        bottom: 0,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: TextField(
+            controller: _searchController,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: '작가 이름 검색...',
+              isDense: true,
+              border: InputBorder.none,
+              hintStyle: TextStyle(color: Colors.grey.shade500),
+            ),
+            onChanged: (val) {
+              setState(() {
+                _searchQuery = val;
+              });
+            },
           ),
-          onChanged: (val) {
-            setState(() {
-              _searchQuery = val;
-            });
-          },
         ),
       );
     }
@@ -467,11 +469,19 @@ class _GroupArtistListState extends State<GroupArtistList>
     if (_filterLevel == 1) sortDesc = ' (최신순)';
     if (_filterLevel == 2) sortDesc = ' (신작 우선)';
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 24, left: 12),
-      child: Text(
-        'Artists Collection$sortDesc',
-        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+    return Positioned(
+      left: 12,
+      right: 112,
+      top: 0,
+      bottom: 0,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          'Artists Collection$sortDesc',
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }

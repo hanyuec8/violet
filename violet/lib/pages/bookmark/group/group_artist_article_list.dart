@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:violet/component/hitomi/hitomi_nozomi.dart';
 import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
@@ -34,7 +35,7 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
   @override
   bool get wantKeepAlive => true;
 
-  String _selectedLanguage = 'all';
+  String _selectedLanguage = 'korean';
   bool _onlyNewReleases = false;
   bool _isLoading = true;
   List<QueryResult> _articles = [];
@@ -75,71 +76,120 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
       final langQuery =
           _selectedLanguage == 'all' ? '' : 'lang:$_selectedLanguage';
 
-      // 3. 작가별 작품 병렬 수집 (로컬 쿼리 + 온라인 하이브리드 로더)
-      final resultsPerArtist = await Future.wait(
+      // 3. 로컬 SQLite DB 전체 일괄 조회 (0ms 즉시 응답)
+      List<QueryResult> localArticles = [];
+      try {
+        final artistQueries = artists
+            .map(
+              (e) =>
+                  '${e.type().name}:${e.artist().toLowerCase().replaceAll(' ', '_')}',
+            )
+            .join(' or ');
+        final queryString = translate2query(
+          '($artistQueries) $langQuery ${Settings.includeTags.value}',
+        );
+        final qm = QueryManager.queryPagination(queryString, 100);
+        localArticles = await qm.next();
+      } catch (_) {}
+
+      // 로컬 결과가 있으면 0초 만에 먼저 화면에 표시하여 반응성 확보
+      if (localArticles.isNotEmpty && !_onlyNewReleases && mounted) {
+        setState(() {
+          _articles = localArticles;
+          _isLoading = false;
+        });
+      }
+
+      // 4. 작가별 최신 작품 ID 수집 (Hitomi Nozomi Range 요청 - 경량 고속)
+      final allCollectedArticles = <QueryResult>[...localArticles];
+      final seenIds = allCollectedArticles.map((e) => e.id()).toSet();
+
+      final nozomiResults = await Future.wait(
         artists.map((artist) async {
-          List<QueryResult> artistArticles = [];
-
-          // (1) 로컬 DB 쿼리 우선 시도
           try {
-            final queryString = translate2query(
-              '${artist.type().name}:${artist.artist().toLowerCase().replaceAll(' ', '_')} $langQuery ${Settings.includeTags.value}',
+            final url = HitomiNozomi.getArtistIndexUrl(
+              artist.artist(),
+              _selectedLanguage,
             );
-            final qm = QueryManager.queryPagination(queryString, 30);
-            artistArticles = await qm.next();
-          } catch (_) {}
-
-          // (2) 로컬 결과가 비어있거나 온라인 최신작 수집이 필요한 경우 HybridLoader 연동
-          if (artistArticles.isEmpty) {
-            try {
-              final hybrid = await HybridLoader.fetchArtistArticlesHybrid(
-                name: artist.artist(),
-                type: artist.type().name,
-                pageSize: 30,
-                language: _selectedLanguage,
-              );
-              if (hybrid.isNotEmpty) {
-                artistArticles = hybrid;
-              }
-            } catch (_) {}
-          }
-
-          // 최신 품번 내림차순 정렬
-          artistArticles.sort((a, b) => b.id().compareTo(a.id()));
-
-          // (3) '최신작만 모아보기' 필터 적용
-          if (_onlyNewReleases) {
-            if (_bookmarkedArticleIds.isEmpty || artistArticles.isEmpty) {
-              return <QueryResult>[];
-            }
-            final firstBookmarkedIndex = artistArticles.indexWhere(
-              (art) => _bookmarkedArticleIds.contains(art.id()),
+            final ids = await HitomiNozomi.fetchGalleryIds(
+              url,
+              1,
+              pageSize: 8,
             );
-            // 북마크된 첫 번째 작품보다 앞에 있는 최신 등록 작품들만 신작으로 추출
-            if (firstBookmarkedIndex > 0) {
-              return artistArticles.sublist(0, firstBookmarkedIndex);
-            }
-            return <QueryResult>[];
+            return (artist, ids);
+          } catch (_) {
+            return (artist, <int>[]);
           }
-
-          return artistArticles;
         }),
       );
 
-      // 4. 모든 작가의 작품을 병합하고 중복 제거 후 최신순 정렬
-      final Map<int, QueryResult> articleMap = {};
-      for (final list in resultsPerArtist) {
-        for (final art in list) {
-          articleMap[art.id()] = art;
+      final uncachedIds = <int>[];
+      for (final pair in nozomiResults) {
+        for (final id in pair.$2) {
+          if (!seenIds.contains(id)) {
+            uncachedIds.add(id);
+          }
         }
       }
 
-      final sortedArticles = articleMap.values.toList()
-        ..sort((a, b) => b.id().compareTo(a.id()));
+      // 캐시 일괄 복원 및 미캐시 품번 가벼운 보강
+      if (uncachedIds.isNotEmpty) {
+        try {
+          final cachedBatch =
+              await HybridLoader.getCachedMetadataBatch(uncachedIds);
+          for (final art in cachedBatch.values) {
+            if (seenIds.add(art.id())) {
+              allCollectedArticles.add(art);
+            }
+          }
+          final remainingIds =
+              uncachedIds.where((id) => !seenIds.contains(id)).take(10).toList();
+          if (remainingIds.isNotEmpty) {
+            final fetched = await Future.wait(
+              remainingIds.map((id) => HybridLoader.idQueryHitomiFast(id)),
+            );
+            for (final art in fetched) {
+              if (seenIds.add(art.id())) {
+                allCollectedArticles.add(art);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 5. '최신작만 모아보기' 필터 적용
+      List<QueryResult> finalArticles;
+      if (_onlyNewReleases) {
+        final newReleases = <QueryResult>[];
+        for (final artist in artists) {
+          final prefix = artist.artist().toLowerCase().replaceAll(' ', '_');
+          final artistArticles = allCollectedArticles.where((art) {
+            final a = art.artists()?.toLowerCase().replaceAll(' ', '_') ?? '';
+            return a.contains(prefix);
+          }).toList()
+            ..sort((a, b) => b.id().compareTo(a.id()));
+
+          if (artistArticles.isNotEmpty && _bookmarkedArticleIds.isNotEmpty) {
+            final firstBookmarkedIndex = artistArticles.indexWhere(
+              (art) => _bookmarkedArticleIds.contains(art.id()),
+            );
+            if (firstBookmarkedIndex > 0) {
+              newReleases.addAll(
+                artistArticles.sublist(0, firstBookmarkedIndex),
+              );
+            }
+          }
+        }
+        finalArticles = newReleases;
+      } else {
+        finalArticles = allCollectedArticles;
+      }
+
+      finalArticles.sort((a, b) => b.id().compareTo(a.id()));
 
       if (mounted) {
         setState(() {
-          _articles = sortedArticles;
+          _articles = finalArticles;
           _isLoading = false;
         });
       }
@@ -306,10 +356,10 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
 
   Widget _controlBar() {
     final langs = [
+      ('한국어', 'korean'),
+      ('일본어', 'japanese'),
+      ('영어', 'english'),
       ('전체', 'all'),
-      ('🇰🇷 한국어', 'korean'),
-      ('🇯🇵 일본어', 'japanese'),
-      ('🇺🇸 영어', 'english'),
     ];
 
     return SingleChildScrollView(
@@ -324,7 +374,9 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
             child: FilterChip(
               visualDensity: VisualDensity.compact,
               avatar: Icon(
-                _onlyNewReleases ? Icons.auto_awesome : Icons.auto_awesome_outlined,
+                _onlyNewReleases
+                    ? Icons.auto_awesome
+                    : Icons.auto_awesome_outlined,
                 size: 16,
                 color: _onlyNewReleases ? Colors.white : Colors.amber.shade700,
               ),
@@ -355,7 +407,7 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
             color: Colors.grey.withValues(alpha: 0.3),
             margin: const EdgeInsets.only(right: 8.0),
           ),
-          // 언어 필터 칩 목록
+          // 언어 필터 칩 목록 (이모티콘 없이 한국어 우선)
           ...langs.map((l) {
             final isSelected = _selectedLanguage == l.$2;
             return Padding(
