@@ -173,14 +173,16 @@ class _PatchNotePromptState extends State<PatchNotePrompt> {
 class _LatestPatchSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // 최신 항목만 간략 표시
     if (patches.isEmpty) {
       return const Text('표시할 패치 노트가 없습니다.');
     }
     final latest = patches.first;
-    final theme = Theme.of(context);
-    final surface = theme.colorScheme.surfaceContainerHighest;
-    final onSurface = theme.colorScheme.onSurfaceVariant;
+    final isDark = Settings.themeWhat.value;
+    final cardBg = isDark ? const Color(0xFF2C2C2C) : const Color(0xFFF3F4F6);
+    final borderColor = isDark ? Colors.white24 : Colors.black12;
+    final titleColor = isDark ? Colors.white : Colors.black87;
+    final dateColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final bodyColor = isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87;
 
     final isKorean = Translations.instance?.locale.languageCode == 'ko';
     final displayContents = (isKorean &&
@@ -191,43 +193,62 @@ class _LatestPatchSummaryCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: surface.withValues(alpha: 0.35),
+        color: cardBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: onSurface.withValues(alpha: 0.08)),
+        border: Border.all(color: borderColor),
       ),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.new_releases, color: Settings.majorColor.value),
+              Icon(Icons.new_releases, color: Settings.majorColor.value, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   latest.version,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
+                  style: TextStyle(
+                    color: titleColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
                   ),
                 ),
               ),
               Text(
                 '${latest.dateTime.year}.${latest.dateTime.month}.${latest.dateTime.day}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+                style: TextStyle(
+                  color: dateColor,
+                  fontSize: 12,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           ...displayContents.map(
             (e) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.only(bottom: 5),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('• '),
-                  Expanded(child: Text(e)),
+                  Text(
+                    '• ',
+                    style: TextStyle(
+                      color: Settings.majorColor.value,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      e,
+                      style: TextStyle(
+                        color: bodyColor,
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
