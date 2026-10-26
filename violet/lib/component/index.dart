@@ -11,6 +11,7 @@ import 'package:violet/algorithm/distance.dart';
 import 'package:violet/component/hitomi/artists.dart';
 import 'package:violet/component/hitomi/displayed_tag.dart';
 import 'package:violet/component/hitomi/tag_catalog.dart';
+import 'package:violet/settings/settings.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
 import 'package:violet/database/database.dart';
 import 'package:violet/log/log.dart';
@@ -546,7 +547,10 @@ class HentaiIndex {
       final clean = query.trim().replaceAll('_', ' ');
       if (clean.isEmpty) return;
 
+      if (Settings.databaseType.value == 'dummy') return;
+
       final db = await DataBaseManager.getInstance();
+      if (db.db == null || !db.db!.isOpen) return;
       final escaped = clean.replaceAll("'", "''");
       final rawResults = await db.query(
         "SELECT $column FROM HitomiColumnModel WHERE $column LIKE '%$escaped%' LIMIT 100",

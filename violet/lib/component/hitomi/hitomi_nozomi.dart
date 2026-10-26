@@ -14,6 +14,33 @@ class HitomiNozomi {
   /// Nozomi URL -> 총 작품 수 인메모리 캐시
   static final Map<String, int> _totalCountCache = <String, int>{};
 
+  /// 특정 Nozomi URL에서 시작 인덱스(0부터 시작하는 갤러리 번호)와 개수를 지정하여 ID 목록을 가져옵니다.
+  static Future<List<int>> fetchGalleryIdsByOffset(
+    String nozomiUrl,
+    int offsetIndex,
+    int count,
+  ) async {
+    try {
+      final startByte = offsetIndex * 4;
+      final endByte = (offsetIndex + count) * 4 - 1;
+
+      final response = await http.get(
+        nozomiUrl,
+        headers: {
+          'Range': 'bytes=$startByte-$endByte',
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://hitomi.la/',
+        },
+      ).timeout(const Duration(seconds: 4));
+
+      if (response.statusCode == 206 || response.statusCode == 200) {
+        return parseNozomiBytes(Uint8List.fromList(response.bodyBytes));
+      }
+    } catch (_) {}
+    return [];
+  }
+
   /// 특정 Nozomi URL에서 지정한 페이지 범위(기본 25개 갤러리 ID)를 Range Header로 요청합니다.
   static Future<List<int>> fetchGalleryIds(
     String nozomiUrl,
