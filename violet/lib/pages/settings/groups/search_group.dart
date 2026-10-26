@@ -4,11 +4,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:mdi/mdi.dart';
 import 'package:violet/component/index.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/log/log.dart';
-import 'package:violet/other/dialogs.dart';
 import 'package:violet/pages/common/toast.dart';
 import 'package:violet/pages/settings/settings_widgets.dart';
 import 'package:violet/pages/settings/tag_rebuild_page.dart';
@@ -69,25 +67,6 @@ List<Widget> buildSearchGroup(BuildContext context, VoidCallback onReload) {
         },
       ),
       InkWell(
-        child: ListTile(
-          leading: Icon(Mdi.compassOutline, color: Settings.majorColor.value),
-          title: const Text('Pure Search'),
-          trailing: Switch(
-            value: Settings.searchPure.value,
-            onChanged: (newValue) async {
-              await Settings.searchPure.setValue(newValue);
-              onReload();
-            },
-            activeTrackColor: Settings.majorColor.value,
-            activeColor: Settings.majorAccentColor.value,
-          ),
-        ),
-        onTap: () async {
-          await Settings.searchPure.setValue(!Settings.searchPure.value);
-          onReload();
-        },
-      ),
-      InkWell(
         customBorder: const RoundedRectangleBorder(
           borderRadius: BorderRadius.only(
             bottomLeft: Radius.circular(8.0),
@@ -95,159 +74,11 @@ List<Widget> buildSearchGroup(BuildContext context, VoidCallback onReload) {
           ),
         ),
         child: ListTile(
-          leading: Icon(MdiIcons.searchWeb, color: Settings.majorColor.value),
-          title: Text(Translations.instance!.trans('usewebsearch')),
-          trailing: Switch(
-            value: Settings.searchNetwork.value,
-            onChanged: (newValue) async {
-              await Settings.searchNetwork.setValue(newValue);
-              onReload();
-            },
-            activeTrackColor: Settings.majorColor.value,
-            activeColor: Settings.majorAccentColor.value,
+          leading: CachedNetworkImage(
+            imageUrl: 'https://e-hentai.org/favicon.ico',
+            width: 25,
           ),
-        ),
-        onTap: () async {
-          await Settings.searchNetwork.setValue(
-            !Settings.searchNetwork.value,
-          );
-          onReload();
-        },
-      ),
-      InkWell(
-        customBorder: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.only(
-            bottomLeft: Radius.circular(8.0),
-            bottomRight: Radius.circular(8.0),
-          ),
-        ),
-        child: ListTile(
-          leading: Icon(
-            MdiIcons.databaseSearch,
-            color: Settings.majorColor.value,
-          ),
-          title: Text(Translations.instance!.trans('fetchworkinfoweb')),
-          trailing: Switch(
-            value: Settings.fetchWorkInfoNetwork.value,
-            onChanged: (newValue) async {
-              await Settings.fetchWorkInfoNetwork.setValue(newValue);
-              onReload();
-            },
-            activeTrackColor: Settings.majorColor.value,
-            activeThumbColor: Settings.majorAccentColor.value,
-          ),
-        ),
-        onTap: () async {
-          await Settings.fetchWorkInfoNetwork.setValue(
-            !Settings.fetchWorkInfoNetwork.value,
-          );
-          onReload();
-        },
-      ),
-      if (Settings.searchNetwork.value)
-        InkWell(
-          customBorder: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(8.0),
-              bottomRight: Radius.circular(8.0),
-            ),
-          ),
-          child: ListTile(
-            leading: Icon(
-              MdiIcons.searchWeb,
-              color: Settings.majorColor.value,
-            ),
-            title: Text(Translations.instance!.trans('usesearchexpunged')),
-            trailing: Switch(
-              value: Settings.searchExpunged.value,
-              onChanged: (newValue) async {
-                await Settings.searchExpunged.setValue(newValue);
-                onReload();
-              },
-              activeTrackColor: Settings.majorColor.value,
-              activeColor: Settings.majorAccentColor.value,
-            ),
-          ),
-          onTap: () async {
-            await Settings.searchExpunged.setValue(
-              !Settings.searchExpunged.value,
-            );
-            onReload();
-          },
-        ),
-      if (Settings.searchNetwork.value)
-        InkWell(
-          customBorder: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(8.0),
-              bottomRight: Radius.circular(8.0),
-            ),
-          ),
-          child: ListTile(
-            leading: Icon(
-              MdiIcons.searchWeb,
-              color: Settings.majorColor.value,
-            ),
-            title: Text(Translations.instance!.trans('includetagnetwork')),
-            trailing: Switch(
-              value: Settings.includeTagNetwork.value,
-              onChanged: (newValue) async {
-                await Settings.includeTagNetwork.setValue(newValue);
-                onReload();
-              },
-              activeTrackColor: Settings.majorColor.value,
-              activeColor: Settings.majorAccentColor.value,
-            ),
-          ),
-          onTap: () async {
-            await Settings.includeTagNetwork.setValue(
-              !Settings.includeTagNetwork.value,
-            );
-            onReload();
-          },
-        ),
-      if (Settings.searchNetwork.value)
-        InkWell(
-          customBorder: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(8.0),
-              bottomRight: Radius.circular(8.0),
-            ),
-          ),
-          child: ListTile(
-            leading: Icon(
-              MdiIcons.searchWeb,
-              color: Settings.majorColor.value,
-            ),
-            title: Text(Translations.instance!.trans('excludetagnetwork')),
-            trailing: Switch(
-              value: Settings.excludeTagNetwork.value,
-              onChanged: (newValue) async {
-                await Settings.excludeTagNetwork.setValue(newValue);
-                onReload();
-              },
-              activeTrackColor: Settings.majorColor.value,
-              activeColor: Settings.majorAccentColor.value,
-            ),
-          ),
-          onTap: () async {
-            await Settings.excludeTagNetwork.setValue(
-              !Settings.excludeTagNetwork.value,
-            );
-            onReload();
-          },
-        ),
-      if (Settings.searchNetwork.value)
-        InkWell(
-          customBorder: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(8.0)),
-          ),
-          child: ListTile(
-            leading: CachedNetworkImage(
-              imageUrl: 'https://e-hentai.org/favicon.ico',
-              width: 25,
-            ),
-            title: const Text('Search Categories'),
+          title: const Text('Search Categories'),
             trailing: const Icon(Icons.keyboard_arrow_right),
           ),
           onTap: () async {
