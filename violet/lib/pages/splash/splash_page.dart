@@ -16,7 +16,9 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:violet/database/database.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
@@ -107,6 +109,45 @@ class _SplashPageState extends State<SplashPage> {
     return Timer(duration, navigationPage);
   }
 
+  Future<void> _ensureDummyDatabase() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final dbPath = Platform.isAndroid || Platform.isIOS
+          ? File('${dir.path}/data/data.db')
+          : Platform.isMacOS
+              ? File('${await getDatabasesPath()}/data.db')
+              : File(path.join(path.dirname(Platform.resolvedExecutable), 'data', 'data.db'));
+      if (!dbPath.existsSync()) {
+        await dbPath.create(recursive: true);
+        final db = await openDatabase(dbPath.path);
+        await db.execute('''CREATE TABLE IF NOT EXISTS HitomiColumnModel (
+          Id integer primary key autoincrement, 
+          Title text, 
+          EHash text,
+          Type text,
+          Artists text,
+          Characters text,
+          Groups text,
+          Language text,
+          Tags text,
+          Uploader text,
+          Published text,
+          Files integer,
+          Class text,
+          ExistOnHitomi integer);
+        ''');
+        await db.close();
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('db_exists', 1);
+      await prefs.setString('databasetype', 'dummy');
+      await Settings.useChunkSync.setValue(false);
+      await DataBaseManager.reloadInstance();
+    } catch (e, st) {
+      Logger.error('[Splash-_ensureDummyDatabase] E: $e\n$st');
+    }
+  }
+
   Future<void> navigationPage() async {
     setState(() {
       showMessage = true;
@@ -162,7 +203,11 @@ class _SplashPageState extends State<SplashPage> {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.getInt('db_exists') == 1 && !widget.switching) {
+    if (!widget.switching) {
+      if (prefs.getInt('db_exists') != 1) {
+        _changeMessage('setup database...');
+        await _ensureDummyDatabase();
+      }
       var connectivityResult = await (Connectivity().checkConnectivity());
       if (Settings.useChunkSync.value &&
           !connectivityResult.contains(ConnectivityResult.none)) {

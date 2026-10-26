@@ -346,6 +346,86 @@ class HybridLoader {
 
   /// 사용자가 입력한 다양한 검색어(태그, 작가, 그룹, 시리즈, 캐릭터, 업로더 또는 성별 없는 태그)를
   /// Hitomi Nozomi 인덱스 URL로 스마트하게 변환하여 Gallery ID 목록을 Range Header로 로딩합니다.
+  /// random 검색 시 최신작뿐만 아니라 10년 전 고전부터 최근까지 전 기간(0~100%)에서
+  /// 균등 분산 무작위 샘플링으로 Gallery ID 목록을 수집합니다.
+  static Future<List<int>> fetchRandomGalleryIdsForQuery({
+    required String query,
+    required String targetLang,
+    required List<String> selectedLangs,
+    required int count,
+    required double? seed,
+    required int page,
+  }) async {
+    try {
+      String targetUrl;
+      final cleanQuery = query.trim();
+      if (cleanQuery.isEmpty) {
+        if (targetLang != 'all') {
+          targetUrl = HitomiNozomi.getLanguageIndexUrl(targetLang);
+        } else if (selectedLangs.isNotEmpty && !selectedLangs.contains('all')) {
+          targetUrl = HitomiNozomi.getLanguageIndexUrl(selectedLangs.first);
+        } else {
+          targetUrl = HitomiNozomi.getIndexAllUrl();
+        }
+      } else {
+        final tokens = cleanQuery.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+        final langToken = tokens.where((t) => t.startsWith('lang:') || t.startsWith('language:')).firstOrNull;
+        final nonLang = tokens.where((t) => !t.startsWith('lang:') && !t.startsWith('language:')).toList();
+        if (nonLang.isEmpty && langToken != null) {
+          final l = langToken.split(':').last;
+          targetUrl = HitomiNozomi.getLanguageIndexUrl(l);
+        } else {
+          return await fetchGalleryIdsForQuery(
+            query: cleanQuery,
+            page: page,
+            pageSize: count,
+            targetLang: targetLang,
+          );
+        }
+      }
+
+      final totalCount = await HitomiNozomi.getTotalCount(targetUrl);
+      if (totalCount == null || totalCount <= count) {
+        return await fetchGalleryIdsForQuery(
+          query: cleanQuery,
+          page: page,
+          pageSize: count,
+          targetLang: targetLang,
+        );
+      }
+
+      const numSegments = 5;
+      final perSegment = (count / numSegments).ceil();
+      final segmentSize = totalCount ~/ numSegments;
+      final s = seed ?? (DateTime.now().microsecondsSinceEpoch % 10000) / 1000.0 + 1.0;
+
+      final futures = <Future<List<int>>>[];
+      for (int i = 0; i < numSegments; i++) {
+        final segStart = i * segmentSize;
+        final maxOffsetInSeg = (segmentSize - perSegment).clamp(1, segmentSize);
+        final segOffset = ((s * 10000 + page * 499 + i * 173).toInt() % maxOffsetInSeg);
+        final absOffset = (segStart + segOffset).clamp(0, totalCount - perSegment);
+        futures.add(HitomiNozomi.fetchGalleryIdsByOffset(targetUrl, absOffset, perSegment));
+      }
+
+      final results = await Future.wait(futures);
+      final mergedIds = <int>{};
+      for (final list in results) {
+        mergedIds.addAll(list);
+      }
+
+      return mergedIds.take(count).toList();
+    } catch (e, st) {
+      Logger.error('[HybridLoader-RandomFetch] E: $e\n$st');
+      return await fetchGalleryIdsForQuery(
+        query: query,
+        page: page,
+        pageSize: count,
+        targetLang: targetLang,
+      );
+    }
+  }
+
   static Future<List<int>> fetchGalleryIdsForQuery({
     required String query,
     required int page,
@@ -1084,7 +1164,16 @@ class HybridLoader {
     final pupilFuture = Future<List<QueryResult>>(() async {
       try {
         List<int> ids = [];
-        if (pureQuery.isEmpty && selectedLangs.length > 1) {
+        if (isRandom) {
+          ids = await fetchRandomGalleryIdsForQuery(
+            query: pureQuery,
+            targetLang: targetLang,
+            selectedLangs: selectedLangs,
+            count: pageSize,
+            seed: randomSeed,
+            page: page,
+          );
+        } else if (pureQuery.isEmpty && selectedLangs.length > 1) {
           // 복수 언어가 설정된 경우 각 언어 인덱스를 분할/병렬 로드하여 합침
           final subPageSize = (pageSize / selectedLangs.length).ceil() + 5;
           final subIds = await Future.wait(

@@ -2,6 +2,7 @@
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
 import 'dart:io';
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flare_flutter/asset_provider.dart';
@@ -42,6 +43,7 @@ class _SearchBarPageState extends State<SearchBarPage>
   static const _kDuration = Duration(milliseconds: 300);
   static const _kCurve = Curves.ease;
 
+  Timer? _debounceTimer;
   late AnimationController controller;
   List<(DisplayedTag, int)> _searchLists = <(DisplayedTag, int)>[];
   List<(DisplayedTag, int)> _relatedLists = <(DisplayedTag, int)>[];
@@ -66,6 +68,7 @@ class _SearchBarPageState extends State<SearchBarPage>
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _topController.dispose();
     _bottomController.dispose();
     super.dispose();
@@ -168,8 +171,13 @@ class _SearchBarPageState extends State<SearchBarPage>
       child: ListTile(
         title: TextFormField(
           cursorColor: Colors.black,
-          onChanged: (String str) async {
-            await searchProcess(str, _searchController.selection);
+          onChanged: (String str) {
+            _debounceTimer?.cancel();
+            _debounceTimer = Timer(const Duration(milliseconds: 200), () async {
+              if (mounted) {
+                await searchProcess(str, _searchController.selection);
+              }
+            });
           },
           controller: _searchController,
           decoration: InputDecoration(
@@ -180,6 +188,7 @@ class _SearchBarPageState extends State<SearchBarPage>
             disabledBorder: InputBorder.none,
             suffixIcon: IconButton(
               onPressed: () async {
+                _debounceTimer?.cancel();
                 _searchController.clear();
                 _searchController.selection = const TextSelection(
                   baseOffset: 0,
@@ -882,6 +891,7 @@ class _SearchBarPageState extends State<SearchBarPage>
       result.addAll(searchResult);
     }
 
+    if (latestToken != token) return;
     setState(() {
       _searchLists = result;
     });
