@@ -76,7 +76,7 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
       final langQuery =
           _selectedLanguage == 'all' ? '' : 'lang:$_selectedLanguage';
 
-      // 3. 로컬 SQLite DB 전체 일괄 조회 (0ms 즉시 응답)
+      // 3. 로컬 SQLite DB 일괄 조회 (0ms 즉시 응답)
       List<QueryResult> localArticles = [];
       try {
         final artistQueries = artists
@@ -92,7 +92,7 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
         localArticles = await qm.next();
       } catch (_) {}
 
-      // 로컬 결과가 있으면 0초 만에 먼저 화면에 표시하여 반응성 확보
+      // 로컬 결과가 있으면 최신작 모드가 아닐 때 0초 만에 화면 선반영
       if (localArticles.isNotEmpty && !_onlyNewReleases && mounted) {
         setState(() {
           _articles = localArticles;
@@ -100,11 +100,11 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
         });
       }
 
-      // 4. 작가별 최신 작품 ID 수집 (Hitomi Nozomi Range 요청 - 경량 고속)
-      final allCollectedArticles = <QueryResult>[...localArticles];
-      final seenIds = allCollectedArticles.map((e) => e.id()).toSet();
+      // 4. 각 작가별 온라인 Nozomi 인덱스 병렬 조회 (ID 목록 취득)
+      final newReleaseIds = <int>[];
+      final allCollectedIds = <int>[];
 
-      final nozomiResults = await Future.wait(
+      await Future.wait(
         artists.map((artist) async {
           try {
             final url = HitomiNozomi.getArtistIndexUrl(
@@ -114,78 +114,90 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
             final ids = await HitomiNozomi.fetchGalleryIds(
               url,
               1,
-              pageSize: 8,
+              pageSize: 15,
             );
-            return (artist, ids);
-          } catch (_) {
-            return (artist, <int>[]);
-          }
+
+            if (ids.isNotEmpty) {
+              allCollectedIds.addAll(ids);
+
+              // 이 작가의 작품 중 사용자가 북마크한 최신 작품 품번(maxBookmarkedId) 찾기
+              int maxBookmarkedId = 0;
+              for (final id in ids) {
+                if (_bookmarkedArticleIds.contains(id)) {
+                  maxBookmarkedId = id;
+                  break;
+                }
+              }
+
+              // 북마크된 작품보다 최신인(품번이 더 큰) 신작들만 추출
+              if (maxBookmarkedId > 0) {
+                for (final id in ids) {
+                  if (id > maxBookmarkedId) {
+                    newReleaseIds.add(id);
+                  } else {
+                    break;
+                  }
+                }
+              }
+            }
+          } catch (_) {}
         }),
       );
 
-      final uncachedIds = <int>[];
-      for (final pair in nozomiResults) {
-        for (final id in pair.$2) {
-          if (!seenIds.contains(id)) {
-            uncachedIds.add(id);
-          }
+      // 5. 모아보기 모드에 따라 대상 ID 목록 결정
+      final List<int> targetIds;
+      if (_onlyNewReleases) {
+        targetIds = newReleaseIds.toSet().toList();
+      } else {
+        final merged = <int>{
+          ...allCollectedIds,
+          ...localArticles.map((e) => e.id()),
+        };
+        targetIds = merged.toList();
+      }
+
+      if (targetIds.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _articles = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      // 6. 대상 ID들의 메타데이터 복원 (로컬 DB + ArticleCache + 온라인 고속 조회)
+      final resultMap = <int, QueryResult>{};
+      for (final art in localArticles) {
+        if (targetIds.contains(art.id())) {
+          resultMap[art.id()] = art;
         }
       }
 
-      // 캐시 일괄 복원 및 미캐시 품번 가벼운 보강
-      if (uncachedIds.isNotEmpty) {
+      final missingIds = targetIds.where((id) => !resultMap.containsKey(id)).toList();
+      if (missingIds.isNotEmpty) {
+        // 캐시 일괄 조회
         try {
-          final cachedBatch =
-              await HybridLoader.getCachedMetadataBatch(uncachedIds);
-          for (final art in cachedBatch.values) {
-            if (seenIds.add(art.id())) {
-              allCollectedArticles.add(art);
-            }
-          }
-          final remainingIds =
-              uncachedIds.where((id) => !seenIds.contains(id)).take(10).toList();
-          if (remainingIds.isNotEmpty) {
-            final fetched = await Future.wait(
-              remainingIds.map((id) => HybridLoader.idQueryHitomiFast(id)),
-            );
-            for (final art in fetched) {
-              if (seenIds.add(art.id())) {
-                allCollectedArticles.add(art);
-              }
-            }
+          final cachedBatch = await HybridLoader.getCachedMetadataBatch(missingIds);
+          for (final entry in cachedBatch.entries) {
+            resultMap[entry.key] = entry.value;
           }
         } catch (_) {}
-      }
 
-      // 5. '최신작만 모아보기' 필터 적용
-      List<QueryResult> finalArticles;
-      if (_onlyNewReleases) {
-        final newReleases = <QueryResult>[];
-        for (final artist in artists) {
-          final prefix = artist.artist().toLowerCase().replaceAll(' ', '_');
-          final artistArticles = allCollectedArticles.where((art) {
-            final a = art.artists()?.toLowerCase().replaceAll(' ', '_') ?? '';
-            return a.contains(prefix);
-          }).toList()
-            ..sort((a, b) => b.id().compareTo(a.id()));
-
-          if (artistArticles.isNotEmpty && _bookmarkedArticleIds.isNotEmpty) {
-            final firstBookmarkedIndex = artistArticles.indexWhere(
-              (art) => _bookmarkedArticleIds.contains(art.id()),
-            );
-            if (firstBookmarkedIndex > 0) {
-              newReleases.addAll(
-                artistArticles.sublist(0, firstBookmarkedIndex),
-              );
-            }
+        // 아직도 메타데이터가 없는 신작들만 온라인 경량 파싱
+        final stillMissing = missingIds.where((id) => !resultMap.containsKey(id)).toList();
+        if (stillMissing.isNotEmpty) {
+          final fetched = await Future.wait(
+            stillMissing.take(20).map((id) => HybridLoader.idQueryHitomiFast(id)),
+          );
+          for (final art in fetched) {
+            resultMap[art.id()] = art;
           }
         }
-        finalArticles = newReleases;
-      } else {
-        finalArticles = allCollectedArticles;
       }
 
-      finalArticles.sort((a, b) => b.id().compareTo(a.id()));
+      final finalArticles = resultMap.values.toList()
+        ..sort((a, b) => b.id().compareTo(a.id()));
 
       if (mounted) {
         setState(() {

@@ -164,25 +164,45 @@ class _GroupArtistListState extends State<GroupArtistList>
     );
     final qm = QueryManager.queryPagination(queryString, 4);
     final localResults = await qm.next();
-    if (localResults.isNotEmpty) {
-      _artistThumbnailCache[cacheKey] = localResults;
-      return localResults;
-    }
 
-    // 로컬 DB 부재 시 하이브리드 로더로 최신 작품 4개 썸네일 조회
+    // 온라인 Nozomi 인덱스를 가볍게 확인하여 로컬 DB 이후 출시된 신작 감지
+    final nozomiUrl = HitomiNozomi.getArtistIndexUrl(e, targetLang);
+    List<QueryResult> finalResults = localResults;
+
     try {
-      final hybrid = await HybridLoader.fetchArtistArticlesHybrid(
-        name: e,
-        type: type.name,
-        pageSize: 4,
-        language: targetLang,
-      );
-      if (hybrid.isNotEmpty) {
-        final list = hybrid.take(4).toList();
-        _artistThumbnailCache[cacheKey] = list;
+      final onlineIds = await HitomiNozomi.fetchGalleryIds(nozomiUrl, 1, pageSize: 4);
+      if (onlineIds.isNotEmpty) {
+        final localLatestId = localResults.isNotEmpty ? localResults.first.id() : 0;
+        final newOnlineIds = onlineIds.where((id) => id > localLatestId).toList();
+
+        if (newOnlineIds.isNotEmpty) {
+          // 로컬 DB보다 최신인 온라인 신작 메타데이터 보강
+          final newArticles = <QueryResult>[];
+          for (final id in newOnlineIds) {
+            try {
+              final art = await HybridLoader.idQueryHitomiFast(id);
+              newArticles.add(art);
+            } catch (_) {}
+          }
+          finalResults = [...newArticles, ...localResults].take(4).toList();
+        } else if (localResults.isEmpty) {
+          // 로컬 DB에 전혀 없는 경우 온라인 ID 일괄 복원
+          final cachedBatch = await HybridLoader.getCachedMetadataBatch(onlineIds);
+          final list = <QueryResult>[];
+          for (final id in onlineIds) {
+            if (cachedBatch.containsKey(id)) {
+              list.add(cachedBatch[id]!);
+            } else {
+              try {
+                final art = await HybridLoader.idQueryHitomiFast(id);
+                list.add(art);
+              } catch (_) {}
+            }
+          }
+          finalResults = list;
+        }
 
         // 총 작품 수 비동기 조회 및 실시간 카운트 갱신
-        final nozomiUrl = HitomiNozomi.getArtistIndexUrl(e, targetLang);
         HitomiNozomi.getTotalCount(nozomiUrl).then((cnt) {
           if (cnt != null && cnt > 0 && mounted) {
             setState(() {
@@ -190,10 +210,13 @@ class _GroupArtistListState extends State<GroupArtistList>
             });
           }
         });
-
-        return list;
       }
     } catch (_) {}
+
+    if (finalResults.isNotEmpty) {
+      _artistThumbnailCache[cacheKey] = finalResults;
+      return finalResults;
+    }
 
     return [];
   }
