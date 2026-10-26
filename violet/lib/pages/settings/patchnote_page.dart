@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:violet/locale/locale.dart';
 
 class PatchModel {
   DateTime dateTime;
@@ -24,19 +25,23 @@ class PatchModel {
 
 final patches = [
   PatchModel(
-    dateTime: DateTime(2025, 10, 9),
+    dateTime: DateTime(2026, 10, 26),
     version: '1.34.4 Patch',
     contents: [
-      'add using system theme option',
-      'fix reload bug when theme switch',
-      'fix thumbnail slider bug on downloaded article view',
-      'use skia instead of impeller on android for avoid performance issue',
+      'Artist Collection: added language filter chips (All, Korean, Japanese, English)',
+      'Artist Collection: added automatic new release detection and [NEW +N] badge',
+      'Artist Collection: added sort by new releases mode & in-collection real-time search',
+      'Artist Article Collection: hybrid online stream connection & [New releases only] feed toggle',
+      'Update Manager: restored GitHub Releases update notification and in-app installer',
+      'Settings: streamlined search options (default search language, excluded tags, categories)',
     ],
     contentsKorean: [
-      '시스템 테마 사용 옵션 추가',
-      '테마 스위치 시 리로드 버그 수정',
-      '다운로드된 작품 뷰어에서 썸네일 슬라이더가 동작하지 않던 버그 수정',
-      '성능 이슈를 피하기 위해 Android에서 Impeller rendering engine을 임시로 비활성화',
+      '아티스트 컬렉션: 언어 필터 칩 바 탑재 (전체, 한국어, 일본어, 영어)',
+      '아티스트 컬렉션: 북마크 이후 신작 자동 감지 및 [NEW +N] 뱃지 표시',
+      '아티스트 컬렉션: 신작 있는 작가 우선 정렬 모드 및 컬렉션 내 실시간 작가 검색 지원',
+      '아티스트 작품 컬렉션: 온라인 하이브리드 스트림 연동 및 [최신작만] 모아보기 피드 탑재',
+      '업데이트 매니저: GitHub Releases 기반 최신 버전 자동 알림 및 인앱 설치 복구',
+      '설정 다이어트: 미사용 레거시 항목 정리 및 검색 설정(기본 언어, 제외 태그, 카테고리) 최적화',
     ],
   ),
   PatchModel(
@@ -1025,12 +1030,12 @@ class _PatchNotePageState extends State<PatchNotePage> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10.0),
                       color: i == 0
-                          ? Colors.greenAccent.withOpacity(0.8)
+                          ? Colors.greenAccent.withValues(alpha: 0.8)
                           : ii.isMajor
-                          ? Colors.lightBlueAccent.withOpacity(0.8)
+                          ? Colors.lightBlueAccent.withValues(alpha: 0.8)
                           : ii.isMinor
-                          ? Colors.orange.withOpacity(0.8)
-                          : Colors.redAccent.withOpacity(0.8),
+                          ? Colors.orange.withValues(alpha: 0.8)
+                          : Colors.redAccent.withValues(alpha: 0.8),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1086,7 +1091,15 @@ class _PatchNotePageState extends State<PatchNotePage> {
                           ],
                         ),
                         Container(height: 4),
-                        Text('* ${ii.contents.join('\n* ')}'),
+                        Builder(
+                          builder: (context) {
+                            final isKorean = Translations.instance?.locale.languageCode == 'ko';
+                            final displayContents = (isKorean && ii.contentsKorean != null && ii.contentsKorean!.isNotEmpty)
+                                ? ii.contentsKorean!
+                                : ii.contents;
+                            return Text('* ${displayContents.join('\n* ')}');
+                          },
+                        ),
                       ],
                     ),
                   );
