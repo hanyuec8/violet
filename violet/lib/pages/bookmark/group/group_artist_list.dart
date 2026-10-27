@@ -65,7 +65,10 @@ class _GroupArtistListState extends State<GroupArtistList>
       final bms = await (await Bookmark.getInstance()).getArticle();
       if (mounted) {
         setState(() {
-          _bookmarkedArticleIds = bms.map((e) => e.id()).toSet();
+          _bookmarkedArticleIds = bms
+              .map((e) => int.tryParse(e.article()))
+              .whereType<int>()
+              .toSet();
         });
       }
     } catch (_) {}
@@ -100,9 +103,13 @@ class _GroupArtistListState extends State<GroupArtistList>
   }
 
   Future<void> _sortByLatest() async {
-    await Future.wait(
-      artists.map((a) => _future(a.artist(), a.type(), _selectedLanguage)),
-    );
+    const chunkSize = 30;
+    for (int i = 0; i < artists.length; i += chunkSize) {
+      final chunk = artists.sublist(i, (i + chunkSize > artists.length) ? artists.length : i + chunkSize);
+      await Future.wait(
+        chunk.map((a) => _future(a.artist(), a.type(), _selectedLanguage)),
+      );
+    }
 
     var ids = <(int, int)>[];
     for (int i = 0; i < artists.length; i++) {
@@ -123,9 +130,13 @@ class _GroupArtistListState extends State<GroupArtistList>
   }
 
   Future<void> _sortByNewReleases() async {
-    await Future.wait(
-      artists.map((a) => _future(a.artist(), a.type(), _selectedLanguage)),
-    );
+    const chunkSize = 30;
+    for (int i = 0; i < artists.length; i += chunkSize) {
+      final chunk = artists.sublist(i, (i + chunkSize > artists.length) ? artists.length : i + chunkSize);
+      await Future.wait(
+        chunk.map((a) => _future(a.artist(), a.type(), _selectedLanguage)),
+      );
+    }
 
     var pairs = <(int, int, int)>[]; // (newCount, latestId, index)
     for (int i = 0; i < artists.length; i++) {
@@ -177,12 +188,17 @@ class _GroupArtistListState extends State<GroupArtistList>
 
         if (newOnlineIds.isNotEmpty) {
           // 로컬 DB보다 최신인 온라인 신작 메타데이터 보강
+          final cachedBatch = await HybridLoader.getCachedMetadataBatch(newOnlineIds);
           final newArticles = <QueryResult>[];
           for (final id in newOnlineIds) {
-            try {
-              final art = await HybridLoader.idQueryHitomiFast(id);
-              newArticles.add(art);
-            } catch (_) {}
+            if (cachedBatch.containsKey(id)) {
+              newArticles.add(cachedBatch[id]!);
+            } else {
+              try {
+                final art = await HybridLoader.idQueryHitomiFast(id);
+                newArticles.add(art);
+              } catch (_) {}
+            }
           }
           finalResults = [...newArticles, ...localResults].take(4).toList();
         } else if (localResults.isEmpty) {

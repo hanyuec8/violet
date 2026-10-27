@@ -6,6 +6,7 @@ import 'package:material_design_icons_flutter/material_design_icons_flutter.dart
 import 'package:violet/locale/locale.dart';
 import 'package:violet/pages/settings/patchnote_page.dart';
 import 'package:violet/settings/settings.dart';
+import 'package:violet/style/palette.dart';
 import 'package:violet/version/update_sync.dart';
 
 class PatchNotePrompt extends StatefulWidget {
@@ -29,7 +30,14 @@ class _PatchNotePromptState extends State<PatchNotePrompt> {
         : latest.isMinor
         ? MdiIcons.chevronDoubleUp
         : MdiIcons.trendingUp;
-    // PatchNotePage에서는 최신 항목(i == 0)을 녹색 계열로 강조합니다.
+
+    final isDark = Settings.themeWhat.value;
+    final Color dialogBg = isDark
+        ? (Settings.themeBlack.value ? Palette.blackThemeBackground : const Color(0xFF282828))
+        : Colors.white;
+    final Color textColor = isDark ? Colors.white : Colors.black87;
+    final Color dividerColor = isDark ? Colors.white12 : Colors.black12;
+
     final Color headerBaseColor = Settings.majorColor.value;
     final Color onHeaderColor =
         ThemeData.estimateBrightnessForColor(headerBaseColor) == Brightness.dark
@@ -43,6 +51,7 @@ class _PatchNotePromptState extends State<PatchNotePrompt> {
 
     return Dialog(
       elevation: 0,
+      backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
@@ -50,10 +59,10 @@ class _PatchNotePromptState extends State<PatchNotePrompt> {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            color: (theme.dialogTheme.backgroundColor ?? theme.colorScheme.surface),
+            color: dialogBg,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
+                color: Colors.black.withValues(alpha: 0.25),
                 blurRadius: 20,
                 spreadRadius: 2,
                 offset: const Offset(0, 10),
@@ -103,35 +112,54 @@ class _PatchNotePromptState extends State<PatchNotePrompt> {
                   children: [
                     _LatestPatchSummaryCard(),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _doNotShowAgain,
-                          onChanged: (v) {
-                            setState(() {
-                              _doNotShowAgain = v ?? true;
-                            });
-                          },
+                    InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () {
+                        setState(() {
+                          _doNotShowAgain = !_doNotShowAgain;
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            Checkbox(
+                              value: _doNotShowAgain,
+                              activeColor: major,
+                              checkColor: onMajor,
+                              onChanged: (v) {
+                                setState(() {
+                                  _doNotShowAgain = v ?? true;
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                Translations.instance!.trans('donotshowagain'),
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            Translations.instance!.trans('donotshowagain'),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 1),
+              Divider(height: 1, color: dividerColor),
               // Footer buttons
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                 child: Row(
                   children: [
                     TextButton(
-                      style: TextButton.styleFrom(foregroundColor: major),
+                      style: TextButton.styleFrom(
+                        foregroundColor: isDark ? Colors.grey.shade300 : major,
+                      ),
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -178,7 +206,9 @@ class _LatestPatchSummaryCard extends StatelessWidget {
     }
     final latest = patches.first;
     final isDark = Settings.themeWhat.value;
-    final cardBg = isDark ? const Color(0xFF2C2C2C) : const Color(0xFFF3F4F6);
+    final cardBg = isDark
+        ? (Settings.themeBlack.value ? const Color(0xFF1E1E1E) : const Color(0xFF333333))
+        : const Color(0xFFF3F4F6);
     final borderColor = isDark ? Colors.white24 : Colors.black12;
     final titleColor = isDark ? Colors.white : Colors.black87;
     final dateColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;

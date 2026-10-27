@@ -25,6 +25,18 @@ class PatchModel {
 
 final patches = [
   PatchModel(
+    dateTime: DateTime(2026, 10, 27),
+    version: '1.35.1 Patch',
+    contents: [
+      'Search: support subword and partial matching for artist and group queries',
+      'Update Manager: zero-residual one-click in-app update with streaming progress bar and auto-cleanup',
+    ],
+    contentsKorean: [
+      '검색: 작가/그룹 검색 시 단어 중간 검색어(서브워드) 부분 일치 및 자동완성 정밀 지원',
+      '업데이트 매니저: 실시간 다운로드 진행률 표시 및 설치 완료 후 임시 APK 자동 소멸 무흔적 업데이트 탑재',
+    ],
+  ),
+  PatchModel(
     dateTime: DateTime(2026, 10, 26),
     version: '1.34.4 Patch',
     contents: [

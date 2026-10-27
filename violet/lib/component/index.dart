@@ -90,6 +90,7 @@ class HentaiIndex {
   static Future<void> init() async {
     await _loadIndexes();
     await _loadCountMap();
+    HitomiTagCatalog.preloadAllCatalogs().ignore();
   }
 
   static Future<void> _loadIndexes() async {
@@ -682,24 +683,26 @@ class HentaiIndex {
       } else if (translated.startsWith(cleanQuery)) {
         score += 13000;
       } else if (name.split(RegExp(r'[\s_]+')).any((word) => word.startsWith(cleanQuery))) {
-        score += 8000;
+        score += 10000;
       } else {
         score += 1000;
       }
+
+      final isWordMatch = name.split(RegExp(r'[\s_]+')).any((word) => word.startsWith(cleanQuery));
 
       // 2. 그룹 우선순위 (Group Priority)
       if (isExplicitGroupSearch) {
         switch (group) {
           case 'artist':
           case 'group':
-            score += name.startsWith(cleanQuery) ? 2000 : 1000;
+            score += name.startsWith(cleanQuery) ? 2000 : (isWordMatch ? 1500 : 1000);
             break;
           default:
             score += 500;
             break;
         }
       } else {
-        // 일반 검색 시 대중적인 태그(tag, female, male)를 미확인 작가/그룹보다 우선 노출
+        // 일반 검색 시
         switch (group) {
           case 'tag':
           case 'female':
@@ -712,7 +715,7 @@ class HentaiIndex {
             break;
           case 'artist':
           case 'group':
-            score += 600;
+            score += isWordMatch ? 1800 : 600;
             break;
           case 'series':
             score += 300;

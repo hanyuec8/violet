@@ -1119,6 +1119,7 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
 
   Widget seriesArea() {
     var unescape = HtmlUnescape();
+    final clusterSource = allArticles.isNotEmpty ? allArticles : cc;
     return ListView.builder(
       padding: const EdgeInsets.all(0),
       shrinkWrap: true,
@@ -1126,16 +1127,21 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
       itemCount: min(series.length, 6) + (series.length > 6 ? 1 : 0),
       itemBuilder: (BuildContext ctxt, int index) {
         if (index == 6) {
-          return more(() => SeriesListPage(cc: cc, series: series));
+          return more(() => SeriesListPage(cc: clusterSource, series: series));
         }
         var e = series[index];
+        final validArticles = e
+            .where((idx) => idx < clusterSource.length)
+            .map((idx) => clusterSource[idx])
+            .toList();
+        if (validArticles.isEmpty) return const SizedBox.shrink();
 
         return ThreeArticlePanel(
           tappedRoute: () =>
-              ArticleListPage(cc: e.map((e) => cc[e]).toList(), name: 'Series'),
-          title: ' ${unescape.convert(cc[e[0]].title())}',
-          count: '${e.length} ',
-          articles: e.map((e) => cc[e]).toList(),
+              ArticleListPage(cc: validArticles, name: 'Series'),
+          title: ' ${unescape.convert(validArticles[0].title())}',
+          count: '${validArticles.length} ',
+          articles: validArticles,
         );
       },
     );
