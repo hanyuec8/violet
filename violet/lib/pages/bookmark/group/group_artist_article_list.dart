@@ -54,9 +54,12 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
     });
 
     try {
-      // 1. 북마크된 전체 작품 ID 로드
+      // 1. 북마크된 전체 작품 ID 로드 (article()이 실제 품번이며, id()는 DB 행 ID임)
       final bms = await (await Bookmark.getInstance()).getArticle();
-      _bookmarkedArticleIds = bms.map((e) => e.id()).toSet();
+      _bookmarkedArticleIds = bms
+          .map((e) => int.tryParse(e.article()))
+          .whereType<int>()
+          .toSet();
 
       // 2. 해당 그룹의 북마크 작가 목록 로드
       final artists = (await (await Bookmark.getInstance()).getArtist())
@@ -104,45 +107,47 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
       final newReleaseIds = <int>[];
       final allCollectedIds = <int>[];
 
-      await Future.wait(
-        artists.map((artist) async {
-          try {
-            final url = HitomiNozomi.getArtistIndexUrl(
-              artist.artist(),
-              _selectedLanguage,
-            );
-            final ids = await HitomiNozomi.fetchGalleryIds(
-              url,
-              1,
-              pageSize: 15,
-            );
+      // 대량 작가 등록 시 Android 소켓 및 DNS 풀 고갈을 방지하기 위해 30개씩 분할 병렬 처리
+      const chunkSize = 30;
+      for (int i = 0; i < artists.length; i += chunkSize) {
+        final chunk = artists.sublist(i, (i + chunkSize > artists.length) ? artists.length : i + chunkSize);
+        await Future.wait(
+          chunk.map((artist) async {
+            try {
+              final url = HitomiNozomi.getArtistIndexUrl(
+                artist.artist(),
+                _selectedLanguage,
+              );
+              final ids = await HitomiNozomi.fetchGalleryIds(
+                url,
+                1,
+                pageSize: 25,
+              );
 
-            if (ids.isNotEmpty) {
-              allCollectedIds.addAll(ids);
+              if (ids.isNotEmpty) {
+                allCollectedIds.addAll(ids);
 
-              // 이 작가의 작품 중 사용자가 북마크한 최신 작품 품번(maxBookmarkedId) 찾기
-              int maxBookmarkedId = 0;
-              for (final id in ids) {
-                if (_bookmarkedArticleIds.contains(id)) {
-                  maxBookmarkedId = id;
-                  break;
-                }
-              }
-
-              // 북마크된 작품보다 최신인(품번이 더 큰) 신작들만 추출
-              if (maxBookmarkedId > 0) {
+                // 이 작가의 작품 중 사용자가 북마크한 최신 작품 품번(maxBookmarkedId) 찾기
+                int maxBookmarkedId = 0;
                 for (final id in ids) {
-                  if (id > maxBookmarkedId) {
-                    newReleaseIds.add(id);
-                  } else {
-                    break;
+                  if (_bookmarkedArticleIds.contains(id) && id > maxBookmarkedId) {
+                    maxBookmarkedId = id;
+                  }
+                }
+
+                // 북마크된 작품보다 최신인(품번이 더 큰) 신작들만 추출
+                if (maxBookmarkedId > 0) {
+                  for (final id in ids) {
+                    if (id > maxBookmarkedId) {
+                      newReleaseIds.add(id);
+                    }
                   }
                 }
               }
-            }
-          } catch (_) {}
-        }),
-      );
+            } catch (_) {}
+          }),
+        );
+      }
 
       // 5. 모아보기 모드에 따라 대상 ID 목록 결정
       final List<int> targetIds;
@@ -188,7 +193,7 @@ class _GroupArtistArticleListState extends State<GroupArtistArticleList>
         final stillMissing = missingIds.where((id) => !resultMap.containsKey(id)).toList();
         if (stillMissing.isNotEmpty) {
           final fetched = await Future.wait(
-            stillMissing.take(20).map((id) => HybridLoader.idQueryHitomiFast(id)),
+            stillMissing.take(50).map((id) => HybridLoader.idQueryHitomiFast(id)),
           );
           for (final art in fetched) {
             resultMap[art.id()] = art;

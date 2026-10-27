@@ -16,6 +16,12 @@ class HitomiTagCatalog {
     '66.187.78.242',
   ];
 
+  /// 전체 알파벳 식별자 키 목록
+  static const List<String> allCharKeys = [
+    '123', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+  ];
+
   /// 인메모리 알파벳 캐시 (char -> 작가 목록)
   static final Map<String, List<String>> _artistsMemoryCache = {};
   /// 인메모리 알파벳 캐시 (char -> 그룹 목록)
@@ -25,6 +31,8 @@ class HitomiTagCatalog {
   static final Map<String, int> _artistCounts = {};
   /// 그룹별 작품 수 온라인 캐시 (이름 -> 작품 수)
   static final Map<String, int> _groupCounts = {};
+
+  static bool _isPreloading = false;
 
   /// 온라인 카탈로그에서 추출한 작품 수 반환
   static int getCount(String type, String name) {
@@ -57,6 +65,61 @@ class HitomiTagCatalog {
       return first;
     }
     return '123';
+  }
+
+  /// 이미 로컬 디스크에 존재하는 모든 알파벳 캐시 파일들을 메모리로 적재
+  static Future<void> _loadAllCachedFromDisk(String type) async {
+    try {
+      final dir = await _getCatalogDirectory();
+      final prefix = type == 'artist' ? 'artists_' : 'groups_';
+      final memCache = type == 'artist' ? _artistsMemoryCache : _groupsMemoryCache;
+
+      if (!dir.existsSync()) return;
+      final files = dir.listSync().whereType<File>();
+      for (final file in files) {
+        final filename = file.uri.pathSegments.last;
+        if (filename.startsWith(prefix) && filename.endsWith('.json')) {
+          final charKey = filename.substring(prefix.length, filename.length - 5);
+          if (!memCache.containsKey(charKey)) {
+            try {
+              final text = await file.readAsString();
+              final list = (jsonDecode(text) as List).cast<String>();
+              memCache[charKey] = list;
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// 백그라운드에서 모든 알파벳 카탈로그(A~Z, 123)를 사전에 다운로드하여 영구 캐싱
+  static Future<void> preloadAllCatalogs() async {
+    if (_isPreloading) return;
+    _isPreloading = true;
+
+    try {
+      await _loadAllCachedFromDisk('artist');
+      await _loadAllCachedFromDisk('group');
+
+      // 아직 로컬에 없는 알파벳만 순차/병렬 다운로드 (네트워크 과부하 방지를 위해 3개씩 청크)
+      final missingArtists = allCharKeys.where((k) => !_artistsMemoryCache.containsKey(k)).toList();
+      for (int i = 0; i < missingArtists.length; i += 3) {
+        final chunk = missingArtists.sublist(i, (i + 3 < missingArtists.length) ? i + 3 : missingArtists.length);
+        await Future.wait(chunk.map((k) => loadArtists(k)));
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+
+      final missingGroups = allCharKeys.where((k) => !_groupsMemoryCache.containsKey(k)).toList();
+      for (int i = 0; i < missingGroups.length; i += 3) {
+        final chunk = missingGroups.sublist(i, (i + 3 < missingGroups.length) ? i + 3 : missingGroups.length);
+        await Future.wait(chunk.map((k) => loadGroups(k)));
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    } catch (e) {
+      Logger.info('[HitomiTagCatalog] Preload exception: $e');
+    } finally {
+      _isPreloading = false;
+    }
   }
 
   /// 특정 알파벳의 전체 작가 목록 반환 (메모리 -> 로컬 디스크 -> 온라인 온디맨드 1회 다운로드)
@@ -129,52 +192,72 @@ class HitomiTagCatalog {
     return [];
   }
 
-  /// 검색어(prefix)와 일치하는 작가 목록 검색 (접두사 일치 최우선)
+  /// 검색어(prefix)와 일치하는 작가 목록 검색:
+  /// 1. 타깃 알파벳 온디맨드 로드 (접두사 일치 보장)
+  /// 2. 이미 로컬에 캐시된 전체 알파벳 카탈로그 메모리 로드
+  /// 3. 정렬 순서: 완전 접두사 일치 > 단어 단위 접두사 일치(kawasaki tadataka) > 단순 포함 일치
   static Future<List<String>> searchArtists(String prefix) async {
     final clean = prefix.trim().toLowerCase().replaceAll('_', ' ');
     if (clean.isEmpty) return [];
 
     final charKey = getCharKey(clean);
-    final allArtists = await loadArtists(charKey);
-    if (allArtists.isEmpty) return [];
+    await loadArtists(charKey);
+    await _loadAllCachedFromDisk('artist');
 
     final startsWithMatches = <String>[];
+    final wordBoundaryMatches = <String>[];
     final containsMatches = <String>[];
+    final seen = <String>{};
 
-    for (final artist in allArtists) {
-      final aLower = artist.toLowerCase();
-      if (aLower.startsWith(clean)) {
-        startsWithMatches.add(artist);
-      } else if (aLower.contains(clean)) {
-        containsMatches.add(artist);
+    for (final artistList in _artistsMemoryCache.values) {
+      for (final artist in artistList) {
+        if (!seen.add(artist)) continue;
+        final aLower = artist.toLowerCase();
+        if (aLower.startsWith(clean)) {
+          startsWithMatches.add(artist);
+        } else if (aLower.split(RegExp(r'[\s_]+')).any((w) => w.startsWith(clean))) {
+          wordBoundaryMatches.add(artist);
+        } else if (aLower.contains(clean)) {
+          containsMatches.add(artist);
+        }
       }
     }
 
-    return [...startsWithMatches, ...containsMatches];
+    return [...startsWithMatches, ...wordBoundaryMatches, ...containsMatches];
   }
 
-  /// 검색어(prefix)와 일치하는 그룹 목록 검색 (접두사 일치 최우선)
+  /// 검색어(prefix)와 일치하는 그룹 목록 검색:
+  /// 1. 타깃 알파벳 온디맨드 로드 (접두사 일치 보장)
+  /// 2. 이미 로컬에 캐시된 전체 알파벳 카탈로그 메모리 로드
+  /// 3. 정렬 순서: 완전 접두사 일치 > 단어 단위 접두사 일치 > 단순 포함 일치
   static Future<List<String>> searchGroups(String prefix) async {
     final clean = prefix.trim().toLowerCase().replaceAll('_', ' ');
     if (clean.isEmpty) return [];
 
     final charKey = getCharKey(clean);
-    final allGroups = await loadGroups(charKey);
-    if (allGroups.isEmpty) return [];
+    await loadGroups(charKey);
+    await _loadAllCachedFromDisk('group');
 
     final startsWithMatches = <String>[];
+    final wordBoundaryMatches = <String>[];
     final containsMatches = <String>[];
+    final seen = <String>{};
 
-    for (final group in allGroups) {
-      final gLower = group.toLowerCase();
-      if (gLower.startsWith(clean)) {
-        startsWithMatches.add(group);
-      } else if (gLower.contains(clean)) {
-        containsMatches.add(group);
+    for (final groupList in _groupsMemoryCache.values) {
+      for (final group in groupList) {
+        if (!seen.add(group)) continue;
+        final gLower = group.toLowerCase();
+        if (gLower.startsWith(clean)) {
+          startsWithMatches.add(group);
+        } else if (gLower.split(RegExp(r'[\s_]+')).any((w) => w.startsWith(clean))) {
+          wordBoundaryMatches.add(group);
+        } else if (gLower.contains(clean)) {
+          containsMatches.add(group);
+        }
       }
     }
 
-    return [...startsWithMatches, ...containsMatches];
+    return [...startsWithMatches, ...wordBoundaryMatches, ...containsMatches];
   }
 
   /// SNI 차단 우회(Direct IP + Host 헤더)를 통해 Hitomi 공식 allartists/allgroups 다운로드

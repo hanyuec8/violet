@@ -184,10 +184,14 @@ class _QueryTranslator {
 
       case 'tag':
       case 'series':
-      case 'artist':
       case 'character':
-      case 'group':
         name = '|${ss[1].replaceAll('_', ' ')}|';
+        break;
+
+      case 'artist':
+      case 'group':
+        // 성/이름 단독 검색(artist:tadataka) 부분 일치 지원
+        name = ss[1].replaceAll('_', ' ');
         break;
 
       case 'uploader':

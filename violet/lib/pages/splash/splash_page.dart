@@ -40,6 +40,7 @@ import 'package:violet/server/violet_v2.dart';
 import 'package:violet/settings/settings.dart';
 import 'package:violet/variables.dart';
 import 'package:violet/version/sync.dart';
+import 'package:violet/update/update_manager.dart';
 import 'package:violet/widgets/radio_tile.dart';
 
 class SplashPage extends StatefulWidget {
@@ -185,6 +186,7 @@ class _SplashPageState extends State<SplashPage> {
       // }
 
       globalInitialized = true;
+      unawaited(UpdateManager.clearUpdateCache());
 
       // if (Settings.autobackupBookmark.value) {
       //   setState(() {
