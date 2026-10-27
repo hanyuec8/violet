@@ -7,6 +7,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:violet/log/log.dart';
@@ -113,13 +114,19 @@ class UpdateManager {
       return;
     }
 
+    // 안드로이드 환경일 경우 설치 권한을 먼저 점검
+    if (Platform.isAndroid) {
+      final hasPermission = await _ensureInstallPermission(context);
+      if (!hasPermission || !context.mounted) return;
+    }
+
     // 다운로드 시작 전 이전 시도 잔여 APK 먼저 청소
     await clearUpdateCache();
 
     if (!context.mounted) return;
 
-    // 실시간 다운로드 다이얼로그 표시
-    final success = await showDialog<bool>(
+    // 실시간 다운로드 다이얼로그 표시 (완료 시 다운로드된 APK 경로 반환)
+    final downloadedPath = await showDialog<String?>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
@@ -127,9 +134,89 @@ class UpdateManager {
       },
     );
 
-    if (success != true) {
-      // 사용자가 취소했거나 다운로드 실패
+    if (downloadedPath == null || !context.mounted) {
       return;
+    }
+
+    // 다운로드 완료 후 패키지 설치 창 열기
+    await _installApk(downloadedPath, context);
+  }
+
+  static Future<bool> _ensureInstallPermission(BuildContext context) async {
+    if (!Platform.isAndroid) return true;
+
+    final status = await Permission.requestInstallPackages.status;
+    if (status.isGranted) return true;
+
+    if (!context.mounted) return false;
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.security, color: Settings.majorColor.value),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  '설치 권한 필요',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            '다운로드된 업데이트 파일을 설치하려면 \'이 출처의 앱 설치 허용\' 권한이 필요합니다.\n설정 화면으로 이동하시겠습니까?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Settings.majorColor.value,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('설정으로 이동'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (proceed != true) return false;
+
+    await Permission.requestInstallPackages.request();
+    return await Permission.requestInstallPackages.isGranted;
+  }
+
+  static Future<void> _installApk(String filePath, BuildContext context) async {
+    var openResult = await OpenFile.open(filePath);
+    if (openResult.type == ResultType.permissionDenied && Platform.isAndroid) {
+      if (context.mounted) {
+        final granted = await _ensureInstallPermission(context);
+        if (granted) {
+          openResult = await OpenFile.open(filePath);
+        }
+      }
+    }
+
+    if (openResult.type != ResultType.done) {
+      Logger.error(
+        '[UpdateManager] Install failed:  - ',
+      );
+      showToast(
+        level: ToastLevel.error,
+        message: '패키지 설치 창을 열지 못했습니다: ',
+      );
     }
   }
 
@@ -204,17 +291,8 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
 
       if (!mounted) return;
 
-      // 100% 완료 즉시 다이얼로그 닫고 시스템 설치 창 자동 호출
-      Navigator.pop(context, true);
-
-      final openResult = await OpenFile.open(_downloadedFile!.path);
-      if (openResult.type != ResultType.done) {
-        showToast(
-          level: ToastLevel.warning,
-          message: '패키지 설치 창을 열지 못했습니다. 브라우저로 이동합니다.',
-        );
-        UpdateManager._openBrowserReleasePage();
-      }
+      // 100% 완료 즉시 다이얼로그 닫고 파일 경로 반환
+      Navigator.pop(context, _downloadedFile!.path);
     } catch (e) {
       if (_cancelToken.isCancelled) {
         // 사용자 취소 시 파일 삭제
