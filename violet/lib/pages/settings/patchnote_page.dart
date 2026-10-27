@@ -26,7 +26,7 @@ class PatchModel {
 final patches = [
   PatchModel(
     dateTime: DateTime(2026, 10, 27),
-    version: '1.35.1 Patch',
+    version: '1.34.5 Patch',
     contents: [
       'Search: support subword and partial matching for artist and group queries',
       'Update Manager: zero-residual one-click in-app update with streaming progress bar and auto-cleanup',
