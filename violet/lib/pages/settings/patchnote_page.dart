@@ -25,6 +25,18 @@ class PatchModel {
 
 final patches = [
   PatchModel(
+    dateTime: DateTime(2026, 10, 28),
+    version: '1.34.6 Patch',
+    contents: [
+      'Settings: removed obsolete network settings group',
+      'Settings: added Dark Mode and System Theme toggle switches',
+    ],
+    contentsKorean: [
+      '설정: 실효성이 없던 레거시 네트워크(라우팅/타임아웃) 설정 완전 제거',
+      '설정: 다크 모드 및 스마트폰 시스템 테마 실시간 연동 토글 기능 탑재',
+    ],
+  ),
+  PatchModel(
     dateTime: DateTime(2026, 10, 27),
     version: '1.34.5 Patch',
     contents: [

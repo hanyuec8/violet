@@ -16,7 +16,7 @@ class UpdateSyncManager {
   // Current app version (v1.34.5-lite)
   static const int majorVersion = 1;
   static const int minorVersion = 34;
-  static const int patchVersion = 5;
+  static const int patchVersion = 6;
 
   static String get currentVersion =>
       '$majorVersion.$minorVersion.$patchVersion';
