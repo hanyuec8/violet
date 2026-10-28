@@ -99,6 +99,7 @@ class _SearchBarPageState extends State<SearchBarPage>
         'date',
         'random',
         'page',
+        'order',
       ];
 
       for (var element in prefixList) {
@@ -872,6 +873,18 @@ class _SearchBarPageState extends State<SearchBarPage>
           '>=',
           '<=',
         ].map((e) => (DisplayedTag(group: 'date', name: e), 0)),
+      );
+    
+    } else if (token == 'order') {
+      result.addAll(
+        [
+          'week',
+          'month',
+          'year',
+          'popular',
+          'today',
+          'latest',
+        ].map((e) => (DisplayedTag(group: 'order', name: e), 0)),
       );
     }
 

@@ -27,7 +27,7 @@ import 'package:violet/model/article_list_item.dart';
 import 'package:violet/pages/search/search_bar_page.dart';
 import 'package:violet/pages/search/search_page_controller.dart';
 import 'package:violet/pages/search/search_page_modify.dart';
-import 'package:violet/pages/search/search_type.dart';
+import 'package:violet/component/hitomi/hitomi_nozomi.dart';
 import 'package:violet/pages/segment/double_tap_to_top.dart';
 import 'package:violet/pages/segment/filter_page.dart';
 import 'package:violet/pages/segment/filter_page_controller.dart';
@@ -89,6 +89,7 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
         query: query,
         page: 1,
         pageSize: SearchPageController.defaultPageSize,
+        sortMode: c.searchSortMode.value,
       );
 
       if (generation != _searchGeneration) {
@@ -192,7 +193,7 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
           floating: true,
           delegate: AnimatedOpacitySliver(
             searchBar: Stack(
-              children: <Widget>[searchBar(), pupilFilter(), align()],
+              children: <Widget>[searchBar(), pupilFilter(), popularSort()],
             ),
           ),
         )
@@ -215,12 +216,15 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
           border: const Border(bottom: BorderSide(color: Colors.transparent)),
           leading: CupertinoButton(
             padding: const EdgeInsets.all(10),
-            onPressed: alignOnTap,
-            child: const Icon(
-              MdiIcons.formatListText,
-              size: 21.0,
-              color: Colors.grey,
-            ),
+            onPressed: _showSortModeDialog,
+            child: Obx(() {
+              final isPop = c.searchSortMode.value != SearchSortMode.latest;
+              return Icon(
+                isPop ? MdiIcons.fire : MdiIcons.sortClockAscendingOutline,
+                size: 21.0,
+                color: isPop ? Settings.majorColor.value : Colors.grey,
+              );
+            }),
           ),
           middle: Text(widget.searchKeyWord!),
           trailing: CupertinoButton(
@@ -661,76 +665,127 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
     );
   }
 
-  align() {
+  popularSort() {
     final width = MediaQuery.of(context).size.width;
 
-    final alignOverlay = InkWell(
-      onTap: alignOnTap,
+    final sortOverlay = InkWell(
+      onTap: _showSortModeDialog,
       onLongPress: alignLongPress,
-      child: const SizedBox(
+      child: SizedBox(
         height: 64,
         width: 64,
-        child: Stack(
-          alignment: Alignment.center,
-          children: <Widget>[Icon(MdiIcons.formatListText, color: Colors.grey)],
+        child: Center(
+          child: Obx(() {
+            final isPopular = c.searchSortMode.value != SearchSortMode.latest;
+            return Icon(
+              isPopular ? MdiIcons.fire : MdiIcons.sortClockAscendingOutline,
+              color: isPopular ? Settings.majorColor.value : Colors.grey,
+              size: 26,
+            );
+          }),
         ),
       ),
     );
 
-    final alignBody = Card(
+    final sortBody = Card(
       color: Palette.themeColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(4.0)),
       ),
       elevation: !Settings.themeFlat.value ? 100 : 0,
       clipBehavior: Clip.antiAliasWithSaveLayer,
-      child: alignOverlay,
+      child: sortOverlay,
     );
 
     return Container(
       padding: EdgeInsets.fromLTRB(width - 8 - 64, 8, 8, 0),
       child: SizedBox(
         height: 64,
-        child: Hero(
-          tag: 'searchtype${ModalBottomSheetContext.getCount()}',
-          child: alignBody,
+        child: Tooltip(
+          message: '정렬 방식 (인기순 / 최신순)',
+          child: sortBody,
         ),
       ),
     );
   }
 
-  alignOnTap() async {
-    final previousAlignType = Settings.searchResultType.value;
-    final newAlignType = await Navigator.of(context).push(
-      PageRouteBuilder(
-        opaque: false,
-        transitionDuration: const Duration(milliseconds: 500),
-        transitionsBuilder:
-            (
-              BuildContext context,
-              Animation<double> animation,
-              Animation<double> secondaryAnimation,
-              Widget wi,
-            ) {
-              return FadeTransition(opacity: animation, child: wi);
-            },
-        pageBuilder: (_, __, ___) => SearchType(
-          heroTag: 'searchtype${ModalBottomSheetContext.getCount()}',
-          previousType: previousAlignType,
-        ),
-        barrierColor: Colors.black12,
-        barrierDismissible: true,
-      ),
+  void _showSortModeDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(MdiIcons.sortVariant, color: Settings.majorColor.value),
+              const SizedBox(width: 8),
+              const Text('정렬 방식'),
+            ],
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          content: Obx(() {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildSortRadioItem(
+                  SearchSortMode.latest,
+                  MdiIcons.clockOutline,
+                ),
+                _buildSortRadioItem(
+                  SearchSortMode.popularWeek,
+                  MdiIcons.fire,
+                ),
+                _buildSortRadioItem(
+                  SearchSortMode.popularMonth,
+                  MdiIcons.calendarMonthOutline,
+                ),
+                _buildSortRadioItem(
+                  SearchSortMode.popularYear,
+                  MdiIcons.calendarStar,
+                ),
+                _buildSortRadioItem(
+                  SearchSortMode.popularAll,
+                  MdiIcons.starCircleOutline,
+                ),
+              ],
+            );
+          }),
+        );
+      },
     );
+  }
 
-    if (newAlignType == null || previousAlignType == newAlignType) return;
+  Widget _buildSortRadioItem(SearchSortMode mode, IconData icon) {
+    final isSelected = c.searchSortMode.value == mode;
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isSelected ? Settings.majorColor.value : Colors.grey,
+      ),
+      title: Text(
+        mode.label,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? Settings.majorColor.value : null,
+        ),
+      ),
+      subtitle: Text(
+        mode.description,
+        style: const TextStyle(fontSize: 12),
+      ),
+      trailing: isSelected
+          ? Icon(Icons.check, color: Settings.majorColor.value)
+          : null,
+      onTap: () async {
+        Navigator.pop(context);
+        if (c.searchSortMode.value == mode) return;
 
-    await Settings.searchResultType.setValue(newAlignType);
-    await Future.delayed(const Duration(milliseconds: 50), () {
-      _shouldReload = true;
-      c.resetItemHeight();
-      setState(() {});
-    });
+        _searchGeneration++;
+        c.searchSortMode.value = mode;
+        await Settings.searchSortMode.setValue(mode);
+        c.latestQuery ??= (null, widget.searchKeyWord ?? '');
+        c.doSearch();
+      },
+    );
   }
 
   alignLongPress() async {

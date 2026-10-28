@@ -6,6 +6,7 @@ import 'package:violet/database/user/record.dart';
 import 'package:violet/component/index.dart';
 import 'package:violet/pages/artist_info/artist_info_page.dart';
 import 'package:violet/database/query.dart';
+import 'package:violet/component/hitomi/hitomi_nozomi.dart';
 
 void main() {
   setUpAll(() {
@@ -231,6 +232,53 @@ void main() {
       // All returns all
       final all = ArtistInfoPage.filterByLanguage(sampleArticles, 'all');
       expect(all.length, equals(2));
+    });
+  });
+
+  group('Popular Search Sort Mode and Nozomi Index Tests', () {
+    test('SearchSortMode URLs match CDN endpoints', () {
+      expect(
+        HitomiNozomi.getPopularIndexUrl(SearchSortMode.popularWeek, 'korean'),
+        equals('https://ltn.gold-usergeneratedcontent.net/popular/week-korean.nozomi'),
+      );
+      expect(
+        HitomiNozomi.getPopularIndexUrl(SearchSortMode.popularMonth, 'korean'),
+        equals('https://ltn.gold-usergeneratedcontent.net/popular/month-korean.nozomi'),
+      );
+      expect(
+        HitomiNozomi.getPopularIndexUrl(SearchSortMode.popularYear, 'korean'),
+        equals('https://ltn.gold-usergeneratedcontent.net/popular/year-korean.nozomi'),
+      );
+      expect(
+        HitomiNozomi.getPopularIndexUrl(SearchSortMode.popularAll, 'korean'),
+        equals('https://ltn.gold-usergeneratedcontent.net/popular-korean.nozomi'),
+      );
+      expect(
+        HitomiNozomi.getPopularIndexUrl(SearchSortMode.popularToday, 'korean'),
+        equals('https://ltn.gold-usergeneratedcontent.net/popular/today-korean.nozomi'),
+      );
+      expect(
+        HitomiNozomi.getPopularIndexUrl(SearchSortMode.latest, 'korean'),
+        equals('https://ltn.gold-usergeneratedcontent.net/index-korean.nozomi'),
+      );
+    });
+
+    test('SearchSortMode non-supported language fallbacks to all', () {
+      expect(
+        HitomiNozomi.getPopularIndexUrl(SearchSortMode.popularWeek, 'chinese'),
+        equals('https://ltn.gold-usergeneratedcontent.net/popular/week-all.nozomi'),
+      );
+      expect(
+        HitomiNozomi.getPopularIndexUrl(SearchSortMode.popularAll, 'russian'),
+        equals('https://ltn.gold-usergeneratedcontent.net/popular-all.nozomi'),
+      );
+    });
+
+    test('SearchSortMode labels and descriptions are defined', () {
+      for (final mode in SearchSortMode.values) {
+        expect(mode.label, isNotEmpty);
+        expect(mode.description, isNotEmpty);
+      }
     });
   });
 }

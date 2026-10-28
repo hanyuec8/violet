@@ -1060,6 +1060,7 @@ class HybridLoader {
     String query = '',
     int page = 1,
     int pageSize = 50,
+    SearchSortMode sortMode = SearchSortMode.latest,
   }) async {
     final cleanQuery = query.trim();
 
@@ -1102,6 +1103,25 @@ class HybridLoader {
       targetLang = langMatch.group(1)!.toLowerCase();
     }
 
+    SearchSortMode effectiveSortMode = sortMode;
+    final orderMatch = RegExp(r'(?:^|\s)order:([a-zA-Z0-9_-]+)', caseSensitive: false).firstMatch(cleanQuery);
+    if (orderMatch != null) {
+      final o = orderMatch.group(1)!.toLowerCase();
+      if (o == 'week' || o == 'popular-week') {
+        effectiveSortMode = SearchSortMode.popularWeek;
+      } else if (o == 'month' || o == 'popular-month') {
+        effectiveSortMode = SearchSortMode.popularMonth;
+      } else if (o == 'year' || o == 'popular-year') {
+        effectiveSortMode = SearchSortMode.popularYear;
+      } else if (o == 'today' || o == 'popular-today') {
+        effectiveSortMode = SearchSortMode.popularToday;
+      } else if (o == 'popular' || o == 'all' || o == 'popular-all') {
+        effectiveSortMode = SearchSortMode.popularAll;
+      } else if (o == 'latest') {
+        effectiveSortMode = SearchSortMode.latest;
+      }
+    }
+
     // 1) random 검색 및 seed 분리
     bool isRandom = false;
     double? randomSeed;
@@ -1119,7 +1139,7 @@ class HybridLoader {
 
     // 온라인 및 태그 검색용 순수 검색어 (random 관련 토큰 제거)
     final pureQuery = queryTokens
-        .where((x) => x != 'random' && !x.startsWith('random:'))
+        .where((x) => x != 'random' && !x.startsWith('random:') && !x.startsWith('order:'))
         .join(' ')
         .trim();
 
@@ -1164,7 +1184,10 @@ class HybridLoader {
     final pupilFuture = Future<List<QueryResult>>(() async {
       try {
         List<int> ids = [];
-        if (isRandom) {
+        if (effectiveSortMode != SearchSortMode.latest && pureQuery.isEmpty) {
+          final popularUrl = HitomiNozomi.getPopularIndexUrl(effectiveSortMode, targetLang);
+          ids = await HitomiNozomi.fetchGalleryIds(popularUrl, page, pageSize: pageSize);
+        } else if (isRandom) {
           ids = await fetchRandomGalleryIdsForQuery(
             query: pureQuery,
             targetLang: targetLang,
@@ -1221,6 +1244,7 @@ class HybridLoader {
 
     // 2) Violet 웹 방식: E-Hentai 검색 (random 태그 제외한 pureQuery 사용)
     final violetFuture = Future<List<QueryResult>>(() async {
+      if (effectiveSortMode != SearchSortMode.latest && pureQuery.isEmpty) return [];
       try {
         final ehQuery = formatEHentaiQuery(pureQuery, targetLang);
         if (pageSize <= 25) {
@@ -1258,6 +1282,7 @@ class HybridLoader {
 
     // 3) 로컬 DB 방식: HitomiColumnModel 검색 (Triple Hybrid, random 지원)
     final localDbFuture = Future<List<QueryResult>>(() async {
+      if (effectiveSortMode != SearchSortMode.latest && pureQuery.isEmpty) return [];
       try {
         final db = await DataBaseManager.getInstance();
         if (db.db == null || !db.db!.isOpen) return [];

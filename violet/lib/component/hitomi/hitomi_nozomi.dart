@@ -5,6 +5,51 @@ import 'dart:typed_data';
 import 'package:violet/network/wrapper.dart' as http;
 import 'package:violet/log/log.dart';
 
+enum SearchSortMode {
+  latest,
+  popularWeek,
+  popularMonth,
+  popularYear,
+  popularAll,
+  popularToday,
+}
+
+extension SearchSortModeExtension on SearchSortMode {
+  String get label {
+    switch (this) {
+      case SearchSortMode.latest:
+        return '최신순';
+      case SearchSortMode.popularWeek:
+        return '주간 인기순';
+      case SearchSortMode.popularMonth:
+        return '월간 인기순';
+      case SearchSortMode.popularYear:
+        return '연간 인기순';
+      case SearchSortMode.popularAll:
+        return '역대 인기순';
+      case SearchSortMode.popularToday:
+        return '일간 인기순';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case SearchSortMode.latest:
+        return '최근 업로드된 순서대로 표시';
+      case SearchSortMode.popularWeek:
+        return '이번 주 가장 인기 있는 작품';
+      case SearchSortMode.popularMonth:
+        return '이번 달 가장 인기 있는 작품';
+      case SearchSortMode.popularYear:
+        return '올해 가장 인기 있는 작품';
+      case SearchSortMode.popularAll:
+        return '역대 누적 최다 조회 작품';
+      case SearchSortMode.popularToday:
+        return '오늘 실시간 인기 급상승 작품';
+    }
+  }
+}
+
 /// Pupil 애플리케이션의 핵심 로딩 메커니즘을 차용한 Hitomi Nozomi Range Request Fetcher.
 /// Hitomi.la의 `.nozomi` 바이너리 인덱스 파일에서 4바이트 Big-Endian 정수(갤러리 ID)를
 /// HTTP Range Header (bytes=start-end)를 이용해 100바이트 단위로 실시간 비동기 로딩합니다.
@@ -168,6 +213,27 @@ class HitomiNozomi {
   /// 특정 언어별 최신 작품 목록 URL 생성 (예: 'korean')
   static String getLanguageIndexUrl(String language) =>
       'https://$domain/index-$language.nozomi';
+
+  /// 인기순 인덱스 URL 생성 (주간, 월간, 연간, 역대, 일간)
+  static String getPopularIndexUrl(SearchSortMode sortMode, [String language = 'korean']) {
+    final lang = (language == 'korean' || language == 'japanese' || language == 'english')
+        ? language
+        : 'all';
+    switch (sortMode) {
+      case SearchSortMode.popularAll:
+        return 'https://$domain/popular-$lang.nozomi';
+      case SearchSortMode.popularWeek:
+        return 'https://$domain/popular/week-$lang.nozomi';
+      case SearchSortMode.popularMonth:
+        return 'https://$domain/popular/month-$lang.nozomi';
+      case SearchSortMode.popularToday:
+        return 'https://$domain/popular/today-$lang.nozomi';
+      case SearchSortMode.popularYear:
+        return 'https://$domain/popular/year-$lang.nozomi';
+      case SearchSortMode.latest:
+        return getLanguageIndexUrl(language);
+    }
+  }
 
   /// 작가별 최신 작품 목록 URL 생성
   static String getArtistIndexUrl(String artist, [String language = 'all']) {

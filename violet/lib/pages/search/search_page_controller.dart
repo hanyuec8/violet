@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
 import 'package:violet/component/hentai.dart';
+import 'package:violet/component/hitomi/hitomi_nozomi.dart';
 import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/component/hitomi/population.dart';
 import 'package:violet/context/modal_bottom_sheet_context.dart';
@@ -39,6 +40,8 @@ class SearchPageController extends GetxController {
   bool _queryEnd = false;
 
   static const int defaultPageSize = 50;
+
+  final Rx<SearchSortMode> searchSortMode = Settings.searchSortMode.value.obs;
 
   var isExtended = false.obs;
   var searchPageNum = 0.obs;
@@ -266,6 +269,7 @@ class SearchPageController extends GetxController {
           query: query,
           page: mainHybridPage,
           pageSize: defaultPageSize,
+          sortMode: searchSortMode.value,
         );
         mainHybridPage++;
 
