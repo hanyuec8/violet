@@ -26,6 +26,22 @@ class PatchModel {
 final patches = [
   PatchModel(
     dateTime: DateTime(2026, 10, 28),
+    version: '1.34.7 Patch',
+    contents: [
+      'Search: replaced view mode button with popular sort (weekly, monthly, yearly, all-time, daily)',
+      'Search: integrated Hitomi Nozomi CDN popular index pipeline with ranking preservation',
+      'Search: added one-click clear button for active tags in search bar',
+      'Search: reset sort mode to latest automatically on app restart',
+    ],
+    contentsKorean: [
+      '검색: 뷰 모드 자리에 인기순(주간/월간/연간/누적/오늘) 정렬 버튼 탑재',
+      '검색: Hitomi Nozomi CDN 실시간 인기 인덱스 직결 및 1위~50위 순위 보존 파이프라인 구축',
+      '검색: 메인 검색창 내 태그 즉시 취소(X) 원클릭 버튼 및 검색창 수정 동기화 지원',
+      '검색: 앱 재실행 시 인기순 정렬 모드를 최신순으로 자동 초기화 (세션 격리)',
+    ],
+  ),
+  PatchModel(
+    dateTime: DateTime(2026, 10, 28),
     version: '1.34.6 Patch',
     contents: [
       'Settings: removed obsolete network settings group',
