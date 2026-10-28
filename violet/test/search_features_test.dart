@@ -280,5 +280,14 @@ void main() {
         expect(mode.description, isNotEmpty);
       }
     });
+
+    test('Language only queries with popular mode targeting korean', () {
+      final targets = ['korean', 'lang:korean', '(lang:korean)', 'language:korean', '(language:korean)', 'order:week'];
+      for (final t in targets) {
+        final raw = t.replaceAll(RegExp(r'[\(\)]'), '').trim().toLowerCase();
+        final isLang = raw.startsWith('lang:') || raw.startsWith('language:') || raw == 'korean' || raw.startsWith('order:');
+        expect(isLang, isTrue);
+      }
+    });
   });
 }

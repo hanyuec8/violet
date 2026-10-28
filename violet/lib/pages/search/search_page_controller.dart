@@ -262,6 +262,9 @@ class SearchPageController extends GetxController {
       final maxAttempts = isPupilFilterUsed.value
           ? (pupilFilterResult.length < 12 ? 8 : 2)
           : 1;
+      final hadExistingItems = isPupilFilterUsed.value
+          ? pupilFilterResult.isNotEmpty
+          : queryResult.isNotEmpty;
 
       while (attempts < maxAttempts) {
         attempts++;
@@ -306,10 +309,6 @@ class SearchPageController extends GetxController {
           Population.sortByPopulation(pupilFilterResult);
         }
       }
-
-      final hadExistingItems = isPupilFilterUsed.value
-          ? pupilFilterResult.isNotEmpty
-          : queryResult.isNotEmpty;
 
       if (isFilterUsed) {
         final target = isPupilFilterUsed.value ? pupilFilterResult : queryResult;
