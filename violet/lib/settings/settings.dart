@@ -10,7 +10,6 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:violet/component/hitomi/hitomi_nozomi.dart';
 import 'package:violet/database/user/download.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/platform/android_external_storage_directory.dart';
@@ -37,11 +36,6 @@ class Settings {
   static final majorAccentColor = SettingItem<Color>(
     'majorAccentColor',
     Colors.purpleAccent,
-  );
-  static final searchSortMode = EnumSettingItem<SearchSortMode>(
-    'searchSortMode',
-    SearchSortMode.values,
-    SearchSortMode.latest,
   );
   static final searchResultType = EnumSettingItem<SearchResultType>(
     'searchResultType',
