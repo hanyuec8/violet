@@ -1119,10 +1119,12 @@ class HybridLoader {
     }
 
     // 2) 언어 토큰 분석 및 정규화
+    bool hasExplicitLang = false;
     bool isLanguageToken(String rawToken) {
       final t = rawToken.replaceAll(RegExp(r'[\(\)]'), '').trim().toLowerCase();
       if (t.isEmpty) return true;
       if (t.startsWith('lang:') || t.startsWith('language:')) {
+        hasExplicitLang = true;
         final langVal = t.split(':').last.trim();
         if (langVal == 'ko' || langVal == 'korea' || langVal == 'korean' || langVal == '한국어') {
           targetLang = 'korean';
@@ -1138,22 +1140,27 @@ class HybridLoader {
         return true;
       }
       if (t == 'korean' || t == 'ko' || t == 'korea' || t == '한국어') {
+        hasExplicitLang = true;
         targetLang = 'korean';
         return true;
       }
       if (t == 'japanese' || t == 'ja' || t == 'japan' || t == '일본어') {
+        hasExplicitLang = true;
         targetLang = 'japanese';
         return true;
       }
       if (t == 'english' || t == 'en' || t == '영어') {
+        hasExplicitLang = true;
         targetLang = 'english';
         return true;
       }
       if (t == 'chinese' || t == 'zh' || t == '중국어') {
+        hasExplicitLang = true;
         targetLang = 'chinese';
         return true;
       }
       if (t == 'tag:korean' || t == 'tag:japanese' || t == 'tag:english' || t == 'tag:chinese') {
+        hasExplicitLang = true;
         return true;
       }
       return false;
@@ -1188,6 +1195,11 @@ class HybridLoader {
         .trim();
 
     final pureQuery = pureTokens.join(' ').trim();
+
+    // 사용자가 쿼리에 언어를 명시하지 않은 상태에서 인기순을 선택한 경우 전체(all) 인기순으로 라우팅
+    if (effectiveSortMode != SearchSortMode.latest && !hasExplicitLang) {
+      targetLang = 'all';
+    }
 
     // 2) 번호(Id) 및 날짜(Date) 범위 필터 추출
     int? filterMinId;

@@ -401,7 +401,7 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
       left: 0.0,
       top: 0.0,
       bottom: 0.0,
-      right: 48.0,
+      right: (c.latestQuery != null && c.latestQuery!.$2.trim().isNotEmpty) ? 88.0 : 48.0,
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
@@ -414,6 +414,35 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
         ),
       ),
     );
+
+    final hasQuery = c.latestQuery != null && c.latestQuery!.$2.trim().isNotEmpty;
+    final clearButton = hasQuery
+        ? Positioned(
+            right: 44.0,
+            top: 0.0,
+            bottom: 0.0,
+            width: 40.0,
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  c.latestQuery = (null, '');
+                  reloadForce(isAppend: false);
+                  c.doSearch();
+                },
+                child: const Tooltip(
+                  message: '태그 취소',
+                  child: Icon(
+                    Icons.close,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
+            ),
+          )
+        : Container();
 
     final favoriteButton = Positioned(
       right: 4.0,
@@ -447,7 +476,7 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
           ),
           elevation: !Settings.themeFlat.value ? 100 : 0,
           clipBehavior: Clip.antiAliasWithSaveLayer,
-          child: Stack(children: <Widget>[searchBar, searchBarOverlay, favoriteButton]),
+          child: Stack(children: <Widget>[searchBar, searchBarOverlay, clearButton, favoriteButton]),
         ),
       ),
     );

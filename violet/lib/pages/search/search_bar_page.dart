@@ -215,7 +215,12 @@ class _SearchBarPageState extends State<SearchBarPage>
             height: 40,
             child: RawMaterialButton(
               onPressed: () {
-                Navigator.pop(context);
+                final currentText = _searchController.text.trim();
+                if (currentText != widget.initText.trim()) {
+                  Navigator.pop(context, currentText);
+                } else {
+                  Navigator.pop(context);
+                }
               },
               shape: const CircleBorder(),
               child: Icon(
