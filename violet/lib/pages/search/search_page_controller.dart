@@ -41,7 +41,7 @@ class SearchPageController extends GetxController {
 
   static const int defaultPageSize = 50;
 
-  final Rx<SearchSortMode> searchSortMode = Settings.searchSortMode.value.obs;
+  final Rx<SearchSortMode> searchSortMode = SearchSortMode.latest.obs;
 
   var isExtended = false.obs;
   var searchPageNum = 0.obs;
