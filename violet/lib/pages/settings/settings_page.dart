@@ -5,6 +5,8 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
+import 'package:dynamic_theme/dynamic_theme.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:country_pickers/country.dart';
@@ -32,7 +34,7 @@ import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/pages/settings/lock_setting_page.dart';
 import 'package:violet/pages/settings/log_page.dart';
 import 'package:violet/pages/settings/login/ehentai_login.dart';
-import 'package:violet/pages/settings/route.dart';
+
 import 'package:violet/pages/settings/version_page.dart';
 import 'package:violet/pages/settings/groups/bookmark_group.dart';
 import 'package:violet/pages/settings/groups/search_group.dart';
@@ -70,10 +72,11 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
       _shouldReload = false;
       _cachedGroups = <Widget>[]
         ..addAll(buildSearchGroup(context, () => setState(() => _shouldReload = true)))
+        ..addAll(_themeGroup())
         ..addAll(_systemGroup())
         ..addAll(_securityGroup())
         ..addAll(_databaseGroup())
-        ..addAll(_networkingGroup())
+
         ..addAll(buildBookmarkGroup(context, () => setState(() => _shouldReload = true)))
         ..addAll(_componetGroup())
         ..addAll(_viewGroup())
@@ -469,23 +472,10 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
     ];
   }
 
-  List<Widget> _networkingGroup() {
+  List<Widget> _themeGroup() {
     return [
-      SettingGroupName(name: Translations.instance!.trans('network')),
+      SettingGroupName(name: Translations.instance!.trans('theme')),
       _buildItems([
-        // InkWell(
-        //   customBorder: const RoundedRectangleBorder(
-        //       borderRadius: BorderRadius.only(
-        //           topLeft: Radius.circular(8.0),
-        //           topRight: Radius.circular(8.0))),
-        //   child: ListTile(
-        //     leading: Icon(MdiIcons.vpn, color: Settings.majorColor.value),
-        //     title: const Text('VPN'),
-        //     trailing: const Icon(Icons.keyboard_arrow_right),
-        //   ),
-        //   onTap: () {},
-        // ),
-        //
         InkWell(
           customBorder: const RoundedRectangleBorder(
             borderRadius: BorderRadius.only(
@@ -494,36 +484,24 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
             ),
           ),
           child: ListTile(
-            leading: Icon(Icons.router, color: Settings.majorColor.value),
-            title: Text(Translations.instance!.trans('routing_rule')),
-            trailing: const Icon(Icons.keyboard_arrow_right),
-            onTap: () async {
-              await showDialog(
-                context: context,
-                builder: (BuildContext context) => const RouteDialog(),
-              );
-            },
+            leading: Icon(
+              Settings.themeWhat.value ? Icons.dark_mode : Icons.light_mode,
+              color: Settings.majorColor.value,
+            ),
+            title: Text(Translations.instance!.trans('darkmode')),
+            trailing: Switch(
+              value: Settings.themeWhat.value,
+              onChanged: (newValue) async {
+                await _changeDarkMode(newValue);
+              },
+              activeTrackColor: Settings.majorColor.value,
+              activeColor: Settings.majorAccentColor.value,
+            ),
           ),
           onTap: () async {
-            await showDialog(
-              context: context,
-              builder: (BuildContext context) => const RouteDialog(),
-            );
+            await _changeDarkMode(!Settings.themeWhat.value);
           },
         ),
-
-        ListTile(
-          leading: Icon(Icons.router, color: Settings.majorColor.value),
-          title: Text('Image ${Translations.instance!.trans('routing_rule')}'),
-          trailing: const Icon(Icons.keyboard_arrow_right),
-          onTap: () async {
-            await showDialog(
-              context: context,
-              builder: (BuildContext context) => const ImageRouteDialog(),
-            );
-          },
-        ),
-
         InkWell(
           customBorder: const RoundedRectangleBorder(
             borderRadius: BorderRadius.only(
@@ -532,32 +510,60 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
             ),
           ),
           child: ListTile(
-            leading: Icon(MdiIcons.timerOff, color: Settings.majorColor.value),
-            title: Text(Translations.instance!.trans('ignoretimeout')),
+            leading: Icon(
+              Icons.settings_brightness,
+              color: Settings.majorColor.value,
+            ),
+            title: Text(Translations.instance!.trans('usesystemtheme')),
             trailing: Switch(
-              value: Settings.ignoreTimeout.value,
+              value: Settings.useSystemTheme.value,
               onChanged: (newValue) async {
-                await Settings.ignoreTimeout.setValue(newValue);
-                setState(() {
-                  _shouldReload = true;
-                });
+                await _changeUseSystemTheme(newValue);
               },
               activeTrackColor: Settings.majorColor.value,
               activeColor: Settings.majorAccentColor.value,
             ),
           ),
           onTap: () async {
-            await Settings.ignoreTimeout.setValue(
-              !Settings.ignoreTimeout.value,
-            );
-            setState(() {
-              _shouldReload = true;
-            });
+            await _changeUseSystemTheme(!Settings.useSystemTheme.value);
           },
         ),
       ]),
     ];
   }
+
+  Future<void> _changeDarkMode(bool newValue) async {
+    await Settings.themeWhat.setValue(newValue);
+    await Settings.useSystemTheme.setValue(false);
+    if (mounted) {
+      DynamicTheme.of(context)?.setBrightness(
+        newValue ? Brightness.dark : Brightness.light,
+      );
+    }
+    ThemeSwitchableStateTargetStore.doChange();
+    setState(() {
+      _shouldReload = true;
+    });
+  }
+
+  Future<void> _changeUseSystemTheme(bool newValue) async {
+    await Settings.useSystemTheme.setValue(newValue);
+    if (newValue) {
+      final isSystemDark =
+          PlatformDispatcher.instance.platformBrightness == Brightness.dark;
+      await Settings.themeWhat.setValue(isSystemDark);
+      if (mounted) {
+        DynamicTheme.of(context)?.setBrightness(
+          isSystemDark ? Brightness.dark : Brightness.light,
+        );
+      }
+      ThemeSwitchableStateTargetStore.doChange();
+    }
+    setState(() {
+      _shouldReload = true;
+    });
+  }
+
   List<Widget> _componetGroup() {
     return [
       SettingGroupName(name: Translations.instance!.trans('component')),
