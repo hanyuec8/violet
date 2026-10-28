@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:violet/component/hentai.dart';
 import 'package:violet/component/hitomi/hitomi_nozomi.dart';
 import 'package:violet/component/hitomi/hitomi_parser.dart';
+import 'package:violet/component/hitomi/population.dart';
 import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/database.dart';
 import 'package:violet/database/query.dart';
@@ -1097,14 +1098,9 @@ class HybridLoader {
     final selectedLangs = getSelectedLanguages();
     String targetLang = selectedLangs.length == 1 ? selectedLangs.first : 'all';
 
-    // 쿼리에 명시된 lang:/language: 태그가 있다면 targetLang으로 최우선 반영
-    final langMatch = RegExp(r'(?:^|\s)(?:lang|language):([a-zA-Z가-힣]+)', caseSensitive: false).firstMatch(cleanQuery);
-    if (langMatch != null) {
-      targetLang = langMatch.group(1)!.toLowerCase();
-    }
-
+    // 1) 정렬 조건(order:) 추출
     SearchSortMode effectiveSortMode = sortMode;
-    final orderMatch = RegExp(r'(?:^|\s)order:([a-zA-Z0-9_-]+)', caseSensitive: false).firstMatch(cleanQuery);
+    final orderMatch = RegExp(r'(?:^|[\s\(])order:([a-zA-Z0-9_-]+)', caseSensitive: false).firstMatch(cleanQuery);
     if (orderMatch != null) {
       final o = orderMatch.group(1)!.toLowerCase();
       if (o == 'week' || o == 'popular-week') {
@@ -1122,7 +1118,48 @@ class HybridLoader {
       }
     }
 
-    // 1) random 검색 및 seed 분리
+    // 2) 언어 토큰 분석 및 정규화
+    bool isLanguageToken(String rawToken) {
+      final t = rawToken.replaceAll(RegExp(r'[\(\)]'), '').trim().toLowerCase();
+      if (t.isEmpty) return true;
+      if (t.startsWith('lang:') || t.startsWith('language:')) {
+        final langVal = t.split(':').last.trim();
+        if (langVal == 'ko' || langVal == 'korea' || langVal == 'korean' || langVal == '한국어') {
+          targetLang = 'korean';
+        } else if (langVal == 'ja' || langVal == 'japan' || langVal == 'japanese' || langVal == '일본어') {
+          targetLang = 'japanese';
+        } else if (langVal == 'en' || langVal == 'english' || langVal == '영어') {
+          targetLang = 'english';
+        } else if (langVal == 'zh' || langVal == 'chinese' || langVal == '중국어') {
+          targetLang = 'chinese';
+        } else {
+          targetLang = langVal;
+        }
+        return true;
+      }
+      if (t == 'korean' || t == 'ko' || t == 'korea' || t == '한국어') {
+        targetLang = 'korean';
+        return true;
+      }
+      if (t == 'japanese' || t == 'ja' || t == 'japan' || t == '일본어') {
+        targetLang = 'japanese';
+        return true;
+      }
+      if (t == 'english' || t == 'en' || t == '영어') {
+        targetLang = 'english';
+        return true;
+      }
+      if (t == 'chinese' || t == 'zh' || t == '중국어') {
+        targetLang = 'chinese';
+        return true;
+      }
+      if (t == 'tag:korean' || t == 'tag:japanese' || t == 'tag:english' || t == 'tag:chinese') {
+        return true;
+      }
+      return false;
+    }
+
+    // 3) random 검색 및 seed 분리
     bool isRandom = false;
     double? randomSeed;
     final queryTokens = cleanQuery.split(' ');
@@ -1137,11 +1174,20 @@ class HybridLoader {
       randomSeed ??= (DateTime.now().microsecondsSinceEpoch % 10000) / 1000.0 + 1.0;
     }
 
-    // 온라인 및 태그 검색용 순수 검색어 (random 관련 토큰 제거)
-    final pureQuery = queryTokens
-        .where((x) => x != 'random' && !x.startsWith('random:') && !x.startsWith('order:'))
+    // 온라인 및 태그 검색용 순수 검색어 (random, order 제외)
+    final pureTokens = queryTokens.where(
+      (x) => x != 'random' && !x.startsWith('random:') && !x.startsWith('order:'),
+    ).toList();
+
+    // 언어 토큰까지 검사하여 targetLang을 추출하고 비언어 토큰만 분리
+    final nonLangTokens = pureTokens.where((x) => !isLanguageToken(x)).toList();
+    final pureQueryWithoutLang = nonLangTokens
+        .map((x) => x.replaceAll(RegExp(r'[\(\)]'), '').trim())
+        .where((x) => x.isNotEmpty)
         .join(' ')
         .trim();
+
+    final pureQuery = pureTokens.join(' ').trim();
 
     // 2) 번호(Id) 및 날짜(Date) 범위 필터 추출
     int? filterMinId;
@@ -1184,7 +1230,7 @@ class HybridLoader {
     final pupilFuture = Future<List<QueryResult>>(() async {
       try {
         List<int> ids = [];
-        if (effectiveSortMode != SearchSortMode.latest && pureQuery.isEmpty) {
+        if (effectiveSortMode != SearchSortMode.latest && pureQueryWithoutLang.isEmpty) {
           final popularUrl = HitomiNozomi.getPopularIndexUrl(effectiveSortMode, targetLang);
           ids = await HitomiNozomi.fetchGalleryIds(popularUrl, page, pageSize: pageSize);
         } else if (isRandom) {
@@ -1244,7 +1290,7 @@ class HybridLoader {
 
     // 2) Violet 웹 방식: E-Hentai 검색 (random 태그 제외한 pureQuery 사용)
     final violetFuture = Future<List<QueryResult>>(() async {
-      if (effectiveSortMode != SearchSortMode.latest && pureQuery.isEmpty) return [];
+      if (effectiveSortMode != SearchSortMode.latest && pureQueryWithoutLang.isEmpty) return [];
       try {
         final ehQuery = formatEHentaiQuery(pureQuery, targetLang);
         if (pageSize <= 25) {
@@ -1282,7 +1328,7 @@ class HybridLoader {
 
     // 3) 로컬 DB 방식: HitomiColumnModel 검색 (Triple Hybrid, random 지원)
     final localDbFuture = Future<List<QueryResult>>(() async {
-      if (effectiveSortMode != SearchSortMode.latest && pureQuery.isEmpty) return [];
+      if (effectiveSortMode != SearchSortMode.latest && pureQueryWithoutLang.isEmpty) return [];
       try {
         final db = await DataBaseManager.getInstance();
         if (db.db == null || !db.db!.isOpen) return [];
@@ -1437,6 +1483,12 @@ class HybridLoader {
         final scoreB = (b.id() * seed) - (b.id() * seed).floor();
         return scoreB.compareTo(scoreA);
       });
+    } else if (effectiveSortMode != SearchSortMode.latest && pureQueryWithoutLang.isEmpty) {
+      // Hitomi 공식 CDN 인기순 인덱스(1위~50위) 순서를 100% 보존
+    } else if (effectiveSortMode != SearchSortMode.latest) {
+      // 태그 검색어 등과 함께 사용된 인기순은 Population 인기도 랭킹으로 정렬
+      await Population.ensureLoaded();
+      Population.sortByPopulation(merged);
     } else {
       merged.sort((a, b) => b.id().compareTo(a.id()));
     }

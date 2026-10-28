@@ -783,6 +783,7 @@ class _SearchPageState extends ThemeSwitchableState<SearchPage>
         c.searchSortMode.value = mode;
         await Settings.searchSortMode.setValue(mode);
         c.latestQuery ??= (null, widget.searchKeyWord ?? '');
+        reloadForce(isAppend: false);
         c.doSearch();
       },
     );
