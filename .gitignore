@@ -2,3 +2,6 @@
 .claude/**
 
 *.lscache
+/expunged.db
+/expunged.db.gz
+*.apk

@@ -127,7 +127,7 @@ class Settings {
     'excludeTagNetwork',
     false,
   );
-  static final searchExpunged = SettingItem<bool>('searchExpunged', false);
+  static final searchExpunged = SettingItem<bool>('searchExpunged', true);
   static final searchCategory = SettingItem<int>('searchCategory', 993);
 
   // Global? English? Korean?
@@ -417,6 +417,12 @@ class Settings {
     await useInnerStorage.load();
     await downloadBasePath.load();
     await _migrateMacOSDownloadPath();
+
+    // searchExpunged_v2: 이로도리/저작권 삭제(Expunged) 작품 검색 기본 활성화 보장
+    if (prefs.getBool('searchExpunged_v2') == null) {
+      await prefs.setBool('searchExpunged_v2', true);
+      await searchExpunged.setValue(true);
+    }
 
     // main에서 셋팅됨
     if (Platform.isAndroid || Platform.isIOS) {

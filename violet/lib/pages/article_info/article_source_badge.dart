@@ -59,7 +59,13 @@ class _ArticleSourceBadgeState extends State<ArticleSourceBadge> {
     String badgeLabel;
     IconData badgeIcon;
 
-    if (_isPupilOnly) {
+    final isExpunged = widget.data.queryResult.result['is_expunged'] == true;
+
+    if (isExpunged) {
+      badgeColor = Colors.redAccent;
+      badgeLabel = '삭제 보존작 (Expunged)';
+      badgeIcon = MdiIcons.deleteRestore;
+    } else if (_isPupilOnly) {
       badgeColor = Colors.deepOrange;
       badgeLabel = 'Pupil 방식 (단독)';
       badgeIcon = MdiIcons.eyeOutline;

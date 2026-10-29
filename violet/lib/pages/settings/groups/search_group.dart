@@ -66,6 +66,29 @@ List<Widget> buildSearchGroup(BuildContext context, VoidCallback onReload) {
           }
         },
       ),
+      ListTile(
+        leading: Icon(
+          MdiIcons.deleteRestore,
+          color: Settings.majorColor.value,
+        ),
+        title: const Text('삭제된(Expunged) 작품 포함'),
+        subtitle: Text(
+          '이로도리/저작권 요청 등으로 숨겨진 갤러리를 검색에 포함합니다.',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        trailing: Switch(
+          value: Settings.searchExpunged.value,
+          onChanged: (newValue) async {
+            await Settings.searchExpunged.setValue(newValue);
+            onReload();
+          },
+          activeTrackColor: Settings.majorColor.value,
+          activeThumbColor: Settings.majorAccentColor.value,
+        ),
+      ),
       InkWell(
         customBorder: const RoundedRectangleBorder(
           borderRadius: BorderRadius.only(

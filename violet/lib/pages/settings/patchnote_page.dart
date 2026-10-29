@@ -25,6 +25,22 @@ class PatchModel {
 
 final patches = [
   PatchModel(
+    dateTime: DateTime(2026, 10, 29),
+    version: '1.35.0 Patch',
+    contents: [
+      'Search: embedded lightweight expunged database (7.3MB) containing 17,282 deleted Korean works',
+      'Search: automatically merge expunged works into search and display red [Expunged] badge',
+      'Settings: added [Include Expunged Works] toggle in search settings',
+      'Notice: the legacy master database was frozen on Sep 9, 2026 (ID ~4,178,888); new works stream via live index while deleted works are served via embedded archive',
+    ],
+    contentsKorean: [
+      '삭제 보존작 복구: 이로도리/DMCA로 삭제된 한국어 작품 17,282개(syukurin 작가 작품 등) 전용 경량 DB(7.3MB) 앱 내장',
+      '삭제작 검색/뱃지: 검색 결과에 삭제된 작품 자동 병합 및 상세 화면 빨간색 [삭제 보존작 (Expunged)] 뱃지 표시',
+      '설정 추가: [설정] > [검색] 메뉴에 [삭제된 작품 포함] 토글 스위치 제공',
+      '데이터베이스 안내: Violet 원본 메인 DB는 2026년 9월 9일 17:32(417만 번대)부로 업데이트가 중단되었으며, 최신작은 온라인 하이브리드 스트림으로, 삭제작은 내장 보존 DB로 분리 제공됩니다.',
+    ],
+  ),
+  PatchModel(
     dateTime: DateTime(2026, 10, 28),
     version: '1.34.7 Patch',
     contents: [
