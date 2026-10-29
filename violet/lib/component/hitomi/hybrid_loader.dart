@@ -9,6 +9,7 @@ import 'package:violet/component/hitomi/hitomi_parser.dart';
 import 'package:violet/component/hitomi/population.dart';
 import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/database.dart';
+import 'package:violet/database/expunged_database.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/database/user/user.dart';
@@ -73,26 +74,44 @@ class HybridLoader {
       final results = <QueryResult>[];
       final seenIds = <int>{};
 
-      // 1) 로컬 SQLite DB (HitomiColumnModel) 스트림: 0.05초 만에 즉시 반환
+      // 1) 로컬 SQLite DB + Expunged DB 스트림: 0.05초 만에 즉시 반환
       final localDbFuture = Future<List<QueryResult>>(() async {
         try {
           final db = await DataBaseManager.getInstance();
-          if (db.db == null || !db.db!.isOpen) return [];
+          final hasMainDb = db.db != null && db.db!.isOpen;
+          final expungedDb = await ExpungedDatabaseManager.getInstance();
+          final hasExpungedDb = expungedDb != null && expungedDb.isOpen;
+
+          if (!hasMainDb && !hasExpungedDb) return [];
 
           final safeName = name.replaceAll("'", "''").replaceAll(' ', '_');
           final token = '${type.toLowerCase()}:$safeName';
           final langToken = lang != 'all' ? 'language:$lang' : '';
-          final translated = translate2query('$token $langToken'.trim());
+          final translated = translate2query('$token $langToken'.trim(), filter: false);
           final offset = (page - 1) * pageSize;
           final sql = '$translated ORDER BY Id DESC LIMIT $pageSize OFFSET $offset';
 
-          final rows = await db.query(sql);
-          return rows.map((r) {
-            final map = Map<String, dynamic>.from(r);
-            map['source'] = 'common';
-            map['is_common'] = true;
-            return QueryResult(result: map);
-          }).toList();
+          final results = <QueryResult>[];
+          if (hasMainDb) {
+            final rows = await db.query(sql);
+            results.addAll(rows.map((r) {
+              final map = Map<String, dynamic>.from(r);
+              map['source'] = 'common';
+              map['is_common'] = true;
+              return QueryResult(result: map);
+            }));
+          }
+          if (hasExpungedDb) {
+            final expRows = await expungedDb.rawQuery(sql);
+            for (final r in expRows) {
+              final map = Map<String, dynamic>.from(r);
+              map['source'] = 'common';
+              map['is_common'] = true;
+              map['is_expunged'] = true;
+              results.add(QueryResult(result: map));
+            }
+          }
+          return results;
         } catch (e, st) {
           Logger.error('[HybridLoader-Artist-Db] E: $e\n$st');
           return [];
@@ -1047,6 +1066,12 @@ class HybridLoader {
       cacheMetadata(qr);
       return qr;
     } catch (e) {
+      final expungedQr = await ExpungedDatabaseManager.queryId(id);
+      if (expungedQr != null) {
+        _sessionMetadataCache[id] = expungedQr;
+        cacheMetadata(expungedQr);
+        return expungedQr;
+      }
       return QueryResult(
         result: {'Id': id, 'Title': '#$id', 'ExistOnHitomi': 1, 'source': 'pupil'},
       );
@@ -1338,12 +1363,16 @@ class HybridLoader {
       onTimeout: () => <QueryResult>[],
     );
 
-    // 3) 로컬 DB 방식: HitomiColumnModel 검색 (Triple Hybrid, random 지원)
+    // 3) 로컬 DB + Expunged DB 방식: HitomiColumnModel 검색 (Triple Hybrid, random 지원)
     final localDbFuture = Future<List<QueryResult>>(() async {
       if (effectiveSortMode != SearchSortMode.latest && pureQueryWithoutLang.isEmpty) return [];
       try {
         final db = await DataBaseManager.getInstance();
-        if (db.db == null || !db.db!.isOpen) return [];
+        final hasMainDb = db.db != null && db.db!.isOpen;
+        final expungedDb = await ExpungedDatabaseManager.getInstance();
+        final hasExpungedDb = expungedDb != null && expungedDb.isOpen;
+
+        if (!hasMainDb && !hasExpungedDb) return [];
 
         String sqlQuery;
         final offset = (page - 1) * pageSize;
@@ -1358,17 +1387,33 @@ class HybridLoader {
             sqlQuery = 'SELECT * FROM HitomiColumnModel $orderBy LIMIT $pageSize OFFSET $offset';
           }
         } else {
-          final translated = translate2query(pureQuery);
+          final translated = translate2query(pureQuery, filter: false);
           sqlQuery = '$translated $orderBy LIMIT $pageSize OFFSET $offset';
         }
 
-        final rows = await db.query(sqlQuery);
-        return rows.map((r) {
-          final map = Map<String, dynamic>.from(r);
-          map['source'] = 'common';
-          map['is_common'] = true;
-          return QueryResult(result: map);
-        }).toList();
+        final combinedResults = <QueryResult>[];
+        if (hasMainDb) {
+          final rows = await db.query(sqlQuery);
+          for (final r in rows) {
+            final map = Map<String, dynamic>.from(r);
+            map['source'] = 'common';
+            map['is_common'] = true;
+            combinedResults.add(QueryResult(result: map));
+          }
+        }
+
+        if (hasExpungedDb) {
+          final expRows = await expungedDb.rawQuery(sqlQuery);
+          for (final r in expRows) {
+            final map = Map<String, dynamic>.from(r);
+            map['source'] = 'common';
+            map['is_common'] = true;
+            map['is_expunged'] = true;
+            combinedResults.add(QueryResult(result: map));
+          }
+        }
+
+        return combinedResults;
       } catch (_) {
         return [];
       }
