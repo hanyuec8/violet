@@ -29,6 +29,9 @@ class QueryResult {
   thumbnail() => result['Thumbnail'];
   url() => result['URL'];
 
+  bool isExcluded({String currentQuery = ''}) =>
+      Settings.isExcluded(this, currentQuery: currentQuery);
+
 
   DateTime? getDateTime() {
     final pub = published();

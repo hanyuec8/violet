@@ -55,6 +55,18 @@ Future<http.Response> get(
   return res;
 }
 
+Future<http.Response> head(
+  String url, {
+  Map<String, String>? headers,
+}) async {
+  Logger.info('[Http Request] HEAD: $url');
+  final res = await http.head(Uri.parse(url), headers: headers);
+  if (res.statusCode != 200 && res.statusCode != 206) {
+    Logger.warning('[Http Response] CODE: ${res.statusCode}, HEAD: $url');
+  }
+  return res;
+}
+
 Future<http.Response> post(
   String url, {
   Map<String, String>? headers,

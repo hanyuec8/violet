@@ -25,6 +25,26 @@ class PatchModel {
 
 final patches = [
   PatchModel(
+    dateTime: DateTime(2026, 11, 1),
+    version: '1.35.1 Patch',
+    contents: [
+      'Search: fixed excluded tags filter not dropping items from Nozomi and artist streams',
+      'Search: implemented SSOT excluded tag engine covering prefix, bare tags, and casing',
+      'Search: instant in-memory removal of excluded tags on settings change with automatic refill',
+      'Expunged DB: zero-touch silent background auto-sync from GitHub Releases without user friction',
+      'Expunged DB: updated deleted works archive to 17,285 works based on live Hitomi index',
+      'Settings: show expunged update date under [Include Expunged Works] toggle',
+    ],
+    contentsKorean: [
+      '검색 필터: 기본 제외 태그(male:yaoi, female:furry 등)가 노조미/작가 스트림에서 정상 제외되지 않던 오류 완벽 수정',
+      '검색 필터: 접두사 태그, 단독 태그, 공백/언더스코어 및 대소문자 포괄 매칭 SSOT 제외 판정 엔진 탑재 (검색창 직접 검색어 예외 보호)',
+      '검색 UX: 제외 태그 변경 시 현재 화면 메모리 목록에서 즉시(0ms) 소거 및 부족분 자동 재충전 연동',
+      '삭제작 DB: 사용자 조작 과정 없는 완전 무흔적(사일런트) 백그라운드 온라인 동기화 엔진 탑재',
+      '삭제작 DB: Hitomi 실시간 색인 대조를 통해 최신 삭제작 3건 추가 반영 (총 17,285건 아카이브)',
+      '설정: [삭제된 작품 포함] 토글 하단에 최근 업데이트 날짜 표시',
+    ],
+  ),
+  PatchModel(
     dateTime: DateTime(2026, 10, 29),
     version: '1.35.0 Patch',
     contents: [

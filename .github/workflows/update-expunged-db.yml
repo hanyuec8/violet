@@ -1,0 +1,55 @@
+name: Update Irodori Expunged Database
+
+on:
+  schedule:
+    # 매일 KST 00:00 (UTC 15:00) 정기 실행
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+    # GitHub 웹 UI에서 [Run workflow] 버튼으로 즉시 수동 실행 지원
+    inputs:
+      force_upload:
+        description: '강제 업로드 여부'
+        required: false
+        default: 'true'
+
+jobs:
+  update-db:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 여기에 사용자의 이로도리/삭제작 수집 스크립트를 배치할 수 있습니다.
+      # 예: python script/update_expunged.py -> expunged.db 생성
+      - name: Prepare or Verify expunged.db
+        run: |
+          if [ -f "violet/assets/database/expunged.db" ]; then
+            cp "violet/assets/database/expunged.db" "expunged.db"
+          elif [ -f "expunged.db" ]; then
+            echo "expunged.db found in root"
+          else
+            echo "Error: expunged.db not found"
+            exit 1
+          fi
+          ls -lh expunged.db
+
+      - name: Verify SQLite Integrity
+        run: |
+          # SQLite 파일 헤더(SQLite format 3) 검증
+          head -c 15 expunged.db | grep "SQLite format 3" || (echo "Invalid SQLite DB" && exit 1)
+
+      - name: Upload expunged.db to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 'database' 릴리스가 없으면 자동 생성, 있으면 해당 릴리스에 expunged.db를 덮어쓰기(--clobber) 업로드
+          gh release view database || gh release create database --title "Online Database Assets" --notes "Latest online databases for Violet Lite"
+          gh release upload database expunged.db --clobber

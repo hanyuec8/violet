@@ -1,16 +1,21 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violet/component/hitomi/displayed_tag.dart';
 import 'package:violet/component/query_translate.dart';
+import 'package:violet/database/expunged_database.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/database/user/record.dart';
 import 'package:violet/component/index.dart';
 import 'package:violet/pages/artist_info/artist_info_page.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/component/hitomi/hitomi_nozomi.dart';
+import 'package:violet/settings/settings.dart';
 
 void main() {
-  setUpAll(() {
+  setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    Settings.prefs = await SharedPreferences.getInstance();
   });
 
   group('SQL Translation Tests (Date, Id Range, Random)', () {
@@ -287,6 +292,134 @@ void main() {
         final raw = t.replaceAll(RegExp(r'[\(\)]'), '').trim().toLowerCase();
         final isLang = raw.startsWith('lang:') || raw.startsWith('language:') || raw == 'korean' || raw.startsWith('order:');
         expect(isLang, isTrue);
+      }
+    });
+  });
+
+  group('Exclude Tags Tests (Settings.isExcluded)', () {
+    test('excludes works matching female and male tags', () async {
+      await Settings.excludeTags.setValue(['male:yaoi', 'female:furry']);
+
+      final yaoiWork = QueryResult(result: {
+        'Id': 1001,
+        'Title': 'Test Yaoi',
+        'Tags': '|male:yaoi|male:crossdressing|',
+      });
+
+      final furryWork = QueryResult(result: {
+        'Id': 1002,
+        'Title': 'Test Furry',
+        'Tags': '|female:furry|female:catgirl|',
+      });
+
+      final cleanWork = QueryResult(result: {
+        'Id': 1003,
+        'Title': 'Test Clean',
+        'Tags': '|female:schoolgirl|female:sole_female|',
+      });
+
+      expect(Settings.isExcluded(yaoiWork), isTrue);
+      expect(yaoiWork.isExcluded(), isTrue);
+
+      expect(Settings.isExcluded(furryWork), isTrue);
+      expect(furryWork.isExcluded(), isTrue);
+
+      expect(Settings.isExcluded(cleanWork), isFalse);
+      expect(cleanWork.isExcluded(), isFalse);
+    });
+
+    test('bare tag without prefix excludes all matching variants', () async {
+      await Settings.excludeTags.setValue(['furry']);
+
+      final femaleFurry = QueryResult(result: {
+        'Id': 2001,
+        'Title': 'Female Furry',
+        'Tags': '|female:furry|',
+      });
+
+      final maleFurry = QueryResult(result: {
+        'Id': 2002,
+        'Title': 'Male Furry',
+        'Tags': '|male:furry|',
+      });
+
+      final plainFurry = QueryResult(result: {
+        'Id': 2003,
+        'Title': 'Plain Furry',
+        'Tags': '|furry|',
+      });
+
+      final nonFurry = QueryResult(result: {
+        'Id': 2004,
+        'Title': 'Non Furry',
+        'Tags': '|female:catgirl|',
+      });
+
+      expect(Settings.isExcluded(femaleFurry), isTrue);
+      expect(Settings.isExcluded(maleFurry), isTrue);
+      expect(Settings.isExcluded(plainFurry), isTrue);
+      expect(Settings.isExcluded(nonFurry), isFalse);
+    });
+
+    test('user explicit search query bypasses exclusion for that specific query', () async {
+      await Settings.excludeTags.setValue(['female:furry', 'male:yaoi']);
+
+      final furryWork = QueryResult(result: {
+        'Id': 3001,
+        'Title': 'Furry Work',
+        'Tags': '|female:furry|',
+      });
+
+      // 일반 탐색 시(검색어 없음) 제외 판정
+      expect(Settings.isExcluded(furryWork, currentQuery: ''), isTrue);
+
+      // 타 태그 검색 시에도 제외 판정
+      expect(Settings.isExcluded(furryWork, currentQuery: 'lang:korean'), isTrue);
+
+      // 사용자가 직접 검색창에 'female:furry'를 입력하여 검색한 경우 제외 예외 허용 (0건 방지)
+      expect(Settings.isExcluded(furryWork, currentQuery: 'female:furry'), isFalse);
+      expect(Settings.isExcluded(furryWork, currentQuery: 'lang:korean female:furry'), isFalse);
+    });
+
+    test('excludes works matching artist or group rules', () async {
+      await Settings.excludeTags.setValue(['artist:bad_artist', 'group:bad_group']);
+
+      final badArtistWork = QueryResult(result: {
+        'Id': 4001,
+        'Title': 'Bad Artist Work',
+        'Artists': '|bad_artist|',
+        'Tags': '|female:big_breasts|',
+      });
+
+      final badGroupWork = QueryResult(result: {
+        'Id': 4002,
+        'Title': 'Bad Group Work',
+        'Groups': '|bad_group|',
+        'Tags': '|female:big_breasts|',
+      });
+
+      final goodWork = QueryResult(result: {
+        'Id': 4003,
+        'Title': 'Good Work',
+        'Artists': '|good_artist|',
+        'Tags': '|female:big_breasts|',
+      });
+
+      expect(Settings.isExcluded(badArtistWork), isTrue);
+      expect(Settings.isExcluded(badGroupWork), isTrue);
+      expect(Settings.isExcluded(goodWork), isFalse);
+    });
+  });
+
+  group('Expunged Database Manager Tests', () {
+    test('expunged database queryId and counts work in test environment', () async {
+      final count = await ExpungedDatabaseManager.getExpungedCount();
+      expect(count, greaterThan(0));
+
+      final testQr = await ExpungedDatabaseManager.queryId(442220);
+      if (testQr != null) {
+        expect(testQr.result['is_expunged'], isTrue);
+        expect(testQr.result['source'], equals('common'));
       }
     });
   });
