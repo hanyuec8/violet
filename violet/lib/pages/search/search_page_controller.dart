@@ -24,6 +24,8 @@ import 'package:violet/settings/settings.dart';
 import 'package:violet/thread/semaphore.dart';
 
 class SearchPageController extends GetxController {
+  static SearchPageController? current;
+
   final FlareControls heroFlareControls = FlareControls();
   late AssetFlare asset;
 
@@ -65,11 +67,34 @@ class SearchPageController extends GetxController {
   SearchPageController({required this.reloadForce});
 
   init(BuildContext context) {
+    current = this;
     asset = AssetFlare(
       bundle: rootBundle,
       name: 'assets/flare/search_close.flr',
     );
     cachedActor(asset);
+  }
+
+  @override
+  void onClose() {
+    if (current == this) current = null;
+    super.onClose();
+  }
+
+  /// 설정에서 제외 태그가 변경되었을 때 현재 메모리에 로드된 작품들을 즉시 정제하고 리필합니다.
+  void applyExcludedTagsFilter() {
+    final curQuery = latestQuery?.$2 ?? '';
+    queryResult.removeWhere((item) => Settings.isExcluded(item, currentQuery: curQuery));
+    pupilFilterResult.removeWhere((item) => Settings.isExcluded(item, currentQuery: curQuery));
+    searchTotalResultCount.value = isPupilFilterUsed.value
+        ? pupilFilterResult.length
+        : queryResult.length;
+    reloadForce();
+
+    final count = isPupilFilterUsed.value ? pupilFilterResult.length : queryResult.length;
+    if (count < 15 && !_queryEnd) {
+      loadNextQuery();
+    }
   }
 
   initScroll(BuildContext context) {
@@ -277,6 +302,9 @@ class SearchPageController extends GetxController {
         mainHybridPage++;
 
         if (hybridList.isEmpty) {
+          if (attempts < maxAttempts || (attempts < 3 && Settings.excludeTags.value.isNotEmpty)) {
+            continue;
+          }
           _queryEnd = true;
           break;
         }

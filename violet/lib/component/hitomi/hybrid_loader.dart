@@ -228,6 +228,8 @@ class HybridLoader {
           }
         }
 
+        if (Settings.isExcluded(qr)) return;
+
         if (seenIds.contains(id)) return;
         seenIds.add(id);
         results.add(qr);
@@ -1530,6 +1532,11 @@ class HybridLoader {
         }
         return true;
       });
+    }
+
+    // 제외 태그(Settings.excludeTags) 필터링 적용 (단일 진실 공급원 SSOT)
+    if (Settings.excludeTags.value.isNotEmpty) {
+      merged.removeWhere((item) => Settings.isExcluded(item, currentQuery: pureQuery));
     }
 
     if (isRandom && randomSeed != null) {

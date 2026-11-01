@@ -8,6 +8,7 @@ import 'package:violet/component/index.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/pages/common/toast.dart';
+import 'package:violet/pages/search/search_page_controller.dart';
 import 'package:violet/pages/settings/settings_widgets.dart';
 import 'package:violet/pages/settings/tag_rebuild_page.dart';
 import 'package:violet/pages/settings/tag_selector.dart';
@@ -61,7 +62,13 @@ List<Widget> buildSearchGroup(BuildContext context, VoidCallback onReload) {
           );
 
           if (vv?.$1 == 1) {
-            Settings.excludeTags.setValue(vv!.$2.split(' ').toList());
+            final cleanTags = vv!.$2
+                .split(RegExp(r'\s+'))
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty)
+                .toList();
+            await Settings.excludeTags.setValue(cleanTags);
+            SearchPageController.current?.applyExcludedTagsFilter();
             onReload();
           }
         },
@@ -73,7 +80,7 @@ List<Widget> buildSearchGroup(BuildContext context, VoidCallback onReload) {
         ),
         title: const Text('삭제된(Expunged) 작품 포함'),
         subtitle: Text(
-          '이로도리/저작권 요청 등으로 숨겨진 갤러리를 검색에 포함합니다.',
+          '업데이트: ${Settings.lastExpungedSyncTime.value.isNotEmpty ? Settings.lastExpungedSyncTime.value.split('T').first : '2026-11-01'}',
           style: TextStyle(
             fontSize: 12,
             color: Colors.grey.shade600,

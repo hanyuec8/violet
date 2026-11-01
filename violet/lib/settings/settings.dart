@@ -10,6 +10,7 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:violet/database/query.dart';
 import 'package:violet/database/user/download.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/platform/android_external_storage_directory.dart';
@@ -111,6 +112,171 @@ class Settings {
       .join(' ')
       .trim();
 
+  /// 작품이 설정된 기본 제외 태그(Settings.excludeTags)에 해당하는지 판별합니다.
+  /// [currentQuery]에 사용자가 직접 입력한 검색어가 있다면 해당 검색어는 예외 처리합니다.
+  static bool isExcluded(QueryResult qr, {String currentQuery = ''}) {
+    final excludeRules = Settings.excludeTags.value;
+    if (excludeRules.isEmpty) return false;
+
+    final queryTokens = currentQuery
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((e) => e.isNotEmpty)
+        .map((e) => e.replaceAll(' ', '_'))
+        .toSet();
+
+    // 작품의 태그 목록 정규화 추출
+    final rawTags = qr.result['Tags'] ?? qr.tags();
+    final tagTokens = <String>{};
+    if (rawTags is List) {
+      for (final t in rawTags) {
+        final s = t.toString().trim().toLowerCase().replaceAll(' ', '_');
+        if (s.isNotEmpty) tagTokens.add(s);
+      }
+    } else if (rawTags != null) {
+      final s = rawTags.toString().trim().toLowerCase();
+      if (s.isNotEmpty && s != 'n/a') {
+        final split = s.split(RegExp(r'[|,;]'));
+        for (final t in split) {
+          final clean = t.trim().replaceAll(' ', '_');
+          if (clean.isNotEmpty) tagTokens.add(clean);
+        }
+      }
+    }
+
+    Set<String> extractFieldTokens(dynamic raw) {
+      if (raw == null) return const <String>{};
+      if (raw is List) {
+        return raw
+            .map((e) => e.toString().trim().toLowerCase().replaceAll(' ', '_'))
+            .where((e) => e.isNotEmpty)
+            .toSet();
+      }
+      final s = raw.toString().trim().toLowerCase();
+      if (s.isEmpty || s == 'n/a') return const <String>{};
+      return s
+          .split(RegExp(r'[|,;]'))
+          .map((e) => e.trim().replaceAll(' ', '_'))
+          .where((e) => e.isNotEmpty)
+          .toSet();
+    }
+
+    final artistTokens = extractFieldTokens(qr.result['Artists'] ?? qr.artists());
+    final groupTokens = extractFieldTokens(qr.result['Groups'] ?? qr.groups());
+    final seriesTokens = extractFieldTokens(qr.result['Series'] ?? qr.series());
+    final characterTokens = extractFieldTokens(qr.result['Characters'] ?? qr.characters());
+
+    final typeVal = (qr.type() ?? qr.result['Type'])?.toString().trim().toLowerCase().replaceAll(' ', '_') ?? '';
+    final langVal = (qr.language() ?? qr.result['Language'])?.toString().trim().toLowerCase().replaceAll(' ', '_') ?? '';
+    final uploaderVal = (qr.uploader() ?? qr.result['Uploader'])?.toString().trim().toLowerCase().replaceAll(' ', '_') ?? '';
+    final classVal = (qr.classname() ?? qr.result['Class'])?.toString().trim().toLowerCase().replaceAll(' ', '_') ?? '';
+
+    for (var rule in excludeRules) {
+      rule = rule.trim().toLowerCase();
+      if (rule.isEmpty) continue;
+      if (rule.startsWith('-')) rule = rule.substring(1).trim();
+      if (rule.isEmpty) continue;
+
+      final normRule = rule.replaceAll(' ', '_');
+
+      // 사용자가 직접 검색창에 해당 태그를 검색어로 입력한 경우 제외 규칙 무시
+      if (queryTokens.contains(normRule) || queryTokens.contains(rule)) {
+        continue;
+      }
+
+      final colonIdx = rule.indexOf(':');
+      if (colonIdx != -1) {
+        final prefix = rule.substring(0, colonIdx).trim();
+        final target = rule.substring(colonIdx + 1).trim();
+        final normTarget = target.replaceAll(' ', '_');
+
+        if (queryTokens.contains(normTarget) || queryTokens.contains(target)) {
+          continue;
+        }
+
+        switch (prefix) {
+          case 'female':
+          case 'male':
+            final full = '$prefix:$normTarget';
+            if (tagTokens.contains(full)) return true;
+            break;
+
+          case 'tag':
+            if (tagTokens.contains(normTarget) ||
+                tagTokens.contains('tag:$normTarget') ||
+                tagTokens.contains('female:$normTarget') ||
+                tagTokens.contains('male:$normTarget')) {
+              return true;
+            }
+            break;
+
+          case 'artist':
+            if (artistTokens.any((a) => a == normTarget || a.contains(normTarget))) {
+              return true;
+            }
+            break;
+
+          case 'group':
+            if (groupTokens.any((g) => g == normTarget || g.contains(normTarget))) {
+              return true;
+            }
+            break;
+
+          case 'series':
+            if (seriesTokens.any((s) => s == normTarget || s.contains(normTarget))) {
+              return true;
+            }
+            break;
+
+          case 'character':
+            if (characterTokens.any((c) => c == normTarget || c.contains(normTarget))) {
+              return true;
+            }
+            break;
+
+          case 'type':
+            if (typeVal == normTarget) return true;
+            break;
+
+          case 'lang':
+          case 'language':
+            if (langVal == normTarget) return true;
+            break;
+
+          case 'uploader':
+            if (uploaderVal == normTarget) return true;
+            break;
+
+          case 'class':
+            if (classVal == normTarget) return true;
+            break;
+
+          default:
+            if (tagTokens.contains(normRule) || tagTokens.contains(normTarget)) {
+              return true;
+            }
+            break;
+        }
+      } else {
+        // prefix가 없는 일반 단어 (예: 'yaoi', 'furry', 'scat')
+        if (tagTokens.contains(normRule) ||
+            tagTokens.contains('female:$normRule') ||
+            tagTokens.contains('male:$normRule') ||
+            tagTokens.contains('tag:$normRule')) {
+          return true;
+        }
+        for (final t in tagTokens) {
+          final tColon = t.indexOf(':');
+          if (tColon != -1 && t.substring(tColon + 1) == normRule) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
   // Like this Hitomi.la => e-hentai => exhentai => nhentai
   static List<String> routingRule = <String>[]; // image routing rule
   static List<String> searchRule = <String>[];
@@ -125,10 +291,12 @@ class Settings {
   );
   static final excludeTagNetwork = SettingItem<bool>(
     'excludeTagNetwork',
-    false,
+    true,
   );
   static final searchExpunged = SettingItem<bool>('searchExpunged', true);
   static final searchCategory = SettingItem<int>('searchCategory', 993);
+  static final lastExpungedSyncTime = SettingItem<String>('lastExpungedSyncTime', '');
+  static final expungedDbVersion = SettingItem<String>('expungedDbVersion', '');
 
   // Global? English? Korean?
   static final databaseType = SettingItem<String>('databasetype', () {

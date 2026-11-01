@@ -485,10 +485,8 @@ class HentaiManager {
         if (cleanWhat.isNotEmpty) searchTokens.add(cleanWhat);
       }
 
-      if (Settings.excludeTagNetwork.value) {
-        final exclude = Settings.serializedExcludeTags.trim();
-        if (exclude.isNotEmpty) searchTokens.add(exclude);
-      }
+      final exclude = Settings.serializedExcludeTags.trim();
+      if (exclude.isNotEmpty) searchTokens.add(exclude);
 
       final search = Uri.encodeComponent(searchTokens.join(' ').trim());
       final url =
@@ -535,7 +533,7 @@ class HentaiManager {
         };
 
         return QueryResult(result: map);
-      }).toList();
+      }).where((e) => !Settings.isExcluded(e)).toList();
     } catch (e, st) {
       Logger.error(
         '[hentai-searchEHentai] E: $e\n'

@@ -14,6 +14,7 @@ import 'package:violet/other/dialogs.dart';
 import 'package:violet/pages/artist_info/artist_info_page.dart';
 import 'package:violet/pages/common/toast.dart';
 import 'package:violet/pages/search/search_page.dart';
+import 'package:violet/pages/search/search_page_controller.dart';
 import 'package:violet/pages/segment/platform_navigator.dart';
 import 'package:violet/settings/settings.dart';
 
@@ -322,6 +323,7 @@ class TagChip extends StatelessWidget {
           if (yn) {
             Settings.excludeTags.value.add(targetTag);
             await Settings.excludeTags.setValue(Settings.excludeTags.value);
+            SearchPageController.current?.applyExcludedTagsFilter();
             if (context.mounted) {
               await showOkDialog(context, '제외태그에 성공적으로 추가했습니다!');
             }

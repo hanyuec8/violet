@@ -5,3 +5,6 @@
 /expunged.db
 /expunged.db.gz
 *.apk
+
+/translation_lab/
+
