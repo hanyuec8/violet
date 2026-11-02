@@ -57,6 +57,27 @@ void main() {
       expect(sql3, isNot(contains('random')));
       expect(sql3, contains("Tags LIKE '%|female:big breasts|%'"));
     });
+
+    test('artist and group word boundary translations', () {
+      final sql1 = translate2query('artist:in', filter: false);
+      expect(sql1, contains("Artists LIKE '%|in|%'"));
+      expect(sql1, contains("Artists LIKE '%|in %'"));
+      expect(sql1, contains("Artists LIKE '% in|%'"));
+      expect(sql1, contains("Artists LIKE '% in %'"));
+      expect(sql1, isNot(contains("Artists LIKE '%in%'")));
+
+      final sql2 = translate2query('-artist:in', filter: false);
+      expect(sql2, contains("NOT (Artists LIKE '%|in|%'"));
+
+      final sql3 = translate2query('group:in', filter: false);
+      expect(sql3, contains("Groups LIKE '%|in|%'"));
+      expect(sql3, contains("Groups LIKE '%|in %'"));
+      expect(sql3, contains("Groups LIKE '% in|%'"));
+      expect(sql3, contains("Groups LIKE '% in %'"));
+
+      final sql4 = translate2query('artist:nagayama_tadataka', filter: false);
+      expect(sql4, contains("Artists LIKE '%|nagayama tadataka|%'"));
+    });
   });
 
   group('DisplayedTag Tag formatting tests', () {
@@ -126,7 +147,7 @@ void main() {
       Bookmark.defaultGroupId = 1;
     });
 
-    test('non-default group bookmark with >30 days expired returns false', () {
+    test('non-default group bookmark progress is preserved indefinitely by default', () {
       Bookmark.defaultGroupId = 1;
       final log = ArticleReadLog(
         result: {
@@ -146,8 +167,13 @@ void main() {
         },
       );
 
-      final isValid = User.isProgressValid(log, bookmarkItem);
-      expect(isValid, isFalse);
+      // 기본값: 영구 보존
+      final isValidDefault = User.isProgressValid(log, bookmarkItem);
+      expect(isValidDefault, isTrue);
+
+      // 명시적 30일 만료 지정 시
+      final isValidWithExpiration = User.isProgressValid(log, bookmarkItem, expirationDays: 30);
+      expect(isValidWithExpiration, isFalse);
     });
   });
 

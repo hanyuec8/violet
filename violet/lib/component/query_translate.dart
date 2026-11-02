@@ -190,9 +190,12 @@ class _QueryTranslator {
 
       case 'artist':
       case 'group':
-        // 성/이름 단독 검색(artist:tadataka) 부분 일치 지원
+        // 단어 단위 경계(Word Boundary) 매칭: 성/이름 단독 검색(tadataka)은 유지하면서
+        // in, yu, rin 등 짧은 철자가 단어 중간에 낀 엉뚱한 작가들의 오매칭을 원천 차단
         name = ss[1].replaceAll('_', ' ');
-        break;
+        final compare =
+            "($column LIKE '%|$name|%' OR $column LIKE '%|$name %' OR $column LIKE '% $name|%' OR $column LIKE '% $name %')";
+        return negative ? 'NOT $compare' : compare;
 
       case 'uploader':
         name = ss[1];

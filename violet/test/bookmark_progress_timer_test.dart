@@ -105,7 +105,7 @@ void main() {
         reason: 'Moved 3 days ago should be valid even if read 1 year ago',
       );
 
-      // 옮긴 지 31일 경과한 경우 -> 만료
+      // 옮긴 지 31일 경과한 경우: 기본값은 영구 보존(true), expirationDays 지정 시 만료(false)
       final thirtyOneDaysAgo = fixedNow.subtract(const Duration(days: 31));
       final bmExpiredMove = createBookmarkArticle(
         groupId: 2,
@@ -114,8 +114,13 @@ void main() {
 
       expect(
         User.isProgressValid(logOld, bmExpiredMove, now: fixedNow),
+        isTrue,
+        reason: 'Moved 31 days ago remains valid by default (permanent retention)',
+      );
+      expect(
+        User.isProgressValid(logOld, bmExpiredMove, expirationDays: 30, now: fixedNow),
         isFalse,
-        reason: 'Moved 31 days ago without recent read should expire',
+        reason: 'Moved 31 days ago without recent read should expire when expirationDays: 30',
       );
 
       // 옮긴 지 29일 경과한 경우 -> 여전히 유효
@@ -150,7 +155,7 @@ void main() {
       );
     });
 
-    test('Non-bookmarked articles follow default 30-day expiration', () {
+    test('Non-bookmarked articles are preserved permanently by default and expire when expirationDays given', () {
       // 10일 전 열람: 유효
       final log10d = createReadLog(
         lastPage: 15,
@@ -161,13 +166,17 @@ void main() {
         isTrue,
       );
 
-      // 31일 전 열람: 만료
+      // 31일 전 열람: 기본 영구 보존(true), expirationDays 지정 시 만료(false)
       final log31d = createReadLog(
         lastPage: 15,
         startTime: fixedNow.subtract(const Duration(days: 31)),
       );
       expect(
         User.isProgressValid(log31d, null, now: fixedNow),
+        isTrue,
+      );
+      expect(
+        User.isProgressValid(log31d, null, expirationDays: 30, now: fixedNow),
         isFalse,
       );
     });
