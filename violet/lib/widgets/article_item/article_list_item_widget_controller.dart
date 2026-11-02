@@ -112,7 +112,7 @@ class ArticleListItemWidgetController extends GetxController {
         (e) =>
             e.articleId() == idStr &&
             e.lastPage() != null &&
-            e.lastPage()! > 1,
+            (e.lastPage()! > 1 || (imageCount.value == 1 && e.lastPage()! >= 1)),
       );
       if (candidates.isEmpty) return;
 

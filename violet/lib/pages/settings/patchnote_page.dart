@@ -25,6 +25,20 @@ class PatchModel {
 
 final patches = [
   PatchModel(
+    dateTime: DateTime(2026, 11, 2),
+    version: '1.35.2 Patch',
+    contents: [
+      'Reading Progress: removed 30-day expiration timer; reading progress, page positions, and completed greyscale indicators are now permanently retained indefinitely',
+      'Reading Progress: automatically restored all historical reading progress and read indicators from local database on update',
+      'Search: fixed short artist/group substring matching bug (e.g. in, yu) using 4-way word boundary pattern matching engine',
+    ],
+    contentsKorean: [
+      '열람 진행도: 30일 경과 시 작품 진행도(읽은 위치/진행바/완독 흑백 표시)가 만료 및 초기화되던 정책을 완전 폐지하고 전 작품 영구 보존으로 개편',
+      '열람 진행도: 기존에 30일이 지나 사라졌던 모든 작품의 진행도와 완독 상태가 업데이트 즉시 100% 정상 복원',
+      '검색: 작가 및 그룹 검색 시 짧은 철자(in, yu 등)의 단어 중간 포함으로 인한 타 작가 오매칭 버그 수정 및 단어 경계(Word Boundary) 매칭 엔진 구축',
+    ],
+  ),
+  PatchModel(
     dateTime: DateTime(2026, 11, 1),
     version: '1.35.1 Patch',
     contents: [

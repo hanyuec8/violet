@@ -200,53 +200,54 @@ class User {
   /// 작품 진행도(읽은 위치/진행바)의 유효성(표시 여부)을 판정합니다.
   ///
   /// - 읽은 페이지 수가 1 이하인 경우 진행도 없음(false).
-  /// - [bookmarkArticle]이 존재하는 경우 (북마크된 작품):
-  ///   - 미분류 폴더 (GroupId == 1, violet_default)에 보관된 경우: 기간과 무관하게 영구 보존(true).
-  ///   - 다른 폴더 (GroupId != 1)로 옮겨진 경우: 옮긴 시각(또는 이후 재열람 시각)부터 30일 타이머 시작.
-  /// - [bookmarkArticle]이 null인 경우 (미북마크 일반 작품):
-  ///   - 최근 열람 시각([log.datetimeStart()]) 기준 30일 타이머 적용.
+  /// - 기본 동작: 모든 열람 작품(북마크 여부, 폴더 위치, 경과 일수와 무관)의 진행도는 기간 제한 없이 영구 보존(true).
+  /// - [expirationDays]가 명시적으로 지정된 경우에만 기간 체크를 수행합니다.
   static bool isProgressValid(
     ArticleReadLog log,
     BookmarkArticle? bookmarkArticle, {
-    int expirationDays = defaultProgressExpirationDays,
+    int? expirationDays,
     DateTime? now,
   }) {
     if (log.lastPage() == null || log.lastPage()! <= 1) {
       return false;
     }
 
-    final currentTime = now ?? DateTime.now();
+    // 명시적으로 만료 일수(expirationDays > 0)가 지정된 경우에만 기간 체크 (기본값은 영구 보존)
+    if (expirationDays != null && expirationDays > 0) {
+      final currentTime = now ?? DateTime.now();
 
-    // 1. 북마크에 저장된 작품인 경우
-    if (bookmarkArticle != null) {
-      // 1-1. 미분류 폴더(GroupId == 1)에 있는 경우: 기간 제한 없이 영구 보존
-      if (Bookmark.isDefaultGroupId(bookmarkArticle.group())) {
-        return true;
+      // 1. 북마크에 저장된 작품인 경우
+      if (bookmarkArticle != null) {
+        // 미분류 폴더(GroupId == 1)에 있는 경우: 기간 제한 없이 영구 보존
+        if (Bookmark.isDefaultGroupId(bookmarkArticle.group())) {
+          return true;
+        }
+
+        DateTime? timerBaseTime;
+        final moveTime = DateTime.tryParse(bookmarkArticle.datetime());
+        final readTime = DateTime.tryParse(log.datetimeStart());
+
+        if (moveTime != null && readTime != null) {
+          timerBaseTime = moveTime.isAfter(readTime) ? moveTime : readTime;
+        } else {
+          timerBaseTime = moveTime ?? readTime;
+        }
+
+        if (timerBaseTime == null) return true;
+
+        final diffDays = currentTime.difference(timerBaseTime).inDays;
+        return diffDays < expirationDays;
       }
 
-      // 1-2. 다른 폴더(GroupId != 1)로 옮겨진 경우: 다른 폴더로 옮긴 시점부터 타이머 시작
-      // 옮긴 시각과 최근 읽은 시각 중 더 최신 시각을 타이머 기준점으로 사용
-      DateTime? timerBaseTime;
-      final moveTime = DateTime.tryParse(bookmarkArticle.datetime());
+      // 2. 북마크에 없는 일반 작품인 경우: 읽은 시각 기준 타이머
       final readTime = DateTime.tryParse(log.datetimeStart());
+      if (readTime == null) return false;
 
-      if (moveTime != null && readTime != null) {
-        timerBaseTime = moveTime.isAfter(readTime) ? moveTime : readTime;
-      } else {
-        timerBaseTime = moveTime ?? readTime;
-      }
-
-      if (timerBaseTime == null) return true;
-
-      final diffDays = currentTime.difference(timerBaseTime).inDays;
+      final diffDays = currentTime.difference(readTime).inDays;
       return diffDays < expirationDays;
     }
 
-    // 2. 북마크에 없는 일반 작품인 경우: 읽은 시각 기준 30일 타이머
-    final readTime = DateTime.tryParse(log.datetimeStart());
-    if (readTime == null) return false;
-
-    final diffDays = currentTime.difference(readTime).inDays;
-    return diffDays < expirationDays;
+    // 기본값: 모든 열람 작품의 진행도를 영구 보존
+    return true;
   }
 }
