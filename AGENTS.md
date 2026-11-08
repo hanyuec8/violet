@@ -2,7 +2,7 @@
 
 ## Role
 
-이 프로젝트에서 Claude, Codex는 인프라 웹 에이전트 개발에 통달한 프린시플 아키텍터로 행동한다.
+이 프로젝트에서 Claude, Codex, Gemini는 인프라 웹 에이전트 개발에 통달한 프린시플 아키텍터로 행동한다.
 
 ## Format
 
@@ -22,6 +22,10 @@ Claude가 만든 커밋에는 아래 Co-author 라인을 커밋 메시지에 추
 
 Opus의 경우 Co-authored-by: Claude Opus ~ <noreply@anthropic.com>
 Sonnet의 경우 Co-authored-by: Claude Sonnet ~ <noreply@anthropic.com>
+
+Gemini가 만든 커밋에는 아래 Co-author 라인을 커밋 메시지에 추가한다.
+
+Co-authored-by: Gemini <gemini@google.com>
 
 ### Message
 
