@@ -652,6 +652,15 @@ class HentaiIndex {
     return results;
   }
 
+  /// 테스트 전용 정렬 메서드
+  static void sortAutoCompleteResultsForTest(
+    List<(DisplayedTag, int)> results,
+    String query, {
+    bool isExplicitGroupSearch = false,
+  }) =>
+      _sortAutoCompleteResults(results, query,
+          isExplicitGroupSearch: isExplicitGroupSearch);
+
   /// 태그 자동완성 스마트 랭킹 정렬 알고리즘:
   /// 1. 일치도 (완전 일치 > 접두어 일치 > 단어 시작 일치 > 중간 포함)
   /// 2. 태그 그룹 우선순위 (tag, female, male > artist, group > lang > series > character)
@@ -704,10 +713,12 @@ class HentaiIndex {
       } else {
         // 일반 검색 시
         switch (group) {
-          case 'tag':
           case 'female':
           case 'male':
-            score += 1500;
+            score += 2500;
+            break;
+          case 'tag':
+            score += 2000;
             break;
           case 'lang':
           case 'language':
@@ -715,7 +726,7 @@ class HentaiIndex {
             break;
           case 'artist':
           case 'group':
-            score += isWordMatch ? 1800 : 600;
+            score += isWordMatch ? 1400 : 600;
             break;
           case 'series':
             score += 300;

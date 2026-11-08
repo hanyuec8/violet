@@ -9,6 +9,7 @@ import 'package:violet/component/index.dart';
 import 'package:violet/pages/artist_info/artist_info_page.dart';
 import 'package:violet/database/query.dart';
 import 'package:violet/component/hitomi/hitomi_nozomi.dart';
+import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/settings/settings.dart';
 
 void main() {
@@ -447,6 +448,97 @@ void main() {
         expect(testQr.result['is_expunged'], isTrue);
         expect(testQr.result['source'], equals('common'));
       }
+    });
+  });
+
+  group('Multi-tag Search and Token Matching Tests', () {
+    test('matchesAllQueryTokens verifies multiple tags correctly', () {
+      final articleBoth = QueryResult(result: {
+        'Id': 5001,
+        'Title': 'Multi Tag Sample 1',
+        'Tags': '|female:tag_a|female:tag_b|',
+        'Artists': '|artist_alpha|',
+      });
+
+      final articleOnlyA = QueryResult(result: {
+        'Id': 5002,
+        'Title': 'Multi Tag Sample 2',
+        'Tags': '|female:tag_a|',
+        'Artists': '|artist_alpha|',
+      });
+
+      final articleOnlyB = QueryResult(result: {
+        'Id': 5003,
+        'Title': 'Multi Tag Sample 3',
+        'Tags': '|female:tag_b|',
+        'Artists': '|artist_alpha|',
+      });
+
+      // 둘 다 있는 경우 통과
+      expect(
+        HybridLoader.matchesAllQueryTokens(articleBoth, ['female:tag_a', 'female:tag_b']),
+        isTrue,
+      );
+
+      // 하나만 있는 경우 탈락
+      expect(
+        HybridLoader.matchesAllQueryTokens(articleOnlyA, ['female:tag_a', 'female:tag_b']),
+        isFalse,
+      );
+      expect(
+        HybridLoader.matchesAllQueryTokens(articleOnlyB, ['female:tag_a', 'female:tag_b']),
+        isFalse,
+      );
+
+      // 복합 조건: 태그 + 작가
+      expect(
+        HybridLoader.matchesAllQueryTokens(articleBoth, ['female:tag_a', 'artist:artist_alpha']),
+        isTrue,
+      );
+
+      // 부정 태그 조건 (-female:tag_c)
+      expect(
+        HybridLoader.matchesAllQueryTokens(articleBoth, ['female:tag_a', '-female:tag_c']),
+        isTrue,
+      );
+      expect(
+        HybridLoader.matchesAllQueryTokens(articleBoth, ['female:tag_a', '-female:tag_b']),
+        isFalse,
+      );
+    });
+  });
+
+  group('Tag Ranking Tests (female/male priority over artist/group)', () {
+    test('female and male tags rank higher than artist and group for same prefix', () async {
+      final list = <(DisplayedTag, int)>[
+        (DisplayedTag(group: 'artist', name: 'sample_artist'), 100),
+        (DisplayedTag(group: 'group', name: 'sample_group'), 100),
+        (DisplayedTag(group: 'female', name: 'sample_tag'), 100),
+        (DisplayedTag(group: 'male', name: 'sample_boy'), 100),
+      ];
+
+      HentaiIndex.sortAutoCompleteResultsForTest(list, 'sample');
+
+      // 0위와 1위는 female과 male이어야 함
+      final topGroups = [list[0].$1.group, list[1].$1.group];
+      expect(topGroups.contains('female'), isTrue);
+      expect(topGroups.contains('male'), isTrue);
+
+      // artist와 group은 그 뒤에 위치해야 함
+      final lowerGroups = [list[2].$1.group, list[3].$1.group];
+      expect(lowerGroups.contains('artist'), isTrue);
+      expect(lowerGroups.contains('group'), isTrue);
+    });
+
+    test('explicit artist search still prioritizes artist', () async {
+      final list = <(DisplayedTag, int)>[
+        (DisplayedTag(group: 'female', name: 'sample_tag'), 100),
+        (DisplayedTag(group: 'artist', name: 'sample_artist'), 100),
+      ];
+
+      HentaiIndex.sortAutoCompleteResultsForTest(list, 'sample', isExplicitGroupSearch: true);
+
+      expect(list.first.$1.group, equals('artist'));
     });
   });
 }

@@ -503,9 +503,66 @@ class HybridLoader {
       );
     }
 
-    var primaryTerm = nonLangTokens.isNotEmpty
+    // 1) 다중 태그(복합 쿼리)인 경우: 각 태그별 상위 ID를 병렬 수집 후 교집합(Intersection) 산출
+    if (nonLangTokens.length > 1) {
+      const multiTagFetchCount = 3000;
+      final tokenResults = await Future.wait(
+        nonLangTokens.map((tok) => _fetchIdsForSingleTerm(
+              term: tok,
+              effectiveLang: effectiveLang,
+              offset: 0,
+              count: multiTagFetchCount,
+              explicitLang: explicitLang,
+            )),
+      );
+
+      // 어떤 태그의 결과가 0건이면 교집합도 0건
+      if (tokenResults.any((list) => list.isEmpty)) {
+        return [];
+      }
+
+      Set<int> intersection = tokenResults.first.toSet();
+      for (int i = 1; i < tokenResults.length; i++) {
+        intersection = intersection.intersection(tokenResults[i].toSet());
+        if (intersection.isEmpty) return [];
+      }
+
+      final sortedIntersection = intersection.toList()
+        ..sort((a, b) => b.compareTo(a));
+
+      final startIdx = (page - 1) * pageSize;
+      if (startIdx >= sortedIntersection.length) {
+        return [];
+      }
+      final endIdx = (startIdx + pageSize < sortedIntersection.length)
+          ? startIdx + pageSize
+          : sortedIntersection.length;
+      return sortedIntersection.sublist(startIdx, endIdx);
+    }
+
+    // 2) 단일 태그(단독 쿼리)인 경우: 단일 페이징 고속 조회
+    final primaryTerm = nonLangTokens.isNotEmpty
         ? nonLangTokens.first
         : (tokens.isNotEmpty ? tokens.first : cleanQuery);
+
+    return await _fetchIdsForSingleTerm(
+      term: primaryTerm,
+      effectiveLang: effectiveLang,
+      offset: (page - 1) * pageSize,
+      count: pageSize,
+      explicitLang: explicitLang,
+    );
+  }
+
+  /// 단일 검색어(태그, 작가, 그룹, 시리즈 등)에 대해 Nozomi ID 목록을 가져옵니다.
+  static Future<List<int>> _fetchIdsForSingleTerm({
+    required String term,
+    required String effectiveLang,
+    required int offset,
+    required int count,
+    String? explicitLang,
+  }) async {
+    var primaryTerm = term.trim();
     if (primaryTerm.toLowerCase().startsWith('tag:')) {
       primaryTerm = primaryTerm.substring(4).trim();
     }
@@ -516,7 +573,7 @@ class HybridLoader {
             ? int.tryParse(primaryTerm.substring(3).trim())
             : null);
     if (numericId != null) {
-      return page == 1 ? [numericId] : <int>[];
+      return offset == 0 ? [numericId] : <int>[];
     }
 
     final colonIdx = primaryTerm.indexOf(':');
@@ -526,103 +583,103 @@ class HybridLoader {
       switch (prefix) {
         case 'lang':
         case 'language':
-          return await HitomiNozomi.fetchGalleryIds(
+          return await HitomiNozomi.fetchGalleryIdsByOffset(
             HitomiNozomi.getLanguageIndexUrl(val.toLowerCase()),
-            page,
-            pageSize: pageSize,
+            offset,
+            count,
           );
         case 'artist':
           if (effectiveLang != 'all') {
-            final ids = await HitomiNozomi.fetchGalleryIds(
+            final ids = await HitomiNozomi.fetchGalleryIdsByOffset(
               HitomiNozomi.getArtistIndexUrl(val, effectiveLang),
-              page,
-              pageSize: pageSize,
+              offset,
+              count,
             );
             if (ids.isNotEmpty) return ids;
             if (explicitLang != null && explicitLang.isNotEmpty) return [];
           }
-          return await HitomiNozomi.fetchGalleryIds(
+          return await HitomiNozomi.fetchGalleryIdsByOffset(
             HitomiNozomi.getArtistIndexUrl(val, 'all'),
-            page,
-            pageSize: pageSize,
+            offset,
+            count,
           );
         case 'group':
           if (effectiveLang != 'all') {
-            final ids = await HitomiNozomi.fetchGalleryIds(
+            final ids = await HitomiNozomi.fetchGalleryIdsByOffset(
               HitomiNozomi.getGroupIndexUrl(val, effectiveLang),
-              page,
-              pageSize: pageSize,
+              offset,
+              count,
             );
             if (ids.isNotEmpty) return ids;
             if (explicitLang != null && explicitLang.isNotEmpty) return [];
           }
-          return await HitomiNozomi.fetchGalleryIds(
+          return await HitomiNozomi.fetchGalleryIdsByOffset(
             HitomiNozomi.getGroupIndexUrl(val, 'all'),
-            page,
-            pageSize: pageSize,
+            offset,
+            count,
           );
         case 'series':
           if (effectiveLang != 'all') {
-            final ids = await HitomiNozomi.fetchGalleryIds(
+            final ids = await HitomiNozomi.fetchGalleryIdsByOffset(
               HitomiNozomi.getSeriesIndexUrl(val, effectiveLang),
-              page,
-              pageSize: pageSize,
+              offset,
+              count,
             );
             if (ids.isNotEmpty) return ids;
             if (explicitLang != null && explicitLang.isNotEmpty) return [];
           }
-          return await HitomiNozomi.fetchGalleryIds(
+          return await HitomiNozomi.fetchGalleryIdsByOffset(
             HitomiNozomi.getSeriesIndexUrl(val, 'all'),
-            page,
-            pageSize: pageSize,
+            offset,
+            count,
           );
         case 'character':
           if (effectiveLang != 'all') {
-            final ids = await HitomiNozomi.fetchGalleryIds(
+            final ids = await HitomiNozomi.fetchGalleryIdsByOffset(
               HitomiNozomi.getCharacterIndexUrl(val, effectiveLang),
-              page,
-              pageSize: pageSize,
+              offset,
+              count,
             );
             if (ids.isNotEmpty) return ids;
             if (explicitLang != null && explicitLang.isNotEmpty) return [];
           }
-          return await HitomiNozomi.fetchGalleryIds(
+          return await HitomiNozomi.fetchGalleryIdsByOffset(
             HitomiNozomi.getCharacterIndexUrl(val, 'all'),
-            page,
-            pageSize: pageSize,
+            offset,
+            count,
           );
         case 'uploader':
           if (effectiveLang != 'all') {
-            final ids = await HitomiNozomi.fetchGalleryIds(
+            final ids = await HitomiNozomi.fetchGalleryIdsByOffset(
               HitomiNozomi.getUploaderIndexUrl(val, effectiveLang),
-              page,
-              pageSize: pageSize,
+              offset,
+              count,
             );
             if (ids.isNotEmpty) return ids;
             if (explicitLang != null && explicitLang.isNotEmpty) return [];
           }
-          return await HitomiNozomi.fetchGalleryIds(
+          return await HitomiNozomi.fetchGalleryIdsByOffset(
             HitomiNozomi.getUploaderIndexUrl(val, 'all'),
-            page,
-            pageSize: pageSize,
+            offset,
+            count,
           );
         case 'tag':
         case 'female':
         case 'male':
           if (effectiveLang != 'all') {
-            final ids = await HitomiNozomi.fetchTagGalleryIds(
+            final ids = await HitomiNozomi.fetchTagGalleryIdsByOffset(
               primaryTerm,
-              page,
-              pageSize: pageSize,
+              offset,
+              count,
               language: effectiveLang,
             );
             if (ids.isNotEmpty) return ids;
             if (explicitLang != null && explicitLang.isNotEmpty) return [];
           }
-          return await HitomiNozomi.fetchTagGalleryIds(
+          return await HitomiNozomi.fetchTagGalleryIdsByOffset(
             primaryTerm,
-            page,
-            pageSize: pageSize,
+            offset,
+            count,
             language: 'all',
           );
         default:
@@ -632,39 +689,39 @@ class HybridLoader {
 
     // 콜론이 없는 일반 단어: 태그 -> 작가 -> 시리즈 순 스마트 조회
     if (effectiveLang != 'all') {
-      final tagIds = await HitomiNozomi.fetchTagGalleryIds(
+      final tagIds = await HitomiNozomi.fetchTagGalleryIdsByOffset(
         primaryTerm,
-        page,
-        pageSize: pageSize,
+        offset,
+        count,
         language: effectiveLang,
       );
       if (tagIds.isNotEmpty) return tagIds;
     }
-    final tagIdsAll = await HitomiNozomi.fetchTagGalleryIds(
+    final tagIdsAll = await HitomiNozomi.fetchTagGalleryIdsByOffset(
       primaryTerm,
-      page,
-      pageSize: pageSize,
+      offset,
+      count,
       language: 'all',
     );
     if (tagIdsAll.isNotEmpty) return tagIdsAll;
 
-    final artistIds = await HitomiNozomi.fetchGalleryIds(
+    final artistIds = await HitomiNozomi.fetchGalleryIdsByOffset(
       HitomiNozomi.getArtistIndexUrl(
         primaryTerm,
         effectiveLang != 'all' ? effectiveLang : 'all',
       ),
-      page,
-      pageSize: pageSize,
+      offset,
+      count,
     );
     if (artistIds.isNotEmpty) return artistIds;
 
-    return await HitomiNozomi.fetchGalleryIds(
+    return await HitomiNozomi.fetchGalleryIdsByOffset(
       HitomiNozomi.getSeriesIndexUrl(
         primaryTerm,
         effectiveLang != 'all' ? effectiveLang : 'all',
       ),
-      page,
-      pageSize: pageSize,
+      offset,
+      count,
     );
   }
 
@@ -1539,6 +1596,11 @@ class HybridLoader {
       merged.removeWhere((item) => Settings.isExcluded(item, currentQuery: pureQuery));
     }
 
+    // 복합 쿼리(다중 태그) 사후 정밀 검증 필터링 (2차 안전망)
+    if (nonLangTokens.length > 1) {
+      merged.retainWhere((item) => matchesAllQueryTokens(item, nonLangTokens));
+    }
+
     if (isRandom && randomSeed != null) {
       final seed = randomSeed;
       // random 검색일 때는 일관된 seed 정렬 유지
@@ -1574,5 +1636,138 @@ class HybridLoader {
     }
     // 명시적으로 검증되지 않은 작품은 Pupil 단독작으로 노출하지 않음 (안전 가드)
     return false;
+  }
+
+  /// 작품(QueryResult)이 주어진 비언어 검색 토큰들(태그, 작가, 시리즈 등)을 모두 만족하는지 정밀 검증합니다.
+  static bool matchesAllQueryTokens(QueryResult item, List<String> tokens) {
+    if (tokens.isEmpty) return true;
+
+    final rawTags = item.tags()?.toString() ?? '';
+    final tagList = rawTags
+        .split('|')
+        .map((e) => e.trim().toLowerCase())
+        .where((e) => e.isNotEmpty && e != 'n/a')
+        .toList();
+
+    final rawArtists = item.artists()?.toString() ?? '';
+    final artistList = rawArtists
+        .split('|')
+        .map((e) => e.trim().toLowerCase())
+        .where((e) => e.isNotEmpty && e != 'n/a')
+        .toList();
+
+    final rawGroups = item.groups()?.toString() ?? '';
+    final groupList = rawGroups
+        .split('|')
+        .map((e) => e.trim().toLowerCase())
+        .where((e) => e.isNotEmpty && e != 'n/a')
+        .toList();
+
+    final rawSeries = item.series()?.toString() ?? '';
+    final seriesList = rawSeries
+        .split('|')
+        .map((e) => e.trim().toLowerCase())
+        .where((e) => e.isNotEmpty && e != 'n/a')
+        .toList();
+
+    final rawCharacters = item.characters()?.toString() ?? '';
+    final characterList = rawCharacters
+        .split('|')
+        .map((e) => e.trim().toLowerCase())
+        .where((e) => e.isNotEmpty && e != 'n/a')
+        .toList();
+
+    final title = (item.title() ?? '').toString().toLowerCase();
+
+    for (final rawTok in tokens) {
+      var tok = rawTok.trim();
+      if (tok.isEmpty) continue;
+
+      bool negative = false;
+      if (tok.startsWith('-')) {
+        negative = true;
+        tok = tok.substring(1).trim();
+        if (tok.isEmpty) continue;
+      }
+
+      final colonIdx = tok.indexOf(':');
+      bool matched = false;
+
+      if (colonIdx != -1) {
+        final prefix = tok.substring(0, colonIdx).trim().toLowerCase();
+        final val = tok.substring(colonIdx + 1).trim().toLowerCase();
+        final valSpaced = val.replaceAll('_', ' ');
+
+        switch (prefix) {
+          case 'female':
+            matched = tagList.any((t) =>
+                t == 'female:$val' || t == 'female:$valSpaced');
+            break;
+          case 'male':
+            matched = tagList.any((t) =>
+                t == 'male:$val' || t == 'male:$valSpaced');
+            break;
+          case 'tag':
+            matched = tagList.any((t) =>
+                t == val ||
+                t == valSpaced ||
+                t == 'female:$val' ||
+                t == 'female:$valSpaced' ||
+                t == 'male:$val' ||
+                t == 'male:$valSpaced');
+            break;
+          case 'artist':
+            matched = artistList.any((a) => a == val || a == valSpaced);
+            break;
+          case 'group':
+            matched = groupList.any((g) => g == val || g == valSpaced);
+            break;
+          case 'series':
+            matched = seriesList.any((s) => s == val || s == valSpaced);
+            break;
+          case 'character':
+            matched = characterList.any((c) => c == val || c == valSpaced);
+            break;
+          case 'uploader':
+            final upl = (item.uploader() ?? '').toString().toLowerCase().trim();
+            matched = (upl == val || upl == valSpaced);
+            break;
+          case 'type':
+            final tp = (item.type() ?? '').toString().toLowerCase().trim();
+            matched = (tp == val || tp == valSpaced);
+            break;
+          default:
+            matched = tagList.any((t) =>
+                t == '$prefix:$val' || t == '$prefix:$valSpaced');
+            break;
+        }
+      } else {
+        // 콜론이 없는 일반 단어: 태그, 제목, 작가, 시리즈 중 하나에 포함
+        final val = tok.toLowerCase();
+        final valSpaced = val.replaceAll('_', ' ');
+
+        matched = tagList.any((t) =>
+                t == val ||
+                t == valSpaced ||
+                t == 'female:$val' ||
+                t == 'female:$valSpaced' ||
+                t == 'male:$val' ||
+                t == 'male:$valSpaced' ||
+                t.contains(val) ||
+                t.contains(valSpaced)) ||
+            title.contains(val) ||
+            title.contains(valSpaced) ||
+            artistList.any((a) => a.contains(val) || a.contains(valSpaced)) ||
+            seriesList.any((s) => s.contains(val) || s.contains(valSpaced));
+      }
+
+      if (negative) {
+        if (matched) return false;
+      } else {
+        if (!matched) return false;
+      }
+    }
+
+    return true;
   }
 }

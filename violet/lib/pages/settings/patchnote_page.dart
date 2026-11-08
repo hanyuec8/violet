@@ -25,6 +25,18 @@ class PatchModel {
 
 final patches = [
   PatchModel(
+    dateTime: DateTime(2026, 11, 8),
+    version: '1.35.3 Patch',
+    contents: [
+      'Search: fixed multi-tag search only querying the first tag',
+      'Search: prioritized female and male tags over artists and groups',
+    ],
+    contentsKorean: [
+      '검색: 다중 태그 검색 시 첫 번째 태그만 검색되던 오류 수정',
+      '검색: 검색 시 female 및 male 태그가 작가/그룹보다 먼저 노출되도록 개선',
+    ],
+  ),
+  PatchModel(
     dateTime: DateTime(2026, 11, 2),
     version: '1.35.2 Patch',
     contents: [

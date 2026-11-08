@@ -275,12 +275,11 @@ class HitomiNozomi {
     return 'https://$domain/tag/$cleanTag-$language.nozomi';
   }
 
-  /// 태그 검색을 스마트하게 처리하는 페처:
-  /// 네임스페이스가 없는 일반 태그인 경우 female -> male -> 일반 순으로 자동 Fallback 탐색합니다.
-  static Future<List<int>> fetchTagGalleryIds(
+  /// 특정 태그별 작품 목록을 시작 인덱스(offsetIndex)와 개수(count)를 지정하여 가져옵니다.
+  static Future<List<int>> fetchTagGalleryIdsByOffset(
     String tag,
-    int page, {
-    int pageSize = 25,
+    int offsetIndex,
+    int count, {
     String language = 'all',
   }) async {
     var raw = tag.trim();
@@ -289,36 +288,97 @@ class HitomiNozomi {
     }
 
     final lower = raw.toLowerCase();
-    // 1) 이미 female: 또는 male: 네임스페이스가 명시된 경우
     if (lower.startsWith('female:') || lower.startsWith('male:')) {
-      return await fetchGalleryIds(
+      return await fetchGalleryIdsByOffset(
         getTagIndexUrl(raw, language),
-        page,
-        pageSize: pageSize,
+        offsetIndex,
+        count,
       );
     }
 
-    // 2) 네임스페이스가 없는 경우: Hitomi의 90% 이상인 female: 태그 우선 시도
-    final femaleIds = await fetchGalleryIds(
+    final femaleIds = await fetchGalleryIdsByOffset(
       getTagIndexUrl('female:$raw', language),
-      page,
-      pageSize: pageSize,
+      offsetIndex,
+      count,
     );
     if (femaleIds.isNotEmpty) return femaleIds;
 
-    // 3) male: 태그 시도
-    final maleIds = await fetchGalleryIds(
+    final maleIds = await fetchGalleryIdsByOffset(
       getTagIndexUrl('male:$raw', language),
-      page,
-      pageSize: pageSize,
+      offsetIndex,
+      count,
     );
     if (maleIds.isNotEmpty) return maleIds;
 
-    // 4) 일반 태그(중성 태그) 시도
-    return await fetchGalleryIds(
+    return await fetchGalleryIdsByOffset(
       getTagIndexUrl(raw, language),
-      page,
-      pageSize: pageSize,
+      offsetIndex,
+      count,
+    );
+  }
+
+  /// 태그의 실제 유효한 Nozomi URL을 탐색하여 반환합니다 (female -> male -> 일반 순).
+  static Future<String?> resolveTagNozomiUrl(
+    String tag, [
+    String language = 'all',
+  ]) async {
+    var raw = tag.trim();
+    if (raw.toLowerCase().startsWith('tag:')) {
+      raw = raw.substring(4).trim();
+    }
+    final lower = raw.toLowerCase();
+    if (lower.startsWith('female:') || lower.startsWith('male:')) {
+      final url = getTagIndexUrl(raw, language);
+      final count = await getTotalCount(url);
+      if (count != null && count > 0) return url;
+      if (language != 'all') {
+        final allUrl = getTagIndexUrl(raw, 'all');
+        final allCount = await getTotalCount(allUrl);
+        if (allCount != null && allCount > 0) return allUrl;
+      }
+      return url;
+    }
+
+    final femaleUrl = getTagIndexUrl('female:$raw', language);
+    final femaleCount = await getTotalCount(femaleUrl);
+    if (femaleCount != null && femaleCount > 0) return femaleUrl;
+
+    final maleUrl = getTagIndexUrl('male:$raw', language);
+    final maleCount = await getTotalCount(maleUrl);
+    if (maleCount != null && maleCount > 0) return maleUrl;
+
+    final generalUrl = getTagIndexUrl(raw, language);
+    final generalCount = await getTotalCount(generalUrl);
+    if (generalCount != null && generalCount > 0) return generalUrl;
+
+    if (language != 'all') {
+      final femaleAll = getTagIndexUrl('female:$raw', 'all');
+      final c1 = await getTotalCount(femaleAll);
+      if (c1 != null && c1 > 0) return femaleAll;
+
+      final maleAll = getTagIndexUrl('male:$raw', 'all');
+      final c2 = await getTotalCount(maleAll);
+      if (c2 != null && c2 > 0) return maleAll;
+
+      return getTagIndexUrl(raw, 'all');
+    }
+
+    return femaleUrl;
+  }
+
+  /// 태그 검색을 스마트하게 처리하는 페처:
+  /// 네임스페이스가 없는 일반 태그인 경우 female -> male -> 일반 순으로 자동 Fallback 탐색합니다.
+  static Future<List<int>> fetchTagGalleryIds(
+    String tag,
+    int page, {
+    int pageSize = 25,
+    String language = 'all',
+  }) async {
+    return await fetchTagGalleryIdsByOffset(
+      tag,
+      (page - 1) * pageSize,
+      pageSize,
+      language: language,
     );
   }
 }
