@@ -822,7 +822,7 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
           ),
           onTap: () async {
             final url = Uri.parse(
-              'https://github.com/hanyuec8/violet/releases/latest',
+              'https://github.com/hanyuec8/violet-lite/releases/latest',
             );
             if (await canLaunchUrl(url)) {
               await launchUrl(url);

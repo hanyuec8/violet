@@ -7,9 +7,9 @@ import 'package:violet/network/wrapper.dart' as http;
 
 class UpdateSyncManager {
   static const String updateApiUrl =
-      'https://api.github.com/repos/hanyuec8/violet/releases/latest';
+      'https://api.github.com/repos/hanyuec8/violet-lite/releases/latest';
   static const String releasePageUrl =
-      'https://github.com/hanyuec8/violet/releases/latest';
+      'https://github.com/hanyuec8/violet-lite/releases/latest';
 
   static bool enableSensitiveUpdate = true;
 

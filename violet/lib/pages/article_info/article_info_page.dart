@@ -15,14 +15,12 @@ import 'package:violet/locale/locale.dart';
 import 'package:violet/model/article_info.dart';
 import 'package:violet/other/dialogs.dart';
 import 'package:violet/pages/article_info/article_source_badge.dart';
-import 'package:violet/pages/article_info/comment_area.dart';
 import 'package:violet/pages/article_info/preview_area.dart';
-import 'package:violet/pages/article_info/related_section.dart';
+import 'package:violet/pages/article_info/similar_article_section.dart';
 import 'package:violet/pages/article_info/simple_info.dart';
 import 'package:violet/pages/article_info/tag_info_area.dart';
 export 'package:violet/pages/article_info/tag_info_area.dart';
 import 'package:violet/pages/common/toast.dart';
-import 'package:violet/pages/common/utils.dart';
 import 'package:violet/pages/download/download_page.dart';
 import 'package:violet/pages/viewer/viewer_page.dart';
 import 'package:violet/pages/viewer/viewer_page_provider.dart';
@@ -73,8 +71,7 @@ class ArticleInfoPage extends StatelessWidget {
                 ),
                 buttonArea(context),
                 TagInfoAreaWidget(queryResult: data.queryResult),
-                const DividerWidget(),
-                CommentArea(queryResult: data.queryResult),
+                SimilarArticleSection(queryResult: data.queryResult),
                 const DividerWidget(),
                 ExpandableNotifier(
                   initialExpanded: true,
@@ -104,7 +101,6 @@ class ArticleInfoPage extends StatelessWidget {
                     ),
                   ),
                 ),
-                RelatedSection(articleId: data.queryResult.id()),
               ],
             ),
           ),

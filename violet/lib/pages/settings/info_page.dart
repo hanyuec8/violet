@@ -138,7 +138,7 @@ class _InfoPageState extends State<InfoPage> {
                 null,
                 () async {
                   final url = Uri.parse(
-                    'https://github.com/TaYaKi71751/violet',
+                    'https://github.com/hanyuec8/violet-lite',
                   );
                   if (await canLaunchUrl(url)) {
                     await launchUrl(url);
@@ -167,7 +167,7 @@ class _InfoPageState extends State<InfoPage> {
             ),
             const Padding(padding: EdgeInsets.only(top: 12)),
             Text(
-              'Project Violet',
+              'Violet Lite',
               style: TextStyle(
                 color: Settings.themeWhat.value ? Colors.white : Colors.black87,
                 fontSize: 16.0,

@@ -4,9 +4,9 @@
 </p>
 
 <p align="center">
-    <b><a href="https://github.com/hanyuec8/violet/releases/latest">📲 최신 앱(APK) 다운로드 바로가기</a></b>
+    <b><a href="https://github.com/hanyuec8/violet-lite/releases/latest">📲 최신 앱(APK) 다운로드 바로가기</a></b>
     •
-    <b><a href="https://github.com/hanyuec8/violet/issues">💬 오류 및 건의사항 제보</a></b>
+    <b><a href="https://github.com/hanyuec8/violet-lite/issues">💬 오류 및 건의사항 제보</a></b>
 </p>
 
 ---
@@ -93,7 +93,7 @@
 
 ## 📲 다운로드 및 설치 방법
 
-1. 상단의 **[최신 앱(APK) 다운로드](https://github.com/hanyuec8/violet/releases/latest)** 링크를 누릅니다.
+1. 상단의 **[최신 앱(APK) 다운로드](https://github.com/hanyuec8/violet-lite/releases/latest)** 링크를 누릅니다.
 2. 다운로드된 `violet-lite-v1.35.1.apk` 파일을 스마트폰에서 터치하여 설치합니다.
 3. 앱을 실행하면 기다림 없이 즉시 감상하실 수 있습니다!
 

@@ -96,6 +96,26 @@ List<Widget> buildSearchGroup(BuildContext context, VoidCallback onReload) {
           activeThumbColor: Settings.majorAccentColor.value,
         ),
       ),
+      ListTile(
+        leading: Icon(
+          Icons.library_books,
+          color: Settings.majorColor.value,
+        ),
+        title: const Text('작품 그룹화 (다국어/중복 묶기)'),
+        subtitle: const Text(
+          '첫 페이지가 일치하는 동일 작품의 다국어 번역본 및 중복 작품을 묶어서 표시합니다.',
+          style: TextStyle(fontSize: 12),
+        ),
+        trailing: Switch(
+          value: Settings.groupByFirstPage.value,
+          onChanged: (newValue) async {
+            await Settings.groupByFirstPage.setValue(newValue);
+            onReload();
+          },
+          activeTrackColor: Settings.majorColor.value,
+          activeThumbColor: Settings.majorAccentColor.value,
+        ),
+      ),
       InkWell(
         customBorder: const RoundedRectangleBorder(
           borderRadius: BorderRadius.only(

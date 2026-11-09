@@ -15,9 +15,9 @@ import 'package:violet/settings/settings.dart';
 
 class ExpungedDatabaseManager {
   static const String defaultOnlineDbUrl =
-      'https://github.com/hanyuec8/violet/releases/download/database/expunged.db';
+      'https://github.com/hanyuec8/violet-lite/releases/download/database/expunged.db';
   static const String fallbackOnlineDbUrl =
-      'https://raw.githubusercontent.com/hanyuec8/violet/database/assets/database/expunged.db';
+      'https://raw.githubusercontent.com/hanyuec8/violet-lite/database/assets/database/expunged.db';
 
   static Database? _db;
   static final Lock _lock = Lock();

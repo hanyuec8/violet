@@ -22,7 +22,14 @@ class ArticleListPage extends StatefulWidget {
   final List<QueryResult> cc;
   final String name;
 
-  const ArticleListPage({super.key, required this.name, required this.cc});
+  final String? initialLanguage;
+
+  const ArticleListPage({
+    super.key,
+    required this.name,
+    required this.cc,
+    this.initialLanguage,
+  });
 
   @override
   State<ArticleListPage> createState() => _ArticleListPageState();
@@ -274,7 +281,13 @@ class _ArticleListPageState extends State<ArticleListPage> {
     }
   }
 
-  String selectedLanguage = 'all';
+  late String selectedLanguage;
+
+  @override
+  void initState() {
+    super.initState();
+    selectedLanguage = widget.initialLanguage ?? 'all';
+  }
 
   Widget _languageSelector() {
     final langs = [

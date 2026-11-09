@@ -294,6 +294,7 @@ class Settings {
     true,
   );
   static final searchExpunged = SettingItem<bool>('searchExpunged', true);
+  static final groupByFirstPage = SettingItem<bool>('groupByFirstPage', true);
   static final searchCategory = SettingItem<int>('searchCategory', 993);
   static final lastExpungedSyncTime = SettingItem<String>('lastExpungedSyncTime', '');
   static final expungedDbVersion = SettingItem<String>('expungedDbVersion', '');

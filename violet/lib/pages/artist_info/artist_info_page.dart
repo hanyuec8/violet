@@ -841,7 +841,8 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
           visible: displayArticles.length > maxItemCount,
           child: more(
             () => ArticleListPage(
-              cc: displayArticles,
+              cc: allArticles.isNotEmpty ? allArticles : displayArticles,
+              initialLanguage: selectedLanguage,
               name: '${widget.type.name.titlecase()}: ${widget.name}',
             ),
           ),
