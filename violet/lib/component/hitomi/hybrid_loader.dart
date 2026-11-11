@@ -3,6 +3,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:violet/component/hentai.dart';
 import 'package:violet/component/hitomi/hitomi_nozomi.dart';
 import 'package:violet/component/hitomi/hitomi_parser.dart';
@@ -17,6 +18,7 @@ import 'package:violet/log/log.dart';
 import 'package:violet/network/wrapper.dart' as http;
 import 'package:violet/script/script_manager.dart';
 import 'package:violet/settings/settings.dart';
+import 'package:violet/src/rust/api/nozomi.dart' as rust_nozomi;
 
 /// Violet (E-Hentai / 로컬 DB) + Pupil (Hitomi Nozomi Range Request)
 /// 하이브리드 작품 로더
@@ -503,9 +505,9 @@ class HybridLoader {
       );
     }
 
-    // 1) 다중 태그(복합 쿼리)인 경우: 각 태그별 상위 ID를 병렬 수집 후 교집합(Intersection) 산출
+    // 1) 다중 태그(복합 쿼리)인 경우: 각 태그별 상위 ID를 병렬 수집 후 Rust SIMD 교집합(Intersection) 산출
     if (nonLangTokens.length > 1) {
-      const multiTagFetchCount = 3000;
+      const multiTagFetchCount = 10000;
       final tokenResults = await Future.wait(
         nonLangTokens.map((tok) => _fetchIdsForSingleTerm(
               term: tok,
@@ -521,14 +523,22 @@ class HybridLoader {
         return [];
       }
 
-      Set<int> intersection = tokenResults.first.toSet();
-      for (int i = 1; i < tokenResults.length; i++) {
-        intersection = intersection.intersection(tokenResults[i].toSet());
-        if (intersection.isEmpty) return [];
+      List<int> sortedIntersection;
+      try {
+        final rustLists = tokenResults
+            .map((list) => Uint32List.fromList(list))
+            .toList();
+        sortedIntersection = rust_nozomi.intersectNozomiIds(lists: rustLists);
+      } catch (_) {
+        // Rust FFI 오류 시 Dart Set 교집합 폴백
+        Set<int> intersection = tokenResults.first.toSet();
+        for (int i = 1; i < tokenResults.length; i++) {
+          intersection = intersection.intersection(tokenResults[i].toSet());
+          if (intersection.isEmpty) return [];
+        }
+        sortedIntersection = intersection.toList()
+          ..sort((a, b) => b.compareTo(a));
       }
-
-      final sortedIntersection = intersection.toList()
-        ..sort((a, b) => b.compareTo(a));
 
       final startIdx = (page - 1) * pageSize;
       if (startIdx >= sortedIntersection.length) {

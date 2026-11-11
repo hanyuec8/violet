@@ -4,6 +4,7 @@
 import 'dart:typed_data';
 import 'package:violet/network/wrapper.dart' as http;
 import 'package:violet/log/log.dart';
+import 'package:violet/src/rust/api/nozomi.dart' as rust_nozomi;
 
 enum SearchSortMode {
   latest,
@@ -185,15 +186,20 @@ class HitomiNozomi {
   }
 
   /// 4바이트 Big-Endian 정수 배열을 Dart `List<int>` ID 목록으로 바이트 언패킹(Unpack)합니다.
+  /// Rust FFI(`rust_nozomi.parseNozomiBytes`)를 우선 호출하여 Zero-copy 및 SIMD 가속을 수행합니다.
   static List<int> parseNozomiBytes(Uint8List bytes) {
-    final ids = <int>[];
-    final byteData = ByteData.sublistView(bytes);
+    try {
+      return rust_nozomi.parseNozomiBytes(bytes: bytes);
+    } catch (_) {
+      final ids = <int>[];
+      final byteData = ByteData.sublistView(bytes);
 
-    for (var i = 0; i + 4 <= bytes.length; i += 4) {
-      final id = byteData.getUint32(i, Endian.big);
-      ids.add(id);
+      for (var i = 0; i + 4 <= bytes.length; i += 4) {
+        final id = byteData.getUint32(i, Endian.big);
+        ids.add(id);
+      }
+      return ids;
     }
-    return ids;
   }
 
   /// 검색어 정규화 유틸리티: 언더스코어를 공백으로 변환하고, URL용 공백을 '%20'으로 안전하게 인코딩합니다.

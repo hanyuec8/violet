@@ -38,14 +38,25 @@ import 'package:violet/widgets/theme_switchable_state.dart';
 Future<void> main() async {
   runZonedGuarded<Future<void>>(
     () async {
-      await RustLib.init();
-      await Rhttp.init();
       WidgetsFlutterBinding.ensureInitialized();
       await Logger.init();
+      FlutterError.onError = recordFlutterError;
+
+      try {
+        await RustLib.init();
+      } catch (e, st) {
+        Logger.error('[RustLib] Init failed: $e\n$st');
+      }
+
+      try {
+        await Rhttp.init();
+      } catch (e, st) {
+        Logger.error('[Rhttp] Init failed: $e\n$st');
+      }
+
       FlareCache.doesPrune = true;
       PaintingBinding.instance.imageCache.maximumSizeBytes = 100 * 1024 * 1024;
       PaintingBinding.instance.imageCache.maximumSize = 100;
-      FlutterError.onError = recordFlutterError;
 
       await initUserId();
       if (Platform.isAndroid || Platform.isIOS) {

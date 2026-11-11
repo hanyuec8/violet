@@ -3,13 +3,22 @@
 
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:violet/src/rust/api/image_hash.dart' as rust_image_hash;
 
 /// 썸네일 이미지의 8x8 지각적 차이 해시(dHash, Difference Hash)를 계산하고
 /// 비트 단위 해밍 거리를 통해 시각적 유사도 점수를 산출하는 유틸리티
 class ImagePerceptualHash {
   /// 썸네일 이미지 바이트(WebP, PNG, JPG 등)를 9x8로 초경량 디코딩하여
   /// 64비트 정수 dHash를 산출합니다.
+  /// Rust FFI(`rust_image_hash.computeDhash`)를 우선 호출하여 백그라운드 고속 연산을 수행합니다.
   static Future<int?> computeDHashFromBytes(Uint8List bytes) async {
+    try {
+      final rustHash = rust_image_hash.computeDhash(bytes: bytes);
+      if (rustHash != null) {
+        return rustHash.toInt();
+      }
+    } catch (_) {}
+
     try {
       final codec = await ui.instantiateImageCodec(
         bytes,
@@ -58,8 +67,15 @@ class ImagePerceptualHash {
 
   /// 두 64비트 dHash 간의 해밍 유사도 백분율 (0.0% ~ 100.0%)을 반환합니다.
   static double calculateSimilarity(int h1, int h2) {
-    final diff = h1 ^ h2;
-    final diffBits = popcount64(diff);
-    return (1.0 - (diffBits / 64.0)) * 100.0;
+    try {
+      return rust_image_hash.calculateDhashSimilarity(
+        h1: BigInt.from(h1),
+        h2: BigInt.from(h2),
+      );
+    } catch (_) {
+      final diff = h1 ^ h2;
+      final diffBits = popcount64(diff);
+      return (1.0 - (diffBits / 64.0)) * 100.0;
+    }
   }
 }

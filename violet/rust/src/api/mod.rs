@@ -3,3 +3,5 @@
 //
 
 pub mod simple;
+pub mod nozomi;
+pub mod image_hash;

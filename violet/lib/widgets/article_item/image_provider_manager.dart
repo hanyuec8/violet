@@ -47,6 +47,6 @@ class ProviderManager {
 
   static Future<void> refresh(int id, List<bool> target) async {
     await _ids[id]!.refreshPartial(target);
-    _dirty[id] = true;
+    _dirty[id] = false;
   }
 }

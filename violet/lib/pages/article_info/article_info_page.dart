@@ -1,6 +1,7 @@
 // This source code is a part of Project Violet.
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:expandable/expandable.dart';
@@ -233,21 +234,26 @@ class ArticleInfoPage extends StatelessWidget {
     Navigator.pop(context);
   }
 
-  readButtonEvent(BuildContext context, ArticleInfo data, [int? page]) async {
+  Future<void> readButtonEvent(BuildContext context, ArticleInfo data, [int? page]) async {
+    final articleId = data.queryResult.id();
+
     if (Settings.useVioletServer.value) {
-      Future.delayed(const Duration(milliseconds: 100)).then((value) async {
-        await VioletServerV2.view(data.queryResult.id());
-      });
+      unawaited(
+        Future.delayed(const Duration(milliseconds: 100)).then((_) async {
+          await VioletServerV2.view(articleId);
+        }),
+      );
     }
-    await (await User.getInstance()).insertUserLog(data.queryResult.id(), 0);
+    // 사용자 로그 저장은 뷰어 화면 전환을 차단하지 않도록 비동기 실행
+    unawaited(
+      User.getInstance().then((user) => user.insertUserLog(articleId, 0)),
+    );
 
-    await ScriptManager.refresh();
-
-    if (!ProviderManager.isExists(data.queryResult.id())) {
+    if (!ProviderManager.isExists(articleId)) {
       return;
     }
 
-    var prov = await ProviderManager.get(data.queryResult.id());
+    var prov = await ProviderManager.get(articleId);
 
     await prov.init();
 
@@ -269,7 +275,7 @@ class ArticleInfoPage extends StatelessWidget {
               useProvider: true,
               provider: prov,
               headers: data.headers,
-              id: data.queryResult.id(),
+              id: articleId,
               title: data.queryResult.title(),
               usableTabList: data.usableTabList,
               jumpPage: page,

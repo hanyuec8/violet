@@ -47,13 +47,17 @@ Future showArticleInfoRaw({
 
   if (hasNoValidQuery) {
     queryResult = await HentaiManager.idQueryWeb('$id');
-  } else if (queryResult.result['source'] == 'pupil' ||
-      queryResult.result['source'] == 'pupil_only' ||
-      queryResult.result['ExistOnHitomi'] == 1 ||
-      queryResult.groups() == null ||
-      queryResult.groups() == 'N/A') {
-    try {
-      final gallery = await HentaiManager.tryFetchHitomiGalleryInfo(id);
+  }
+
+  // 메타데이터 보강, 이미지 프로바이더 생성, 북마크 상태 조회를 병렬로 수행하여 진입 지연을 최소화합니다.
+  Future<void> enrichMetadataFuture = Future.value();
+  if (!hasNoValidQuery &&
+      (queryResult.result['source'] == 'pupil' ||
+          queryResult.result['source'] == 'pupil_only' ||
+          queryResult.result['ExistOnHitomi'] == 1 ||
+          queryResult.groups() == null ||
+          queryResult.groups() == 'N/A')) {
+    enrichMetadataFuture = HentaiManager.tryFetchHitomiGalleryInfo(id).then((gallery) {
       if (gallery.isNotEmpty) {
         if (gallery['Groups'] != null && (gallery['Groups'] as List).isNotEmpty) {
           queryResult.result['Groups'] = '|${(gallery['Groups'] as List).join('|')}|';
@@ -90,16 +94,28 @@ Future showArticleInfoRaw({
         }
         HybridLoader.cacheMetadata(queryResult);
       }
-    } catch (_) {}
+    }).catchError((_) {});
   }
 
-  final provider = await getImageProvider(queryResult);
-  final thumbnail = await provider.getThumbnailUrl();
-  final headers = await provider.getHeader(0);
+  final providerFuture = getImageProvider(queryResult);
+  final bookmarkFuture = Bookmark.getInstance()
+      .then((b) => b.isBookmark(queryResult.id()))
+      .catchError((_) => false);
 
-  final isBookmarked = await (await Bookmark.getInstance()).isBookmark(
-    queryResult.id(),
-  );
+  final initResults = await Future.wait([
+    enrichMetadataFuture,
+    providerFuture,
+    bookmarkFuture,
+  ]);
+
+  final provider = initResults[1] as VioletImageProvider;
+  final isBookmarked = initResults[2] as bool;
+
+  final thumbnailFuture = provider.getThumbnailUrl();
+  final headersFuture = provider.getHeader(0);
+  final mediaResults = await Future.wait([thumbnailFuture, headersFuture]);
+  final thumbnail = mediaResults[0] as String;
+  final headers = mediaResults[1] as Map<String, String>;
 
   if (!context.mounted) return;
   final height = MediaQuery.of(context).size.height;
