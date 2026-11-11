@@ -164,78 +164,75 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
       });
 
       //
-      //  Similar Artists (or group, uploader)
+      //  Similar Artists / Group / Series 및 관련 정보 백그라운드 병렬 수집 (메인 UI 블로킹 원천 차단)
       //
-      try {
-        switch (widget.type) {
-          case ArtistType.artist:
-            similars = HentaiIndex.calculateSimilarArtists(widget.name);
-            break;
-          case ArtistType.group:
-            similars = HentaiIndex.calculateSimilarGroups(widget.name);
-            break;
-          case ArtistType.uploader:
-            similars = HentaiIndex.calculateSimilarUploaders(widget.name);
-            break;
-          case ArtistType.series:
-            similars = HentaiIndex.calculateSimilarSeries(widget.name);
-            break;
-          case ArtistType.character:
-            similars = HentaiIndex.calculateSimilarCharacter(widget.name);
-            break;
-        }
-
-        similarsAll = similars;
-        similars = similars.take(6).toList();
-
-        await querySimilars(similars, widget.type, qrs);
-      } catch (e, st) {
-        Logger.error('[ArtistInfoPage-Similars] E: $e\n$st');
-      }
-
-      if (widget.type.isCharacter || widget.type.isSeries) {
+      Future.microtask(() async {
         try {
-          if (widget.type.isCharacter) {
-            relatedCharacterOrSeriesAll =
-                HentaiIndex.calculateRelatedSeriesCharacter(widget.name);
-            relatedCOSSingleAll = HentaiIndex.getRelatedSeries(widget.name);
-          } else {
-            relatedCharacterOrSeriesAll =
-                HentaiIndex.calculateRelatedCharacterSeries(widget.name);
-            relatedCOSSingleAll = HentaiIndex.getRelatedCharacters(widget.name);
+          switch (widget.type) {
+            case ArtistType.artist:
+              similars = HentaiIndex.calculateSimilarArtists(widget.name);
+              break;
+            case ArtistType.group:
+              similars = HentaiIndex.calculateSimilarGroups(widget.name);
+              break;
+            case ArtistType.uploader:
+              similars = HentaiIndex.calculateSimilarUploaders(widget.name);
+              break;
+            case ArtistType.series:
+              similars = HentaiIndex.calculateSimilarSeries(widget.name);
+              break;
+            case ArtistType.character:
+              similars = HentaiIndex.calculateSimilarCharacter(widget.name);
+              break;
           }
-          relatedCharacterOrSeries =
-              relatedCharacterOrSeriesAll.take(6).toList();
-          relatedCOSSingle = relatedCOSSingleAll.take(6).toList();
 
-          await querySimilars(
-            relatedCharacterOrSeries,
-            widget.type,
-            qrsCharacterOrSeries,
-          );
+          similarsAll = similars;
+          similars = similars.take(6).toList();
 
-          await querySimilars(relatedCOSSingle, widget.type, qrsCOSSingle);
+          await querySimilars(similars, widget.type, qrs);
         } catch (e, st) {
-          Logger.error('[ArtistInfoPage-Related] E: $e\n$st');
+          Logger.error('[ArtistInfoPage-Similars] E: $e\n$st');
         }
-      }
 
-      if (mounted) {
-        setState(() {
-          qureyLoaded = true;
-        });
-      }
+        if (widget.type.isCharacter || widget.type.isSeries) {
+          try {
+            if (widget.type.isCharacter) {
+              relatedCharacterOrSeriesAll =
+                  HentaiIndex.calculateRelatedSeriesCharacter(widget.name);
+              relatedCOSSingleAll = HentaiIndex.getRelatedSeries(widget.name);
+            } else {
+              relatedCharacterOrSeriesAll =
+                  HentaiIndex.calculateRelatedCharacterSeries(widget.name);
+              relatedCOSSingleAll = HentaiIndex.getRelatedCharacters(widget.name);
+            }
+            relatedCharacterOrSeries =
+                relatedCharacterOrSeriesAll.take(6).toList();
+            relatedCOSSingle = relatedCOSSingleAll.take(6).toList();
+
+            await Future.wait([
+              querySimilars(
+                relatedCharacterOrSeries,
+                widget.type,
+                qrsCharacterOrSeries,
+              ),
+              querySimilars(relatedCOSSingle, widget.type, qrsCOSSingle),
+            ]);
+          } catch (e, st) {
+            Logger.error('[ArtistInfoPage-Related] E: $e\n$st');
+          }
+        }
+
+        if (mounted) {
+          setState(() {});
+        }
+
+        if (mounted) await readComments();
+      });
 
       Future.delayed(const Duration(milliseconds: 300)).then((value) {
         if (!mounted) return;
         ec.expanded = true;
         commentAreaEC.expanded = true;
-      });
-
-      Future.delayed(
-        const Duration(microseconds: 100),
-      ).then((value) async {
-        if (mounted) await readComments();
       });
     });
   }
@@ -267,9 +264,18 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
     ArtistType type,
     List<List<QueryResult>> qrs,
   ) async {
-    for (final (name, _) in similars) {
-      qrs.add(await queryDedupedArtistArticles(type, name));
-    }
+    final futures = similars.map((item) async {
+      try {
+        return await queryDedupedArtistArticles(type, item.$1)
+            .timeout(const Duration(milliseconds: 1000), onTimeout: () => <QueryResult>[]);
+      } catch (_) {
+        return <QueryResult>[];
+      }
+    });
+    final results = await Future.wait(futures);
+    qrs.clear();
+    qrs.addAll(results);
+    if (mounted) setState(() {});
   }
 
   Future<List<QueryResult>> query([bool? forceWeb, String? lang]) async {

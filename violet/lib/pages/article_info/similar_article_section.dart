@@ -25,6 +25,128 @@ class SimilarArticleSection extends StatefulWidget {
 
   const SimilarArticleSection({super.key, required this.queryResult});
 
+  /// "202 pages", 202, "202" 등 다양한 타입의 페이지 수를 안전하게 정수로 파싱합니다.
+  static int? parsePageCount(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    if (raw is String) {
+      final match = RegExp(r'\d+').firstMatch(raw);
+      if (match != null) {
+        return int.tryParse(match.group(0)!);
+      }
+    }
+    return null;
+  }
+
+  /// 작품의 태그 목록 중 장르와 캐릭터성을 가장 강력하게 특정하는 핵심 태그를 선별합니다.
+  static String? extractPrimaryGenreTag(QueryResult current) {
+    final rawTags = (current.tags() ?? '')
+        .split('|')
+        .map((e) => e.trim().toLowerCase())
+        .where((e) => e.isNotEmpty && e != 'n/a')
+        .toList();
+
+    if (rawTags.isEmpty) return null;
+
+    const nonGenreTags = <String>{
+      'rough translation',
+      'translation',
+      'translated',
+      'digital',
+      'uncensored',
+      'decensored',
+      'tankoubon',
+      'anthology',
+      'color',
+      'full color',
+      'rewrite',
+      'sample',
+      'incomplete',
+      'variant set',
+      'compilation',
+      'artbook',
+      'webtoon',
+      'comic',
+      'manga',
+      'doujinshi',
+    };
+
+    // 캐릭터성 및 장르를 강력하게 특정하는 우선 키워드 (우선순위 순)
+    const priorityKeywords = <String>[
+      'gyaru',
+      'tall girl',
+      'tomboy',
+      'yandere',
+      'tsundere',
+      'maid',
+      'milf',
+      'shota',
+      'bbm',
+      'dilf',
+      'crossdressing',
+      'femdom',
+      'dark skin',
+      'tan',
+      'netorare',
+      'ntr',
+      'cheating',
+      'incest',
+      'mind break',
+      'twins',
+      'cosplay',
+      'monster girl',
+      'elf',
+      'goth',
+      'ojousama',
+      'delinquent',
+      'teacher',
+      'schoolgirl uniform',
+      'swimsuit',
+      'bikini',
+      'cheerleader',
+      'stockings',
+      'glasses',
+      'emotionless sex',
+      'squirting',
+      'big breasts',
+      'small breasts',
+    ];
+
+    final filtered = rawTags.where((t) => !nonGenreTags.contains(t)).toList();
+    if (filtered.isEmpty) return null;
+
+    // 점수화 기반 최고 순위 태그 선정
+    String? bestTag;
+    int highestScore = -1;
+
+    for (final tag in filtered) {
+      int score = 0;
+      final cleanTag = tag.replaceFirst(RegExp(r'^(female|male):'), '');
+
+      // 우선 키워드 인덱스 기반 가산점
+      for (int i = 0; i < priorityKeywords.length; i++) {
+        if (cleanTag == priorityKeywords[i] || cleanTag.contains(priorityKeywords[i])) {
+          score += 200 - (i * 3);
+          break;
+        }
+      }
+
+      if (tag.startsWith('female:')) {
+        score += 50;
+      } else if (tag.startsWith('male:')) {
+        score += 30;
+      }
+
+      if (score > highestScore) {
+        highestScore = score;
+        bestTag = tag;
+      }
+    }
+
+    return bestTag ?? filtered.first;
+  }
+
   @override
   State<SimilarArticleSection> createState() => _SimilarArticleSectionState();
 }
@@ -80,6 +202,52 @@ class _SimilarArticleSectionState extends State<SimilarArticleSection> {
     final results = <QueryResult>[];
     final seenIds = <int>{currentId};
 
+    // -------------------------------------------------------------
+    // 1단계: Hitomi 공식 related 추천작 수집 (Hitomi 엔진의 엄선 연관작 5개)
+    // -------------------------------------------------------------
+    try {
+      final galleryInfo = await FirstPageGrouper.getGalleryInfo(currentId);
+      if (galleryInfo != null && galleryInfo['related'] is List) {
+        final relatedRaw = galleryInfo['related'] as List;
+        final relatedIds = relatedRaw
+            .map((e) => int.tryParse(e.toString()))
+            .whereType<int>()
+            .where((id) => !seenIds.contains(id))
+            .take(5)
+            .toList();
+
+        if (relatedIds.isNotEmpty) {
+          final cachedBatch = await HybridLoader.getCachedMetadataBatch(relatedIds);
+          final missingIds = <int>[];
+
+          for (final id in relatedIds) {
+            if (cachedBatch.containsKey(id)) {
+              final item = cachedBatch[id]!;
+              if (seenIds.add(item.id())) {
+                results.add(item);
+              }
+            } else {
+              missingIds.add(id);
+            }
+          }
+
+          if (missingIds.isNotEmpty) {
+            await Future.wait(
+              missingIds.map((id) async {
+                try {
+                  final item = await HybridLoader.idQueryHitomiFast(id)
+                      .timeout(const Duration(milliseconds: 1500));
+                  if (seenIds.add(item.id())) {
+                    results.add(item);
+                  }
+                } catch (_) {}
+              }),
+            );
+          }
+        }
+      }
+    } catch (_) {}
+
     // 작가 추출
     final artistStr = current.artists() ?? '';
     final artists = artistStr
@@ -88,34 +256,19 @@ class _SimilarArticleSectionState extends State<SimilarArticleSection> {
         .where((e) => e.isNotEmpty && e.toLowerCase() != 'n/a')
         .toList();
 
-    // 1단계: 동일 작가 최신작 수집 (그림체 100% 일치 - 한국어 우선)
-    if (artists.isNotEmpty) {
-      try {
-        final artistArticles = await HybridLoader.fetchArtistArticlesHybrid(
-          name: artists.first,
-          type: 'artist',
-          pageSize: 30,
-          language: 'korean',
-        );
-        for (final art in artistArticles) {
-          if (seenIds.add(art.id())) {
-            results.add(art);
-          }
-        }
-      } catch (_) {}
-    }
-
-    // 2단계: 동일 작가 작품이 6개 미만인 경우 유사 작가(Similar Artists) 화풍 매칭 (한국어 우선)
-    if (results.length < 6 && artists.isNotEmpty) {
+    // -------------------------------------------------------------
+    // 2단계: 작가가 있는 경우 - 유사 화풍 다른 작가(Similar Artists) 매칭 (타 작가 발굴)
+    // -------------------------------------------------------------
+    if (results.length < 12 && artists.isNotEmpty) {
       try {
         final similarArtists = HentaiIndex.calculateSimilarArtists(artists.first);
-        for (final (simArtist, _) in similarArtists.take(3)) {
+        for (final (simArtist, _) in similarArtists.take(2)) {
           if (results.length >= 12) break;
           try {
             final simArticles = await HybridLoader.fetchArtistArticlesHybrid(
               name: simArtist,
               type: 'artist',
-              pageSize: 6,
+              pageSize: 4,
               language: 'korean',
             );
             for (final art in simArticles) {
@@ -129,7 +282,81 @@ class _SimilarArticleSectionState extends State<SimilarArticleSection> {
       } catch (_) {}
     }
 
-    // 3단계: 작가가 없거나 여전히 부족한 경우 기존 연관 DB(related.json) 매칭
+    // -------------------------------------------------------------
+    // 3단계: 작가가 있는 경우 - 동일 작가 대표작 안배 (최대 2~3개로 캡을 씌워 타 작가 공간 보장)
+    // -------------------------------------------------------------
+    if (results.length < 12 && artists.isNotEmpty) {
+      try {
+        final artistArticles = await HybridLoader.fetchArtistArticlesHybrid(
+          name: artists.first,
+          type: 'artist',
+          pageSize: 10,
+          language: 'korean',
+        );
+        int artistAddedCount = 0;
+        for (final art in artistArticles) {
+          if (artistAddedCount >= 3) break;
+          if (seenIds.add(art.id())) {
+            results.add(art);
+            artistAddedCount++;
+            if (results.length >= 12) break;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // -------------------------------------------------------------
+    // 4단계: 핵심 캐릭터·장르 태그 기반 실시간 한국어 작품 수집 (타 작가 유사작 보강의 핵심!)
+    // -------------------------------------------------------------
+    if (results.length < 12) {
+      try {
+        final primaryTag = SimilarArticleSection.extractPrimaryGenreTag(current);
+        if (primaryTag != null && primaryTag.isNotEmpty) {
+          final neededCount = 12 - results.length;
+          final tagIds = await HybridLoader.fetchGalleryIdsForQuery(
+            query: primaryTag,
+            page: 1,
+            pageSize: neededCount + 10,
+            targetLang: 'korean',
+          ).timeout(const Duration(milliseconds: 2500));
+
+          final validIds = tagIds.where((id) => !seenIds.contains(id)).take(neededCount).toList();
+          if (validIds.isNotEmpty) {
+            final cachedBatch = await HybridLoader.getCachedMetadataBatch(validIds);
+            final missingIds = <int>[];
+
+            for (final id in validIds) {
+              if (cachedBatch.containsKey(id)) {
+                final item = cachedBatch[id]!;
+                if (seenIds.add(item.id())) {
+                  results.add(item);
+                }
+              } else {
+                missingIds.add(id);
+              }
+            }
+
+            if (missingIds.isNotEmpty) {
+              await Future.wait(
+                missingIds.map((id) async {
+                  try {
+                    final item = await HybridLoader.idQueryHitomiFast(id)
+                        .timeout(const Duration(milliseconds: 1500));
+                    if (seenIds.add(item.id())) {
+                      results.add(item);
+                    }
+                  } catch (_) {}
+                }),
+              );
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // -------------------------------------------------------------
+    // 5단계: 작가가 없거나 여전히 부족한 경우 기존 연관 DB(related.json) 최종 폴백
+    // -------------------------------------------------------------
     if (results.length < 6) {
       try {
         await Related.ensureLoaded();
@@ -140,7 +367,6 @@ class _SimilarArticleSectionState extends State<SimilarArticleSection> {
               .toList();
 
           if (relatedIds.isNotEmpty) {
-            // 3중 하이브리드 복원 (로컬DB -> 디스크/세션 캐시 -> 온라인 페치)
             final cachedBatch = await HybridLoader.getCachedMetadataBatch(relatedIds);
             final stillMissing = <int>[];
 
@@ -173,7 +399,17 @@ class _SimilarArticleSectionState extends State<SimilarArticleSection> {
       } catch (_) {}
     }
 
-    return results;
+    // 한국어 작품 최우선 정렬 및 최신순 정렬 (사용자 원칙: "한국어 작품을 기본으로 보여줄 것")
+    results.sort((a, b) {
+      final isKoreanA = HybridLoader.normalizeLanguage(a.language()?.toString() ?? '') == 'korean';
+      final isKoreanB = HybridLoader.normalizeLanguage(b.language()?.toString() ?? '') == 'korean';
+      if (isKoreanA != isKoreanB) {
+        return isKoreanA ? -1 : 1;
+      }
+      return b.id().compareTo(a.id());
+    });
+
+    return results.take(12).toList();
   }
 
   @override
@@ -224,7 +460,8 @@ class _SimilarArticleSectionState extends State<SimilarArticleSection> {
               children: _variants.map((v) {
                 final isCurrent = v.id() == widget.queryResult.id();
                 final langName = _getReadableLanguage(v.language()?.toString() ?? '');
-                final pageCount = v.files() != null && v.files()! > 0 ? '${v.files()}p' : '';
+                final count = SimilarArticleSection.parsePageCount(v.files());
+                final pageCount = count != null && count > 0 ? '${count}p' : '';
 
                 return Padding(
                   padding: const EdgeInsets.only(right: 8.0),

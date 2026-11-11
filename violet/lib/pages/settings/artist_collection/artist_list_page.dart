@@ -6,6 +6,7 @@ import 'package:html_unescape/html_unescape_small.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:violet/algorithm/distance.dart';
+import 'package:violet/component/hitomi/hybrid_loader.dart';
 import 'package:violet/component/index.dart';
 import 'package:violet/component/query_translate.dart';
 import 'package:violet/database/query.dart';
@@ -34,14 +35,43 @@ class ArtistListPage extends StatelessWidget {
       return HtmlUnescape().convert(origin.trim()).split(_chDot)[0];
     }
 
-    final postfix = e.trim().toLowerCase().replaceAll(' ', '_');
-    final queryString = translate2query(
-      '${isLast ? '' : 'artist:'}$postfix ${Settings.includeTags.value} ${Settings.serializedExcludeTags}',
-    );
+    String classification;
+    String name;
 
-    final queryManager = QueryManager.queryPagination(queryString, 10);
+    if (isLast) {
+      final tokens = e.split(':');
+      classification = tokens.first;
+      name = tokens.last;
+    } else {
+      classification = 'artist';
+      name = e;
+    }
 
-    final queryResults = await queryManager.next();
+    List<QueryResult> queryResults = [];
+
+    // 1. 온라인 / 하이브리드 캐시 최우선 조회 (로컬 DB 비의존 초고속 로딩)
+    try {
+      final webResults = await HybridLoader.fetchArtistArticlesHybrid(
+        name: name,
+        type: classification,
+        pageSize: 6,
+      ).timeout(const Duration(milliseconds: 1500), onTimeout: () => <QueryResult>[]);
+      if (webResults.isNotEmpty) {
+        queryResults = webResults;
+      }
+    } catch (_) {}
+
+    // 2. 부재 시 로컬 DB 조회
+    if (queryResults.isEmpty) {
+      try {
+        final postfix = name.trim().toLowerCase().replaceAll(' ', '_');
+        final queryString = translate2query(
+          '$classification:$postfix ${Settings.includeTags.value} ${Settings.serializedExcludeTags}',
+        );
+        final queryManager = QueryManager.queryPagination(queryString, 10);
+        queryResults = await queryManager.next();
+      } catch (_) {}
+    }
     final filtered = <QueryResult>[];
     final titles = <String>[];
 
@@ -162,7 +192,7 @@ class ArtistListPage extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: <Widget>[
                           Text(
-                            articleCount != null
+                            articleCount > 0
                                 ? ' $artist ($articleCount)'
                                 : ' $artist',
                             style: const TextStyle(fontSize: 17),
