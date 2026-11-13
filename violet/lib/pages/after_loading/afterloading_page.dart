@@ -484,7 +484,7 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
                 children: <Widget>[
                   InkWell(
                     child: Image.asset(
-                      'assets/images/logo-${Settings.majorColor.value.name}.png',
+                      'assets/images/logo_transparent.png',
                       width: 100,
                       height: 100,
                     ),

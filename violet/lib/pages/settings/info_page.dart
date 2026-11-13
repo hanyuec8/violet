@@ -36,7 +36,11 @@ class _InfoPageState extends State<InfoPage> {
               _buildTitle(),
               // Container(height: 30),
               _buildItem(
-                Image.asset('assets/images/logo.png', width: 45, height: 45),
+                Image.asset(
+                  'assets/images/logo_transparent.png',
+                  width: 45,
+                  height: 45,
+                ),
                 // 'Violet History',
                 // 'What is violet?',
                 'Violet이란?',
@@ -160,7 +164,7 @@ class _InfoPageState extends State<InfoPage> {
           children: <Widget>[
             InkWell(
               child: Image.asset(
-                'assets/images/logo.png',
+                'assets/images/logo_transparent.png',
                 width: 100,
                 height: 100,
               ),

@@ -4,7 +4,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:android_intent_plus/android_intent.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 // import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:country_pickers/country.dart';
@@ -17,7 +16,6 @@ import 'package:material_design_icons_flutter/material_design_icons_flutter.dart
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:violet/database/database.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:violet/component/index.dart';
@@ -26,7 +24,6 @@ import 'package:violet/component/hitomi/tag_translate.dart';
 import 'package:violet/component/hitomi/artists.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/database/user/record.dart';
-import 'package:violet/downloader/isolate_downloader.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/log/act_log.dart';
 import 'package:violet/log/log.dart';
@@ -85,25 +82,6 @@ class _SplashPageState extends State<SplashPage> {
     'jp': '18MB',
     'zh': '9MB',
   };
-
-  Future<void> checkAuth() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool('checkauthalready') == null) {
-      await prefs.setBool('checkauthalready', true);
-      if (Platform.isAndroid &&
-          await Permission.manageExternalStorage.request() ==
-              PermissionStatus.denied) {
-        if (!mounted) return;
-        await showOkDialog(context, '파일 권한을 허용하지 않으면 다운로드 기능을 이용할 수 없습니다.');
-      }
-
-      if (Platform.isAndroid) {
-        await const AndroidIntent(
-          action: 'ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION',
-        ).launch();
-      }
-    }
-  }
 
   startTime() async {
     var duration = const Duration(milliseconds: 100);
@@ -174,8 +152,6 @@ class _SplashPageState extends State<SplashPage> {
       // Population은 백그라운드에서 비동기 로딩하여 스플래시 지연을 없앰
       unawaited(Population.ensureLoaded());
       // Related(20MB JSON)는 작품 상세페이지에서 필요할 때 온디맨드로 로드됨
-      _changeMessage('init downloader...');
-      await IsolateDownloader.getInstance();
       _changeMessage('init api...');
       VioletServerV2.init();
 
@@ -305,7 +281,7 @@ class _SplashPageState extends State<SplashPage> {
               top: showFirst ? 130 : height / 2 - 50,
               left: width / 2 - 50,
               child: Image.asset(
-                'assets/images/logo-${Settings.majorColor.value.name}.png',
+                'assets/images/logo_transparent.png',
                 width: 100,
                 height: 100,
               ),

@@ -8,7 +8,6 @@ import 'dart:isolate';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:violet/database/query.dart';
-import 'package:violet/database/user/download.dart';
 
 class Population {
   static Map<int, int>? _population;
@@ -74,30 +73,7 @@ class Population {
     qr.sort((x, y) => compare(x, y));
   }
 
-  static void sortByPopulationDownloadItem(List<DownloadItemModel> qr) {
-    if (_population == null) {
-      ensureLoaded();
-      return;
-    }
-    qr.sort((x, y) => compareDownloadItem(x, y));
-  }
-
   static int compare(QueryResult a, QueryResult b) {
-    if (_population == null) return 0;
-    // newest article always displayed on the bottom
-    if (!_population!.containsKey(a.id())) {
-      // a == b
-      if (!_population!.containsKey(b.id())) return 0;
-      // a > b
-      return 1;
-    }
-    // a < b
-    if (!_population!.containsKey(b.id())) return -1;
-
-    return _population![a.id()]!.compareTo(_population![b.id()]!);
-  }
-
-  static int compareDownloadItem(DownloadItemModel a, DownloadItemModel b) {
     if (_population == null) return 0;
     // newest article always displayed on the bottom
     if (!_population!.containsKey(a.id())) {

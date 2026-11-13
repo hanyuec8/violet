@@ -8,13 +8,10 @@ import 'package:expandable/expandable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:violet/database/user/download.dart';
 import 'package:violet/database/user/record.dart';
 import 'package:violet/locale/locale.dart';
 import 'package:violet/model/article_info.dart';
-import 'package:violet/other/dialogs.dart';
 import 'package:violet/pages/article_info/article_source_badge.dart';
 import 'package:violet/pages/article_info/preview_area.dart';
 import 'package:violet/pages/article_info/similar_article_section.dart';
@@ -22,10 +19,8 @@ import 'package:violet/pages/article_info/simple_info.dart';
 import 'package:violet/pages/article_info/tag_info_area.dart';
 export 'package:violet/pages/article_info/tag_info_area.dart';
 import 'package:violet/pages/common/toast.dart';
-import 'package:violet/pages/download/download_page.dart';
 import 'package:violet/pages/viewer/viewer_page.dart';
 import 'package:violet/pages/viewer/viewer_page_provider.dart';
-import 'package:violet/script/script_manager.dart';
 import 'package:violet/server/violet_v2.dart';
 import 'package:violet/settings/settings.dart';
 import 'package:violet/style/palette.dart';
@@ -164,10 +159,10 @@ class ArticleInfoPage extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Settings.majorColor.value.withAlpha(230),
               ),
-              onPressed: () async => await downloadButtonEvent(context, data),
+              onPressed: translateButtonEvent,
               child: buttonInner(
-                MdiIcons.download,
-                Translations.instance!.trans('download'),
+                MdiIcons.translate,
+                '번역',
               ),
             ),
             const SizedBox(width: 4.0),
@@ -190,41 +185,12 @@ class ArticleInfoPage extends StatelessWidget {
     );
   }
 
-  downloadButtonEvent(context, data) async {
-    if (Platform.isAndroid &&
-        !Settings.useInnerStorage.value &&
-        !await Permission.manageExternalStorage.isGranted) {
-      if (await Permission.manageExternalStorage.request() ==
-          PermissionStatus.denied) {
-        await showOkDialog(
-          context,
-          'If you do not allow file permissions, you cannot continue :(',
-        );
-        return;
-      }
-    }
-    if ((await Download.getInstance()).isDownloadedArticle(
-      data.queryResult.id(),
-      false,
-    )) {
-      if (await showYesNoDialog(context, '이미 다운로드된 작품입니다. 그래도 다운로드할까요?') !=
-          true) {
-        return;
-      }
-    }
-
+  void translateButtonEvent() {
     showToast(
-      icon: Icons.download,
+      icon: Icons.translate,
       level: ToastLevel.check,
-      message:
-          '${data.queryResult.id()}${Translations.instance!.trans('addtodownloadqueue')}',
+      message: '추후 업데이트 예정',
     );
-
-    await ScriptManager.refresh();
-
-    await DownloadPageManager.appendTaskFromQueryResult(data.queryResult);
-    if (!context.mounted) return;
-    Navigator.pop(context);
   }
 
   Future<void> readButtonEvent(BuildContext context, ArticleInfo data, [int? page]) async {

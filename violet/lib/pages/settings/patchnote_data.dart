@@ -21,6 +21,21 @@ class PatchModel {
 
 final patches = [
   PatchModel(
+    dateTime: DateTime(2026, 11, 14),
+    version: '2.1.3 Patch',
+    isMajor: true,
+    contents: [
+      'Core: migrated Nozomi parser and dHash similarity engine to Rust FFI',
+      'Performance & Stability: fixed network timeouts, memory/resource leaks, and offloaded clustering to background isolate',
+      'UI: updated app launcher/in-app logos and replaced legacy download feature with upcoming translation button',
+    ],
+    contentsKorean: [
+      '코어: Nozomi 파서 및 dHash 이미지 유사도 엔진을 Rust FFI로 전환하여 처리 속도 대폭 개선',
+      '안정성 및 성능: 네트워크 타임아웃·리소스 누수 수정, 대용량 사전 에셋 분리 및 백그라운드 캐싱 최적화',
+      'UI: 신규 앱 아이콘·로고 적용 및 기존 다운로드 기능을 제거하고 번역 버튼(추후 업데이트 예정)으로 개편',
+    ],
+  ),
+  PatchModel(
     dateTime: DateTime(2026, 11, 8),
     version: '1.35.3 Patch',
     contents: [

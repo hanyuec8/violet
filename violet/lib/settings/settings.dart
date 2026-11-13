@@ -3,17 +3,9 @@
 
 import 'dart:io';
 
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:violet/database/query.dart';
-import 'package:violet/database/user/download.dart';
-import 'package:violet/log/log.dart';
-import 'package:violet/platform/android_external_storage_directory.dart';
 import 'package:violet/platform/misc.dart';
 import 'package:violet/settings/device_type.dart';
 
@@ -43,12 +35,6 @@ class Settings {
     SearchResultType.values,
     SearchResultType.ultra,
   );
-  static final downloadResultType = EnumSettingItem<DownloadResultType>(
-    'downloadResultType',
-    DownloadResultType.values,
-    DownloadResultType.detail,
-  );
-  static final downloadAlignType = SettingItem<int>('downloadAlignType', 0);
   static final themeFlat = SettingItem<bool>('themeFlat', false);
   static final themeBlack = SettingItem<bool>('themeBlack', false);
   static final useSystemTheme = SettingItem<bool>('useSystemTheme', true);
@@ -353,92 +339,6 @@ class Settings {
     true,
   );
 
-  // Download Options
-  static final threadCount = SettingItem<int>('thread_count', 4);
-
-  static final useInnerStorage = FutureSettingItem<bool>(
-    'useinnerstorage',
-    () async {
-      if (Platform.isAndroid) {
-        final androidInfo = await DeviceInfoPlugin().androidInfo;
-        return androidInfo.version.sdkInt >= 30;
-      }
-      return Platform.isIOS;
-    },
-  );
-  static final downloadBasePath = FutureSettingItem<String>(
-    'downloadbasepath',
-    () async {
-      if (Platform.isAndroid) {
-        final String path = await AndroidExternalStorageDirectory.instance
-            .getExternalStorageDirectory();
-        var downloadBasePath = join(path, '.violet');
-
-        final androidInfo = await DeviceInfoPlugin().androidInfo;
-        final sdkInt = androidInfo.version.sdkInt;
-
-        if (sdkInt >= 30 && prefs.getBool('android30downpath') == null) {
-          await prefs.setBool('android30downpath', true);
-          downloadBasePath = join(path, '.violet');
-        } else if (sdkInt < 30 &&
-            downloadBasePath == join(path, 'Violet') &&
-            prefs.getBool('downloadbasepathcc1') == null) {
-          downloadBasePath = join(path, '.violet');
-          await prefs.setBool('downloadbasepathcc1', true);
-
-          try {
-            if (await Permission.manageExternalStorage.isGranted) {
-              var prevDir = Directory(join(path, 'Violet'));
-              if (await prevDir.exists()) {
-                await prevDir.rename(join(path, '.violet'));
-              }
-
-              var downloaded = await (await Download.getInstance())
-                  .getDownloadItems();
-              for (var download in downloaded) {
-                Map<String, dynamic> result = Map<String, dynamic>.from(
-                  download.result,
-                );
-                if (download.files() != null) {
-                  result['Files'] = download.files()!.replaceAll(
-                    '/Violet/',
-                    '/.violet/',
-                  );
-                }
-                if (download.path() != null) {
-                  result['Path'] = download.path()!.replaceAll(
-                    '/Violet/',
-                    '/.violet/',
-                  );
-                }
-                download.result = result;
-                await download.update();
-              }
-            }
-          } catch (e, st) {
-            Logger.error(
-              '[Settings] E: $e\n'
-              '$st',
-            );
-            FirebaseCrashlytics.instance.recordError(e, st);
-          }
-        }
-        return downloadBasePath;
-      } else if (Platform.isIOS) {
-        return 'not supported';
-      } else if (Platform.isMacOS) {
-        return await _defaultMacOSDownloadPath();
-      } else {
-        // Desktop
-        return join(dirname(Platform.resolvedExecutable), 'download');
-      }
-    },
-  );
-  static final downloadRule = SettingItem<String>(
-    'downloadrule',
-    '%(extractor)s/%(id)s/%(file)s.%(ext)s',
-  );
-
   static final searchMessageAPI = SettingItem<String>(
     'searchmessageapi',
     'https://koromo.cc/api/search/msg',
@@ -583,10 +483,6 @@ class Settings {
       await prefs.setString('routingrule', routingRule.join('|'));
     }
 
-    await useInnerStorage.load();
-    await downloadBasePath.load();
-    await _migrateMacOSDownloadPath();
-
     // searchExpunged_v2: 이로도리/저작권 삭제(Expunged) 작품 검색 기본 활성화 보장
     if (prefs.getBool('searchExpunged_v2') == null) {
       await prefs.setBool('searchExpunged_v2', true);
@@ -624,41 +520,6 @@ class Settings {
       await prefs.setString(key, nn);
     }
     return nn;
-  }
-
-  static Future<String> getDefaultDownloadPath() async {
-    if (Platform.isMacOS) {
-      return _defaultMacOSDownloadPath();
-    }
-    if (!Platform.isAndroid) {
-      return downloadBasePath.value;
-    }
-
-    var androidInfo = await DeviceInfoPlugin().androidInfo;
-    var sdkInt = androidInfo.version.sdkInt;
-
-    if (sdkInt >= 30) {
-      final ext = await AndroidExternalStorageDirectory.instance
-          .getExternalStorageDirectory();
-      return join(ext, '.violet');
-    }
-
-    return downloadBasePath.value;
-  }
-
-  static Future<String> _defaultMacOSDownloadPath() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return join(dir.path, 'download');
-  }
-
-  static Future<void> _migrateMacOSDownloadPath() async {
-    if (!Platform.isMacOS) return;
-
-    final appBundlePath = dirname(Platform.resolvedExecutable);
-    if (downloadBasePath.value == join(appBundlePath, 'download') ||
-        downloadBasePath.value.startsWith('$appBundlePath/')) {
-      await downloadBasePath.setValue(await _defaultMacOSDownloadPath());
-    }
   }
 
   static Future<void> setMajorColor(Color color) async {
@@ -836,24 +697,6 @@ extension SearchResultTypeExtension on SearchResultType {
     switch (this) {
       case SearchResultType.threeGrid:
       case SearchResultType.twoGrid:
-        return true;
-
-      default:
-        return false;
-    }
-  }
-}
-
-enum DownloadResultType { threeGrid, twoGrid, bigLine, detail }
-
-extension DownloadResultTypeExtension on DownloadResultType {
-  bool get isThreeGrid => this == DownloadResultType.threeGrid;
-  bool get isDetail => this == DownloadResultType.detail;
-
-  bool get isGridLike {
-    switch (this) {
-      case DownloadResultType.threeGrid:
-      case DownloadResultType.twoGrid:
         return true;
 
       default:

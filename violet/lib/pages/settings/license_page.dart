@@ -49,7 +49,7 @@ class VioletLicensePage extends StatelessWidget {
                     builder: (context) => LicensePage(
                       applicationName: 'Project Violet\n',
                       applicationIcon: Image.asset(
-                        'assets/images/logo.png',
+                        'assets/images/logo_transparent.png',
                         width: 100,
                         height: 100,
                       ),
