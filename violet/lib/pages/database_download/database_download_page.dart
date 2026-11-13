@@ -80,7 +80,11 @@ class DataBaseDownloadPageState extends State<DataBaseDownloadPage> {
       Published text,
       Files integer,
       Class text,
-      ExistOnHitomi integer);
+      ExistOnHitomi integer,
+      Series text,
+      PublishedEH text,
+      Thumbnail text,
+      URL text);
       ''');
   }
 
@@ -275,11 +279,14 @@ class DataBaseDownloadPageState extends State<DataBaseDownloadPage> {
       '${Settings.includeTags.value} ${Settings.serializedExcludeTags}',
       filter: false,
     );
-    await (await DataBaseManager.getInstance()).delete(
-      'HitomiColumnModel',
-      'NOT (${sql.substring(sql.indexOf('WHERE') + 6)})',
-      [],
-    );
+    final whereIdx = sql.indexOf('WHERE');
+    if (whereIdx != -1) {
+      await (await DataBaseManager.getInstance()).delete(
+        'HitomiColumnModel',
+        'NOT (${sql.substring(whereIdx + 6)})',
+        [],
+      );
+    }
   }
 
   void insert(Map<String, int> map, dynamic qr) {
@@ -485,29 +492,30 @@ class DataBaseDownloadPageState extends State<DataBaseDownloadPage> {
         final subdir = Platform.isAndroid ? '/data' : '';
         final directory = await getApplicationDocumentsDirectory();
         final path1 = File('${directory.path}$subdir/index.json');
-        path1.writeAsString(jsonEncode(index));
-
         final path2 = File('${directory.path}$subdir/tag-artist.json');
-        path2.writeAsString(jsonEncode(tagArtist));
         final path3 = File('${directory.path}$subdir/tag-group.json');
-        path3.writeAsString(jsonEncode(tagGroup));
         final path4 = File('${directory.path}$subdir/tag-index.json');
-        path4.writeAsString(jsonEncode(tagIndex));
         final path5 = File('${directory.path}$subdir/tag-uploader.json');
-        path5.writeAsString(jsonEncode(tagUploader));
         final path6 = File('${directory.path}$subdir/tag-series.json');
-        path6.writeAsString(jsonEncode(tagSeries));
         final path7 = File('${directory.path}$subdir/tag-character.json');
-        path7.writeAsString(jsonEncode(tagCharacter));
-
         final path8 = File('${directory.path}$subdir/character-series.json');
-        path8.writeAsString(jsonEncode(characterSeries));
         final path9 = File('${directory.path}$subdir/series-character.json');
-        path9.writeAsString(jsonEncode(seriesCharacter));
         final path10 = File('${directory.path}$subdir/character-character.json');
-        path10.writeAsString(jsonEncode(characterCharacter));
         final path11 = File('${directory.path}$subdir/series-series.json');
-        path11.writeAsString(jsonEncode(seriesSeries));
+
+        await Future.wait([
+          path1.writeAsString(jsonEncode(index)),
+          path2.writeAsString(jsonEncode(tagArtist)),
+          path3.writeAsString(jsonEncode(tagGroup)),
+          path4.writeAsString(jsonEncode(tagIndex)),
+          path5.writeAsString(jsonEncode(tagUploader)),
+          path6.writeAsString(jsonEncode(tagSeries)),
+          path7.writeAsString(jsonEncode(tagCharacter)),
+          path8.writeAsString(jsonEncode(characterSeries)),
+          path9.writeAsString(jsonEncode(seriesCharacter)),
+          path10.writeAsString(jsonEncode(characterCharacter)),
+          path11.writeAsString(jsonEncode(seriesSeries)),
+        ]);
 
         break;
       }

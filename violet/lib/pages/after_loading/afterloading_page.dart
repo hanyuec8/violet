@@ -1,8 +1,6 @@
 // This source code is a part of Project Violet.
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
-// ignore_for_file: use_build_context_synchronously
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -68,8 +66,11 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
     }
 
     Future.delayed(const Duration(milliseconds: 200)).then((value) async {
+      if (!mounted) return;
       await UpdateManager.updateCheck(context);
+      if (!mounted) return;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
         await showPatchNotePromptIfNeeded(context);
       });
     });
@@ -93,6 +94,7 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
         if (Settings.useLockScreen.value &&
             Settings.useSecureMode.value &&
             !_alreadyLocked) {
+          if (!mounted) return;
           _alreadyLocked = true;
           Navigator.of(context)
               .push(
@@ -554,6 +556,7 @@ class AfterLoadingPageState extends State<AfterLoadingPage>
             await PlatformMiscMethods.instance.finishMainActivity();
           }
 
+          if (!context.mounted) return;
           Navigator.of(context).pop();
         } else {
           _lastPopAt = now;

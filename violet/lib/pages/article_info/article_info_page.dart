@@ -203,14 +203,6 @@ class ArticleInfoPage extends StatelessWidget {
         return;
       }
     }
-    if (!DownloadPageManager.downloadPageLoaded) {
-      showToast(
-        level: ToastLevel.warning,
-        message: 'You need to open the download tab!',
-      );
-      return;
-    }
-
     if ((await Download.getInstance()).isDownloadedArticle(
       data.queryResult.id(),
       false,
@@ -230,7 +222,8 @@ class ArticleInfoPage extends StatelessWidget {
 
     await ScriptManager.refresh();
 
-    DownloadPageManager.taskFromQueryResultController!.add(data.queryResult);
+    await DownloadPageManager.appendTaskFromQueryResult(data.queryResult);
+    if (!context.mounted) return;
     Navigator.pop(context);
   }
 

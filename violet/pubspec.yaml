@@ -101,7 +101,6 @@ dependencies:
   intl: ^0.19.0
   kdtree: ^0.2.0
   material_design_icons_flutter: 5.0.6595
-  mdi: ^5.0.0-nullsafety.0
   modal_bottom_sheet: ^3.0.0-pre
   open_file: ^3.5.10
   path:
@@ -125,7 +124,6 @@ dependencies:
   # wakelock: ^0.6.2
   webview_flutter: ^4.10.0
   collection: ^1.16.0
-  octo_image: ^2.0.0
   rust_lib_violet:
     path: rust_builder
   flutter_rust_bridge: 2.11.1
@@ -179,6 +177,7 @@ flutter:
 
     - assets/icons/pixiv.ico
     - assets/database/expunged.db
+    - assets/artists_collection.json
 
     - shorebird.yaml
 

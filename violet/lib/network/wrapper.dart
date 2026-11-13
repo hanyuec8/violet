@@ -5,7 +5,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:http/http.dart';
 import 'package:rhttp/rhttp.dart';
 import 'package:violet/log/log.dart';
 import 'package:violet/settings/settings.dart';
@@ -21,6 +20,65 @@ class HttpWrapper {
   static Semaphore throttlerExHentai = Semaphore(maxCount: 1);
   static Semaphore throttlerEHentai = Semaphore(maxCount: 4);
   static Map<String, http.Response> cacheResponse = <String, http.Response>{};
+
+  static const int _maxCacheEntries = 200;
+
+  static Future<RhttpCompatibleClient>? _http2ClientFuture;
+  static Future<RhttpCompatibleClient>? _http3ClientFuture;
+
+  static Future<RhttpCompatibleClient> _createClient(
+    ClientSettings settings,
+    void Function() onError,
+  ) async {
+    try {
+      return await RhttpCompatibleClient.create(settings: settings);
+    } catch (_) {
+      onError();
+      rethrow;
+    }
+  }
+
+  static Future<RhttpCompatibleClient> getHttp2Client() {
+    return _http2ClientFuture ??= _createClient(
+      const ClientSettings(httpVersionPref: HttpVersionPref.http2),
+      () => _http2ClientFuture = null,
+    );
+  }
+
+  static Future<RhttpCompatibleClient> getHttp3Client() {
+    return _http3ClientFuture ??= _createClient(
+      const ClientSettings(httpVersionPref: HttpVersionPref.http3),
+      () => _http3ClientFuture = null,
+    );
+  }
+
+  static Future<void> disposeClients() async {
+    final http2Future = _http2ClientFuture;
+    final http3Future = _http3ClientFuture;
+    _http2ClientFuture = null;
+    _http3ClientFuture = null;
+
+    if (http2Future != null) {
+      try {
+        (await http2Future).close();
+      } catch (_) {}
+    }
+    if (http3Future != null) {
+      try {
+        (await http3Future).close();
+      } catch (_) {}
+    }
+  }
+
+  static void _putCache(String url, http.Response response) {
+    if (cacheResponse.containsKey(url)) {
+      return;
+    }
+    cacheResponse[url] = response;
+    while (cacheResponse.length > _maxCacheEntries) {
+      cacheResponse.remove(cacheResponse.keys.first);
+    }
+  }
 }
 
 bool _isScriptUrl(String url) {
@@ -74,7 +132,7 @@ Future<http.Response> post(
   Encoding? encoding,
 }) async {
   Logger.info('[Http Request] POST: $url');
-  var res = await http.post(
+  final res = await http.post(
     Uri.parse(url),
     headers: headers,
     body: body,
@@ -100,72 +158,63 @@ Future<http.Response> _ehentaiGet(
       : HttpWrapper.throttlerEHentai;
 
   final release = await throttler.acquire();
+  try {
+    if (HttpWrapper.cacheResponse.containsKey(url)) {
+      return HttpWrapper.cacheResponse[url]!;
+    }
 
-  if (HttpWrapper.cacheResponse.containsKey(url)) {
-    throttler.release();
-    return HttpWrapper.cacheResponse[url]!;
-  }
+    Logger.info('[Http Request] GET: $url');
+    final effectiveTimeout = timeout ?? const Duration(seconds: 3);
+    final uri = Uri.parse(url);
+    var retry = 0;
 
-  Logger.info('[Http Request] GET: $url');
-  var retry = 0;
+    while (true) {
+      var isTimeout = false;
+      final client = await HttpWrapper.getHttp3Client();
+      http.Response res;
 
-  while (true) {
-    var timeout = false;
-
-    final client = await RhttpCompatibleClient.create(
-      settings: const ClientSettings(httpVersionPref: HttpVersionPref.http3),
-    );
-
-    http.Response response;
-
-    try {
-      final sent = client.get(Uri.parse(url), headers: headers);
-      if (!Settings.ignoreTimeout.value) {
-        sent.timeout(
-          const Duration(seconds: 3),
-          onTimeout: () {
-            timeout = true;
-            throw TimeoutException('Timeout error');
-          },
+      try {
+        Future<http.Response> sent = client.get(uri, headers: headers);
+        if (!Settings.ignoreTimeout.value) {
+          sent = sent.timeout(
+            effectiveTimeout,
+            onTimeout: () {
+              isTimeout = true;
+              throw TimeoutException('Timeout error', effectiveTimeout);
+            },
+          );
+        }
+        res = await sent;
+      } catch (e, st) {
+        Logger.error(
+          '[Http Request] GET: $url\n'
+          'E:$e\n'
+          '$st',
         );
+        final isRetryable =
+            isTimeout || e.toString().contains('Connection reset by peer');
+        if (!isRetryable || retry > 10) {
+          rethrow;
+        }
+        retry++;
+        Logger.info('[Http Request] GETS: $url, $retry');
+        continue;
       }
-      response = await sent;
-    } catch (e, st) {
-      Logger.error(
-        '[Http Request] GET: $url\n'
-        'E:$e\n'
-        '$st',
-      );
-      release.call();
-      if (!(timeout || e.toString().contains('Connection reset by peer')) ||
-          (timeout && retry > 10)) {
-        rethrow;
+
+      if (res.statusCode != 200 && res.statusCode != 206) {
+        Logger.warning('[Http Response] CODE: ${res.statusCode}, GET: $url');
       }
-      response = http.Response('', 200);
+
+      Logger.info('[Http Request] GETS: $url');
+
+      if (res.statusCode == 200) {
+        HttpWrapper._putCache(url, res);
+      }
+
+      return res;
     }
-
-    final res = response;
-
-    retry++;
-
-    if (timeout) {
-      if (retry > 3) release.call();
-      Logger.info('[Http Request] GETS: $url, $retry');
-      continue;
-    }
-
-    if (res.statusCode != 200 && res.statusCode != 206) {
-      Logger.warning('[Http Response] CODE: ${res.statusCode}, GET: $url');
-    }
-
-    Logger.info('[Http Request] GETS: $url');
-
-    if (!HttpWrapper.cacheResponse.containsKey(url) && res.statusCode == 200) {
-      HttpWrapper.cacheResponse[url] = res;
-    }
-
+  } finally {
     release.call();
-    return res;
   }
 }
 
@@ -180,25 +229,20 @@ Future<http.Response> _scriptGet(
     return HttpWrapper.cacheResponse[url]!;
   }
 
-  Response res;
-  if (timeout == null) {
-    final client = await RhttpCompatibleClient.create(
-      settings: const ClientSettings(httpVersionPref: HttpVersionPref.http2),
-    );
+  final client = await HttpWrapper.getHttp2Client();
+  final uri = Uri.parse(url);
+  http.Response res;
 
-    res = await client.get(Uri.parse(url), headers: headers);
+  if (timeout == null) {
+    res = await client.get(uri, headers: headers);
   } else {
-    bool isTimeout = false;
+    var isTimeout = false;
     var retry = 0;
     do {
       isTimeout = false;
-
-      final client = await RhttpCompatibleClient.create(
-        settings: const ClientSettings(httpVersionPref: HttpVersionPref.http2),
-      );
-      final sent = client.get(Uri.parse(url), headers: headers);
+      Future<http.Response> sent = client.get(uri, headers: headers);
       if (!Settings.ignoreTimeout.value) {
-        sent.timeout(
+        sent = sent.timeout(
           timeout,
           onTimeout: () {
             isTimeout = true;
@@ -215,10 +259,8 @@ Future<http.Response> _scriptGet(
     Logger.warning('[Http Response] CODE: ${res.statusCode}, GET: $url');
   }
 
-  if (!HttpWrapper.cacheResponse.containsKey(url) &&
-      res.statusCode == 200 &&
-      res.body.trim().isNotEmpty) {
-    HttpWrapper.cacheResponse[url] = res;
+  if (res.statusCode == 200 && res.body.trim().isNotEmpty) {
+    HttpWrapper._putCache(url, res);
   }
 
   return res;

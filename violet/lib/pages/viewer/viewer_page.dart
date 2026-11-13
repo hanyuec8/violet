@@ -45,6 +45,7 @@ class _ViewerPageState extends State<ViewerPage> {
   late DateTime _startsTime, _inactivateTime;
   late LifecycleEventHandler _lifecycleEventHandler;
   Timer? _nextPageTimer;
+  StreamSubscription? _volumeSub;
   int _inactivateSeconds = 0;
 
   @override
@@ -153,6 +154,7 @@ class _ViewerPageState extends State<ViewerPage> {
   void dispose() {
     _clearImageCache();
     WidgetsBinding.instance.removeObserver(_lifecycleEventHandler);
+    _volumeSub?.cancel();
     _exitFullScreen();
 
     ViewerContext.pop();
@@ -205,7 +207,7 @@ class _ViewerPageState extends State<ViewerPage> {
     );
 
     if (Platform.isAndroid) {
-      const EventChannel(
+      _volumeSub = const EventChannel(
         'xyz.project.violet/volume',
       ).receiveBroadcastStream().listen((event) {
         if (event is String) {

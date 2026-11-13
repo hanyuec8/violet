@@ -15,8 +15,9 @@ pub fn greet(name: String) -> String {
 }
 
 pub async fn decompress_7z(src: String, dest: String) {
-    sevenz_rust::decompress_file_with_extract_fn(src, dest, to_parent_entry_extract_fn)
-        .expect("complete");
+    if let Err(e) = sevenz_rust::decompress_file_with_extract_fn(&src, &dest, to_parent_entry_extract_fn) {
+        eprintln!("[Rust decompress_7z] Decompression failed: {e}");
+    }
 }
 
 #[cfg(test)]

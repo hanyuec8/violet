@@ -55,6 +55,28 @@ class DownloadPageManager {
   static bool downloadPageLoaded = false;
   static StreamController<String>? taskController;
   static StreamController<QueryResult>? taskFromQueryResultController;
+
+  static Future<void> appendTask(String url) async {
+    if (taskController != null && !taskController!.isClosed) {
+      taskController!.add(url);
+    } else {
+      final item = await (await Download.getInstance()).createNew(url);
+      item.download = true;
+    }
+  }
+
+  static Future<void> appendTaskFromQueryResult(QueryResult qr) async {
+    if (taskFromQueryResultController != null &&
+        !taskFromQueryResultController!.isClosed) {
+      taskFromQueryResultController!.add(qr);
+    } else {
+      final item = await (await Download.getInstance()).createNew(
+        qr.id().toString(),
+      );
+      item.download = true;
+      item.queryResult = qr;
+    }
+  }
 }
 
 // This page must remain alive until the app is closed.

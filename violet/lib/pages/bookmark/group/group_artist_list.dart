@@ -4,7 +4,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:mdi/mdi.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:violet/component/hitomi/hitomi_nozomi.dart';
@@ -460,7 +459,7 @@ class _GroupArtistListState extends State<GroupArtistList>
                       : Icon(
                           [
                             MdiIcons.formatListText,
-                            Mdi.sortClockDescendingOutline,
+                            MdiIcons.sortClockDescendingOutline,
                             Icons.auto_awesome,
                           ][_filterLevel],
                           color: _filterLevel == 2

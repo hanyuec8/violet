@@ -250,11 +250,14 @@ class SyncManager {
           filter: false,
         );
 
-        await (await DataBaseManager.getInstance()).delete(
-          'HitomiColumnModel',
-          'NOT (${sql.substring(sql.indexOf('WHERE') + 6)})',
-          [],
-        );
+        final whereIdx = sql.indexOf('WHERE');
+        if (whereIdx != -1) {
+          await (await DataBaseManager.getInstance()).delete(
+            'HitomiColumnModel',
+            'NOT (${sql.substring(whereIdx + 6)})',
+            [],
+          );
+        }
       }
     } catch (e, st) {
       // If an error occurs, stops synchronization immediately.

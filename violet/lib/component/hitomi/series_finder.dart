@@ -35,9 +35,9 @@ class SeriesFinder {
 
       if (qr.length == 1) continue;
 
-      HitomiTitleCluster.doClustering(
+      (await HitomiTitleCluster.doClusteringAsync(
         qr.map((e) => e.title() as String).toList(),
-      ).toList().where((element) => element.length > 1).toList().forEach((
+      )).where((element) => element.length > 1).forEach((
         element,
       ) {
         seriesList.add(element.map((e) => qr[e]).toList());
@@ -56,9 +56,9 @@ class SeriesFinder {
 
       if (qr.length == 1) continue;
 
-      HitomiTitleCluster.doClustering(
+      (await HitomiTitleCluster.doClusteringAsync(
         qr.map((e) => e.title() as String).toList(),
-      ).toList().where((element) => element.length > 1).toList().forEach((
+      )).where((element) => element.length > 1).forEach((
         element,
       ) {
         seriesList.add(element.map((e) => qr[e]).toList());
@@ -112,9 +112,9 @@ class SeriesFinder {
 
       if (kv.value.length == 1) continue;
 
-      HitomiTitleCluster.doClustering(
+      (await HitomiTitleCluster.doClusteringAsync(
         kv.value.map((e) => qr[e]).map((e) => e.title() as String).toList(),
-      ).toList().where((element) => element.length > 1).toList().forEach((
+      )).where((element) => element.length > 1).forEach((
         element,
       ) {
         seriesList.add((
@@ -131,9 +131,9 @@ class SeriesFinder {
 
       if (kv.value.length == 1) continue;
 
-      HitomiTitleCluster.doClustering(
+      (await HitomiTitleCluster.doClusteringAsync(
         kv.value.map((e) => qr[e]).map((e) => e.title() as String).toList(),
-      ).toList().where((element) => element.length > 1).toList().forEach((
+      )).where((element) => element.length > 1).forEach((
         element,
       ) {
         seriesList.add((

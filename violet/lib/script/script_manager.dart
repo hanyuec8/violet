@@ -253,11 +253,31 @@ class HitomiImageResolver {
   static const String baseDomain = 'gold-usergeneratedcontent.net';
 
   static _GgData? _cachedGg;
+  static Future<_GgData?>? _ggPendingFuture;
 
   static Future<_GgData?> _getGgData() async {
     if (_cachedGg != null && _cachedGg!.isValid) {
       return _cachedGg;
     }
+    if (_ggPendingFuture != null) {
+      return _ggPendingFuture;
+    }
+    final future = _fetchAndParseGg();
+    _ggPendingFuture = future;
+    try {
+      final result = await future;
+      if (result != null) {
+        _cachedGg = result;
+      }
+      return result;
+    } finally {
+      if (identical(_ggPendingFuture, future)) {
+        _ggPendingFuture = null;
+      }
+    }
+  }
+
+  static Future<_GgData?> _fetchAndParseGg() async {
     try {
       final ggResponse = await http.get('https://ltn.$baseDomain/gg.js');
       if (ggResponse.statusCode != 200) return _cachedGg;
@@ -277,15 +297,15 @@ class HitomiImageResolver {
         o2 = int.parse(oMatches.last.group(1) ?? '1');
       }
 
-      _cachedGg = _GgData(
+      return _GgData(
         bValue: bValue,
         mSet: mSet,
         o1: o1,
         o2: o2,
         cachedAt: DateTime.now(),
       );
-      return _cachedGg;
     } catch (e) {
+      Logger.error('[Hitomi Resolver] gg.js 에러: $e');
       return _cachedGg;
     }
   }
@@ -360,6 +380,13 @@ class HitomiImageResolver {
       return null;
     }
   }
+
+  /// resolveAll 별칭 지원 (모든 호출부와 100% 호환)
+  static Future<ImageList?> resolveAll(
+    int galleryId, [
+    bool useAvif = false,
+  ]) =>
+      getImageList(galleryId, useAvif: useAvif);
 
   static Future<List<String>> getImages(
     int galleryId, {

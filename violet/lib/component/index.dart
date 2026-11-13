@@ -47,6 +47,51 @@ class HentaiIndex {
   // Tag, [<Tag, Similarity>]
   static Map<String, dynamic> relatedTag = <String, dynamic>{};
 
+  /// 특정 태그 그룹과 태그 이름에 해당하는 카운트를 안전하게 반환합니다.
+  /// 데이터가 없거나 group/name이 null인 경우 0을 반환하여 런타임 에러를 방지합니다.
+  static int getCount(String? group, String? name) {
+    if (group == null || name == null) return 0;
+    final groupData = tagCount?[group];
+    if (groupData is Map) {
+      final count = groupData[name];
+      if (count is num) {
+        return count.toInt();
+      }
+      if (count is String) {
+        return int.tryParse(count) ?? 0;
+      }
+    }
+    return 0;
+  }
+
+  /// 특정 태그 그룹의 전체 맵을 `Map<String, int>` 형태로 안전하게 변환하여 반환합니다.
+  /// 유효하지 않은 그룹이거나 데이터가 없는 경우 null을 반환합니다.
+  static Map<String, int>? getGroupMap(String group) {
+    final groupData = tagCount?[group];
+    if (groupData is Map<String, int>) {
+      return groupData;
+    }
+    if (groupData is Map) {
+      final result = <String, int>{};
+      for (final entry in groupData.entries) {
+        final key = entry.key?.toString();
+        if (key == null) continue;
+
+        final value = entry.value;
+        if (value is num) {
+          result[key] = value.toInt();
+        } else if (value is String) {
+          final parsed = int.tryParse(value);
+          if (parsed != null) {
+            result[key] = parsed;
+          }
+        }
+      }
+      return result;
+    }
+    return null;
+  }
+
   /// 지원되는 표준 언어 목록 (영문 식별자, 한글 표기)
   static const supportedLanguages = <(String, String)>[
     ('korean', '한국어'),
@@ -365,12 +410,7 @@ class HentaiIndex {
           final key = 'lang:${item.$1}';
           if (!seen.contains(key)) {
             seen.add(key);
-            int count = 0;
-            if (tagCount != null &&
-                tagCount!.containsKey('lang') &&
-                tagCount!['lang'].containsKey(item.$1)) {
-              count = (tagCount!['lang'][item.$1] as num).toInt();
-            }
+            final count = getCount('lang', item.$1);
             results.add((
               DisplayedTag(
                 group: 'lang',
@@ -391,12 +431,7 @@ class HentaiIndex {
       if (seen.contains(key)) continue;
       seen.add(key);
 
-      int count = 0;
-      if (tagCount != null &&
-          tagCount!.containsKey(tag.group) &&
-          tagCount![tag.group].containsKey(tag.name)) {
-        count = (tagCount![tag.group][tag.name] as num).toInt();
-      }
+      final count = getCount(tag.group, tag.name);
       results.add((tag, count));
     }
 
@@ -508,12 +543,7 @@ class HentaiIndex {
         final key = '$group:$item';
         if (!seen.contains(key)) {
           seen.add(key);
-          int count = 0;
-          if (tagCount != null &&
-              tagCount!.containsKey(group) &&
-              tagCount![group].containsKey(item)) {
-            count = (tagCount![group][item] as num).toInt();
-          }
+          final count = getCount(group, item);
           if (count < minCount) continue;
           results.add((
             DisplayedTag(
@@ -602,12 +632,7 @@ class HentaiIndex {
       final key = '${tag.group}:${tag.name}';
       if (!seen.contains(key)) {
         seen.add(key);
-        int count = 0;
-        if (tagCount != null &&
-            tagCount!.containsKey(tag.group) &&
-            tagCount![tag.group].containsKey(tag.name)) {
-          count = (tagCount![tag.group][tag.name] as num).toInt();
-        }
+        final count = getCount(tag.group, tag.name);
         results.add((tag, count));
       }
     }
@@ -843,12 +868,7 @@ class HentaiIndex {
         final fuzzed = TagTranslate.containsFuzzingTotal(prefix);
         final results = <(DisplayedTag, int, int)>[];
         for (final item in fuzzed) {
-          int count = 0;
-          if (tagCount != null &&
-              tagCount!.containsKey(item.$1.group) &&
-              tagCount![item.$1.group].containsKey(item.$1.name)) {
-            count = (tagCount![item.$1.group][item.$1.name] as num).toInt();
-          }
+          final count = getCount(item.$1.group, item.$1.name);
           results.add((item.$1, count, item.$2));
         }
         results.sort((a, b) => a.$3.compareTo(b.$3));
@@ -861,15 +881,18 @@ class HentaiIndex {
     Map<String, dynamic> map,
     String artist,
   ) {
-    var rr = map[artist];
-    var result = <(String, double)>[];
+    final rr = map[artist];
+    if (rr == null) return const <(String, double)>[];
+    final result = <(String, double)>[];
 
     map.forEach((key, value) {
       if (artist == key) return;
       if (key.toLowerCase() == 'n/a') return;
 
-      var dist = Distance.cosineDistance(rr, value);
-      result.add((key, dist));
+      final dist = Distance.cosineDistance(rr, value);
+      if (dist > 0.00001) {
+        result.add((key, dist));
+      }
     });
 
     result.sort((x, y) => y.$2.compareTo(x.$2));

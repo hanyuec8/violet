@@ -1,6 +1,8 @@
 // This source code is a part of Project Violet.
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
+import 'dart:isolate';
+
 import 'package:collection/collection.dart';
 import 'package:kdtree/kdtree.dart';
 import 'package:violet/algorithm/disjointset.dart';
@@ -99,13 +101,14 @@ class HitomiTitleCluster {
 
     var result = join.values.toList();
 
-    // result.forEach((element) {
-    //   print('------------');
-    //   element.forEach((element) {
-    //     print(titles[element]);
-    //   });
-    // });
-
     return result;
+  }
+
+  /// 메인 UI 스레드 프리징을 방지하기 위한 비동기 백그라운드 클러스터링
+  static Future<List<List<int>>> doClusteringAsync(List<String> titles) async {
+    if (titles.length <= 20) {
+      return doClustering(titles);
+    }
+    return await Isolate.run(() => doClustering(titles));
   }
 }

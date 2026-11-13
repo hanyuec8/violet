@@ -1,8 +1,6 @@
 // This source code is a part of Project Violet.
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
-// ignore_for_file: use_build_context_synchronously
-
 import 'dart:async';
 import 'dart:io';
 
@@ -25,6 +23,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:violet/component/index.dart';
 import 'package:violet/component/hitomi/population.dart';
 import 'package:violet/component/hitomi/tag_translate.dart';
+import 'package:violet/component/hitomi/artists.dart';
 import 'package:violet/database/user/bookmark.dart';
 import 'package:violet/database/user/record.dart';
 import 'package:violet/downloader/isolate_downloader.dart';
@@ -94,6 +93,7 @@ class _SplashPageState extends State<SplashPage> {
       if (Platform.isAndroid &&
           await Permission.manageExternalStorage.request() ==
               PermissionStatus.denied) {
+        if (!mounted) return;
         await showOkDialog(context, '파일 권한을 허용하지 않으면 다운로드 기능을 이용할 수 없습니다.');
       }
 
@@ -170,6 +170,7 @@ class _SplashPageState extends State<SplashPage> {
       await HentaiIndex.init();
       _changeMessage('loading translate...');
       await TagTranslate.init();
+      await Artists.init();
       // Population은 백그라운드에서 비동기 로딩하여 스플래시 지연을 없앰
       unawaited(Population.ensureLoaded());
       // Related(20MB JSON)는 작품 상세페이지에서 필요할 때 온디맨드로 로드됨
@@ -242,6 +243,7 @@ class _SplashPageState extends State<SplashPage> {
       }
 
       // We must show main page to user anyway
+      if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/AfterLoading');
     } else {
       setState(() {

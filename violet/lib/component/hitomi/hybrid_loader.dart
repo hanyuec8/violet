@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:sqflite/sqflite.dart';
 import 'package:violet/component/hentai.dart';
 import 'package:violet/component/hitomi/hitomi_nozomi.dart';
 import 'package:violet/component/hitomi/hitomi_parser.dart';
@@ -20,6 +21,35 @@ import 'package:violet/script/script_manager.dart';
 import 'package:violet/settings/settings.dart';
 import 'package:violet/src/rust/api/nozomi.dart' as rust_nozomi;
 
+/// 고정 용량 초과 시 가장 오래된 항목을 자동 제거하는 경량 LRU 맵
+class _LruMap<K, V> {
+  final int capacity;
+  final Map<K, V> _map = <K, V>{};
+
+  _LruMap({this.capacity = 2000});
+
+  V? operator [](K key) {
+    final value = _map.remove(key);
+    if (value != null) {
+      _map[key] = value;
+    }
+    return value;
+  }
+
+  void operator []=(K key, V value) {
+    if (_map.containsKey(key)) {
+      _map.remove(key);
+    } else if (_map.length >= capacity) {
+      _map.remove(_map.keys.first);
+    }
+    _map[key] = value;
+  }
+
+  bool containsKey(K key) => _map.containsKey(key);
+  int get length => _map.length;
+  void clear() => _map.clear();
+}
+
 /// Violet (E-Hentai / 로컬 DB) + Pupil (Hitomi Nozomi Range Request)
 /// 하이브리드 작품 로더
 class HybridLoader {
@@ -34,12 +64,14 @@ class HybridLoader {
     return langs;
   }
 
-  /// 앱 실행 중 유지되는 인메모리 세션 캐시 (앱 종료 시 자동 소멸)
+  /// 앱 실행 중 유지되는 인메모리 세션 캐시 (LRU 최대 2,000건 제한으로 OOM 방지)
   /// 품번(Id) -> 뱃지 소스 ('common' | 'pupil' | 'violet' | 'pupil_only')
-  static final Map<int, String> _sessionBadgeCache = <int, String>{};
+  static final _LruMap<int, String> _sessionBadgeCache =
+      _LruMap<int, String>(capacity: 2000);
 
   /// 품번(Id) -> Hitomi 기본 메타데이터 QueryResult
-  static final Map<int, QueryResult> _sessionMetadataCache = <int, QueryResult>{};
+  static final _LruMap<int, QueryResult> _sessionMetadataCache =
+      _LruMap<int, QueryResult>(capacity: 2000);
 
   /// 작가, 그룹, 시리즈, 캐릭터, 업로더의 최신 작품 목록을
   /// Hitomi Nozomi와 E-Hentai에서 동시에 비동기 수집하여 중복 제거 후 반환합니다.
@@ -1002,24 +1034,48 @@ class HybridLoader {
     return null;
   }
 
+  static final Map<int, String> _pendingDiskWrites = <int, String>{};
+  static Timer? _diskWriteDebounceTimer;
+
   static void cacheMetadata(QueryResult qr) {
     final id = qr.id();
     _sessionMetadataCache[id] = qr;
 
-    // 디스크(user.db) 영구 캐시 비동기 저장
-    Future.microtask(() async {
-      try {
-        final db = await CommonUserDatabase.getInstance();
-        await _ensureArticleCacheTable(db);
-        final jsonStr = jsonEncode(qr.result);
-        await db.insertOrReplace('ArticleCache', {
-          'Id': id,
-          'Data': jsonStr,
-        });
-      } catch (e) {
-        Logger.warning('[HybridLoader.cacheMetadata] disk cache error: $e');
+    // 디스크(user.db) 영구 캐시 250ms 디바운스 Batch 저장 (Write Storm 방지)
+    try {
+      _pendingDiskWrites[id] = jsonEncode(qr.result);
+    } catch (_) {}
+
+    _diskWriteDebounceTimer?.cancel();
+    _diskWriteDebounceTimer = Timer(
+      const Duration(milliseconds: 250),
+      _flushPendingDiskWrites,
+    );
+  }
+
+  static Future<void> _flushPendingDiskWrites() async {
+    if (_pendingDiskWrites.isEmpty) return;
+    final entries = Map<int, String>.from(_pendingDiskWrites);
+    _pendingDiskWrites.clear();
+
+    try {
+      final db = await CommonUserDatabase.getInstance();
+      await _ensureArticleCacheTable(db);
+      final rawDb = db.db;
+      if (rawDb != null && rawDb.isOpen) {
+        final batch = rawDb.batch();
+        for (final entry in entries.entries) {
+          batch.insert(
+            'ArticleCache',
+            {'Id': entry.key, 'Data': entry.value},
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        await batch.commit(noResult: true);
       }
-    });
+    } catch (e) {
+      Logger.warning('[HybridLoader.cacheMetadata] batch disk cache error: $e');
+    }
   }
 
   /// ids 목록 중 이미 ArticleCache(로컬 디스크)에 저장된 메타데이터를 일괄 조회

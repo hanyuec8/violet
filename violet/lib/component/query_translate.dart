@@ -209,6 +209,7 @@ class _QueryTranslator {
         break;
     }
 
+    name = name.replaceAll("'", "''");
     var compare = "$column LIKE '%$name%'";
     if (column == 'Uploader') compare += ' COLLATE NOCASE';
 
@@ -280,7 +281,8 @@ class _QueryTranslator {
   }
 
   String parseTitle(String token, bool negative) {
-    return negative ? "Title NOT LIKE '%$token%'" : "Title LIKE '%$token%'";
+    final sanitized = token.replaceAll("'", "''");
+    return negative ? "Title NOT LIKE '%$sanitized%'" : "Title LIKE '%$sanitized%'";
   }
 
   String parseLogicalExpression() {

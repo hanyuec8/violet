@@ -441,26 +441,45 @@ class _CropBookmarkPageState extends State<CropBookmarkPage> {
   }
 
   void _startCapture() async {
+    if (_isCapturing) return;
+
+    final pixelRatio = MediaQuery.of(
+      context,
+    ).devicePixelRatio.clamp(1.0, 3.0).toDouble();
+
     setState(() => _isCapturing = true);
 
-    // 한 프레임 기다렸다가 렌더링 완료 후 캡처
-    await Future.delayed(Duration(milliseconds: 10000));
-    await Future.delayed(Duration.zero); // flutter 프레임 캐치
+    try {
+      // 위젯 렌더링 완료 후 캡처
+      await WidgetsBinding.instance.endOfFrame;
+      await Future.delayed(const Duration(milliseconds: 300));
+      await WidgetsBinding.instance.endOfFrame;
 
-    RenderRepaintBoundary boundary =
-        _captureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      if (!mounted) return;
 
-    final image = await boundary.toImage(pixelRatio: 10.0);
-    final byteData = await image.toByteData(format: ImageByteFormat.png);
-    if (byteData == null) return;
+      final boundary =
+          _captureKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+      if (boundary == null) return;
 
-    setState(() => _isCapturing = false);
+      final image = await boundary.toImage(pixelRatio: pixelRatio);
+      try {
+        final byteData = await image.toByteData(format: ImageByteFormat.png);
+        if (byteData == null) return;
 
-    final pngBytes = byteData.buffer.asUint8List();
+        final pngBytes = byteData.buffer.asUint8List();
 
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/masonry_capture.png');
-    await file.writeAsBytes(pngBytes);
+        final directory = await getApplicationDocumentsDirectory();
+        final file = File('${directory.path}/masonry_capture.png');
+        await file.writeAsBytes(pngBytes);
+      } finally {
+        image.dispose();
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCapturing = false);
+      }
+    }
   }
 }
 

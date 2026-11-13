@@ -15,7 +15,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:mdi/mdi.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
@@ -219,7 +218,7 @@ class _SettingsPageState extends ThemeSwitchableState<SettingsPage>
           },
         ),
         ListTile(
-          leading: Icon(Mdi.tableArrowRight, color: Settings.majorColor.value),
+          leading: Icon(MdiIcons.tableArrowRight, color: Settings.majorColor.value),
           title: Text(Translations.instance!.trans('exportlog')),
           trailing: const Icon(Icons.keyboard_arrow_right),
           onTap: () async {

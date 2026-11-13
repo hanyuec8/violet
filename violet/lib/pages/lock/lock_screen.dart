@@ -56,6 +56,12 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final header = Text(
       Translations.instance!.trans('pinauth'),
@@ -245,8 +251,13 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
     );
 
     if (dialog != null && dialog) {
-      if (text.text == 'violet.jjang') {
-        if (!mounted) return;
+      final prefs = await SharedPreferences.getInstance();
+      final secondPass = prefs.getString('secondPass');
+      if (!mounted) return;
+
+      if (secondPass != null &&
+          secondPass.isNotEmpty &&
+          text.text == secondPass) {
         await showOkDialog(
           context,
           Translations.instance!.trans('resetpin'),
@@ -258,10 +269,10 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
       } else {
         _controller.forward();
         Future.delayed(const Duration(milliseconds: 300)).then((value) {
+          if (!mounted) return;
           _controller.reverse();
           setState(() {});
         });
-        if (!mounted) return;
         await showOkDialog(
           context,
           Translations.instance!.trans('notcorrectsecondpass'),
@@ -307,6 +318,7 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
     HapticFeedback.heavyImpact();
     _controller.forward();
     Future.delayed(const Duration(milliseconds: 300)).then((value) {
+      if (!mounted) return;
       _controller.reverse();
       _pin = List.filled(4, null);
       setState(() {
@@ -318,6 +330,7 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
   Future<void> passwordRegisterInteraction(SharedPreferences prefs) async {
     await prefs.setString('pinPass', _pin.join());
     Future.delayed(const Duration(milliseconds: 300)).then((value) {
+      if (!mounted) return;
       showToast(
         level: ToastLevel.check,
         message: Translations.instance!.trans('pinisregistered'),
@@ -332,6 +345,7 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
     _pin = List.filled(4, null);
     _message = Translations.instance!.trans('retrypin');
     Future.delayed(const Duration(milliseconds: 300)).then((value) {
+      if (!mounted) return;
       setState(() {});
     });
   }

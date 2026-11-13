@@ -79,6 +79,29 @@ class TagTranslate {
 
     _translateMap = translateMap;
     _reverseAndroMap = reverseAndroMap;
+
+    try {
+      String legacyData;
+      if (Platform.environment.containsKey('FLUTTER_TEST')) {
+        final legacyFile = File(
+          join(Directory.current.path, 'assets/locale/tag/tag_legacy.json'),
+        );
+        legacyData = await legacyFile.readAsString();
+      } else {
+        legacyData = await rootBundle.loadString(
+          'assets/locale/tag/tag_legacy.json',
+        );
+      }
+      final legacyJson = json.decode(legacyData) as Map<String, dynamic>;
+      if (legacyJson.containsKey('tag')) {
+        TagTranslatedRegacy.tagMap =
+            Map<String, String>.from(legacyJson['tag'] as Map);
+      }
+      if (legacyJson.containsKey('series')) {
+        TagTranslatedRegacy.seriesMap =
+            Map<String, String>.from(legacyJson['series'] as Map);
+      }
+    } catch (_) {}
   }
 
   static String of(String classification, String key) {

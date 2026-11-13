@@ -2,7 +2,7 @@
 // Copyright (C) 2020-2024. violet-team. Licensed under the Apache-2.0 License.
 
 import 'package:flutter/material.dart';
-import 'package:mdi/mdi.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:violet/settings/settings.dart';
 import 'package:violet/style/palette.dart';
 
@@ -123,7 +123,7 @@ class _CategoryButtonState extends State<CategoryButton> {
   Widget build(BuildContext context) {
     return InkWell(
       child: ListTile(
-        leading: Icon(Mdi.compassOutline, color: Settings.majorColor.value),
+        leading: Icon(MdiIcons.compassOutline, color: Settings.majorColor.value),
         title: Text(widget.name),
         trailing: Switch(
           value: (stat =

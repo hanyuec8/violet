@@ -321,9 +321,18 @@ class _ArtistInfoPageState extends State<ArtistInfoPage> {
   void _updateStatistics() {
     try {
       final clusterSource = allArticles.isNotEmpty ? allArticles : cc;
-      series = HitomiTitleCluster.doClustering(
-        clusterSource.map((e) => e.title() as String).toList(),
-      ).toList();
+      final titles = clusterSource.map((e) => e.title() as String).toList();
+      if (titles.length <= 20) {
+        series = HitomiTitleCluster.doClustering(titles);
+      } else {
+        HitomiTitleCluster.doClusteringAsync(titles).then((clustered) {
+          if (mounted) {
+            setState(() {
+              series = clustered;
+            });
+          }
+        }).catchError((_) {});
+      }
     } catch (_) {
       series = <List<int>>[];
     }
