@@ -109,7 +109,7 @@ class UpdateManager {
 
   static Future<void> downloadAndInstallApk(BuildContext context) async {
     final updateUrl = UpdateSyncManager.updateUrl;
-    if (updateUrl.isEmpty) {
+    if (updateUrl.isEmpty || !updateUrl.toLowerCase().endsWith('.apk')) {
       _openBrowserReleasePage();
       return;
     }
