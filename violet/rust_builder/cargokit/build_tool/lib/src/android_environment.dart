@@ -189,7 +189,8 @@ class AndroidEnvironment {
           .writeAsStringSync('INPUT(-lgcc)');
     }
 
-    var rustFlags = Platform.environment['CARGO_ENCODED_RUSTFLAGS'] ?? '';
+    var rustFlags = Platform.environment['CARGO_ENCODED_RUSTFLAGS'] ??
+        '--cfg\x1freqwest_unstable';
     if (rustFlags.isNotEmpty) {
       rustFlags = '$rustFlags\x1f';
     }

@@ -172,11 +172,11 @@ class RustBuilder {
   }
 
   Future<Map<String, String>> _buildEnvironment() async {
+    final rustcPath = runCommand(
+      'rustup',
+      ['which', 'rustc', '--toolchain', _toolchain],
+    ).stdout.toString().trim();
     if (target.android == null) {
-      final rustcPath = runCommand(
-        'rustup',
-        ['which', 'rustc', '--toolchain', _toolchain],
-      ).stdout.toString().trim();
       return {'RUSTC': rustcPath};
     } else {
       final sdkPath = environment.androidSdkPath;
@@ -201,7 +201,10 @@ class RustBuilder {
       if (!env.ndkIsInstalled() && environment.javaHome != null) {
         env.installNdk(javaHome: environment.javaHome!);
       }
-      return env.buildEnvironment();
+      return {
+        ...await env.buildEnvironment(),
+        'RUSTC': rustcPath,
+      };
     }
   }
 }

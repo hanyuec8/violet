@@ -3,6 +3,12 @@ setlocal
 
 setlocal ENABLEDELAYEDEXPANSION
 
+if exist "C:\Users\h\.cargo\bin" (
+    set "PATH=C:\Users\h\.cargo\bin;%PATH%"
+    set "RUSTUP_HOME=C:\Users\h\.rustup"
+    set "CARGO_HOME=C:\Users\h\.cargo"
+)
+
 SET BASEDIR=%~dp0
 
 if not exist "%CARGOKIT_TOOL_TEMP_DIR%" (
