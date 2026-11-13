@@ -71,10 +71,16 @@ Future<void> main() async {
       runApp(const MyApp());
     },
     (exception, stack) async {
-      Logger.error('[async-error] E: $exception\n$stack');
+      try {
+        Logger.error('[async-error] E: $exception\n$stack');
+      } catch (_) {
+        print('[async-error] E: $exception\n$stack');
+      }
 
       if (Platform.isAndroid || Platform.isIOS) {
-        await FirebaseCrashlytics.instance.recordError(exception, stack);
+        try {
+          await FirebaseCrashlytics.instance.recordError(exception, stack);
+        } catch (_) {}
       }
     },
   );

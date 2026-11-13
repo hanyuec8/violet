@@ -45,6 +45,7 @@ class Logger {
   // there is no need for mutual exclusion.
   static sync.Lock lock = sync.Lock();
   static late File logFile;
+  static bool _initialized = false;
   static List<LogEvent> events = <LogEvent>[];
 
   static int sessionStartByteOffset = 0;
@@ -81,17 +82,20 @@ class Logger {
         sessionStartByteOffset = len;
       }
     }
+    _initialized = true;
   }
 
   static Future<void> log(String msg) async {
     print(msg);
 
-    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+    if (!Platform.environment.containsKey('FLUTTER_TEST') && _initialized) {
       await lock.synchronized(() async {
-        await logFile.writeAsString(
-          '[${DateTime.now().toUtc()}] $msg\n',
-          mode: FileMode.append,
-        );
+        try {
+          await logFile.writeAsString(
+            '[${DateTime.now().toUtc()}] $msg\n',
+            mode: FileMode.append,
+          );
+        } catch (_) {}
       });
     }
   }
